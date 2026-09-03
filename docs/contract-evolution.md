@@ -31,6 +31,28 @@ The contracts in this repository are deliberately experimental. Their purpose is
   with the identical value (it always hashed the whole canonical
   manifest).
 
+## Change log (revision coherence + hardened bindings)
+
+- Reusable workflow: internal `epi13/mncs-actions/actions/...@main`
+  floats replaced with synchronized immutable full-SHA pins plus
+  `scripts/sync-pins.sh` and `tests/test_revision_coherence.py` (see
+  `docs/revision-coherence.md`). Historical workflow revisions now
+  execute exactly their baked action implementation, never a newer one.
+- `mncs.aggregate-result/1`: `checks[].digest` / `checks[].path` /
+  `provider` / `scope` explicitly described in the schema (digest and
+  path carry patterns) and strictly validated when present by
+  `validate_aggregate_result` (malformed bindings rejected; fields stay
+  optional; extra fields still permitted). Schema and executable
+  validation are mechanically pinned by `tests/test_evidence_bindings.py`.
+- `mncs.check-result/1`: top-level `digest` and reference `path`
+  patterns declared; present-but-malformed digests/paths rejected.
+- Rights projection hardened (`classify_rights_report`): missing or
+  self-contradictory native reports establish no claim
+  (`NOT_ESTABLISHED`, never fabricated); identity mismatch downgrades an
+  otherwise-pass to `FAIL`; unrecognized outcomes stay `UNKNOWN` with a
+  drift note. Mirrored in MNCS by `pressure/rights-projection.mncs`
+  (pinned by `tests/test_mncs_pressure.py`).
+
 ## Change log (portability fix)
 
 - Reusable workflow: `./actions/...` replaced with

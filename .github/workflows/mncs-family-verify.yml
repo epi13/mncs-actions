@@ -23,13 +23,17 @@ name: MNCS family verify
 # self-hosted MNCS workers; hardware-gated checks must report UNKNOWN
 # when their runner is unavailable.
 #
-# Portability: internal actions are referenced as
-# epi13/mncs-actions/actions/...@<revision> so they resolve to the pinned
-# mncs-actions revision when a caller pins this workflow. Do NOT use
-# ./actions/... here: inside a reusable workflow that form resolves to
-# the CALLER repository, which breaks every real family caller.
-# Keep the internal pins in sync with the workflow revision on release
-# (callers pin the workflow; the workflow pins its own actions).
+# Revision coherence (see docs/revision-coherence.md):
+# internal actions are referenced as
+# epi13/mncs-actions/actions/<name>@<pinned-sha> with an immutable
+# full-length commit SHA so a caller pinning workflow revision X always
+# executes exactly the action implementation baked at X -- never a
+# floating branch. Do NOT use ./actions/... here: inside a reusable
+# workflow that form resolves to the CALLER repository, which breaks every
+# real family caller. Do NOT use @main/@vN here: a historical workflow
+# revision must not silently execute a newer action implementation.
+# On release, run scripts/sync-pins.sh <release-sha> so the baked pins
+# equal the release revision, then tag the release.
 
 on:
   workflow_call:
@@ -163,7 +167,7 @@ jobs:
       - name: MNCS validation check
         id: mncs
         if: ${{ inputs.mncs-command != '' }}
-        uses: epi13/mncs-actions/actions/run-check@main
+        uses: epi13/mncs-actions/actions/run-check@2a0df3c751e98bcab3d301d1624e66cc0d6cd264
         with:
           command: ${{ inputs.mncs-command }}
           check-id: ${{ inputs.mncs-check-id }}
@@ -176,7 +180,7 @@ jobs:
       - name: Rights and provenance check
         id: rights
         if: ${{ inputs.rights-command != '' }}
-        uses: epi13/mncs-actions/actions/run-check@main
+        uses: epi13/mncs-actions/actions/run-check@2a0df3c751e98bcab3d301d1624e66cc0d6cd264
         with:
           command: ${{ inputs.rights-command }}
           check-id: ${{ inputs.rights-check-id }}
@@ -189,7 +193,7 @@ jobs:
       - name: Project verification check
         id: project
         if: ${{ inputs.project-command != '' }}
-        uses: epi13/mncs-actions/actions/run-check@main
+        uses: epi13/mncs-actions/actions/run-check@2a0df3c751e98bcab3d301d1624e66cc0d6cd264
         with:
           command: ${{ inputs.project-command }}
           check-id: ${{ inputs.project-check-id }}
@@ -207,7 +211,7 @@ jobs:
       # generic aggregate action is strict about its explicit inputs.
       - name: Aggregate family verdict
         id: aggregate
-        uses: epi13/mncs-actions/actions/aggregate@main
+        uses: epi13/mncs-actions/actions/aggregate@2a0df3c751e98bcab3d301d1624e66cc0d6cd264
         with:
           checks: >-
             ${{ inputs.mncs-command != '' && inputs.mncs-result-file || '' }}

@@ -1,0 +1,86 @@
+mncs 0.6;
+
+// mncs-actions pressure: rights/provenance projection in MNCS.
+//
+// This module expresses the pure deterministic core of
+// lib/mncs_actions.py::classify_rights_report using the authoritative
+// lattice from mncs.core.status.v1 (FAIL > UNKNOWN > PASS):
+//
+//   Pass (coherent, binding ok) -> PASS
+//   Blocked / Invalid           -> FAIL (valid negative established)
+//   PassWithFindings / ReviewRequired / Unknown / Unrecognized -> UNKNOWN
+//   PASS + binding failure      -> FAIL (tampering is Fail, never a pass)
+//
+// Deliberately NOT in MNCS (explicit host escape, no safe surface yet):
+// - reading the native mncs-rp JSON report (filesystem + JSON parsing);
+// - detecting missing/empty outcome fields (string presence over IO bytes);
+// - SHA-256 digest format checks and safe-relative-path checks over
+//   unbounded text (needs bounded text/byte abstractions; see pressure
+//   README capability-gap note);
+// - emitting vs withholding the check-result file (filesystem effects);
+// - GitHub environment capture and artifact upload.
+//
+// Coherence (pass-for-invalid-structure, invalid-for-valid-structure) is
+// expressed here as a boolean gate; the host turns false into NO CLAIM
+// (adapter emits nothing, run-check records NOT_ESTABLISHED) instead of
+// fabricating a verdict. There is intentionally no arm mapping a
+// contradiction to PASS.
+
+module mncs.actions.rights_projection.v01;
+
+use mncs.core.status.v1;
+
+enum RightsOutcome { Pass, PassWithFindings, ReviewRequired, Blocked, Invalid, Unknown, Unrecognized }
+
+enum Truth { No, Yes }
+
+// Coherence gate: the host must establish a claim only when coherent.
+// Pass for a structurally invalid manifest, or Invalid for a structurally
+// valid one, means the report itself is malformed (no claim).
+fn is_coherent(outcome: RightsOutcome, structurally_valid: Truth) -> (result: bool) {
+    return match outcome {
+        RightsOutcome.Pass => match structurally_valid {
+            Truth.Yes => true,
+            Truth.No => false,
+        },
+        RightsOutcome.Invalid => match structurally_valid {
+            Truth.Yes => false,
+            Truth.No => true,
+        },
+        RightsOutcome.PassWithFindings => true,
+        RightsOutcome.ReviewRequired => true,
+        RightsOutcome.Blocked => true,
+        RightsOutcome.Unknown => true,
+        RightsOutcome.Unrecognized => true,
+    };
+}
+
+// Pure projection for coherent reports. Unrecognized vocabulary stays
+// UNKNOWN (never PASS); the host records the drift note.
+fn project(outcome: RightsOutcome) -> (result: Status) {
+    return match outcome {
+        RightsOutcome.Pass => Status.PASS,
+        RightsOutcome.Blocked => Status.FAIL,
+        RightsOutcome.Invalid => Status.FAIL,
+        RightsOutcome.PassWithFindings => Status.UNKNOWN,
+        RightsOutcome.ReviewRequired => Status.UNKNOWN,
+        RightsOutcome.Unknown => Status.UNKNOWN,
+        RightsOutcome.Unrecognized => Status.UNKNOWN,
+    };
+}
+
+record BoundClaim { claim: Status, binding_ok: Truth }
+
+// Binding failure downgrades an established PASS to FAIL; every other
+// claim passes through unchanged. There is no arm that turns UNKNOWN
+// into PASS or deletes FAIL.
+fn apply_binding(observed: BoundClaim) -> (result: Status) {
+    return match observed.claim {
+        Status.PASS => match observed.binding_ok {
+            Truth.Yes => Status.PASS,
+            Truth.No => Status.FAIL,
+        },
+        Status.FAIL => Status.FAIL,
+        Status.UNKNOWN => Status.UNKNOWN,
+    };
+}

@@ -28,8 +28,16 @@ producer revision
 - Aggregate evidence preserves component bindings: each consumed
   check-result contributes its SHA-256 and path to `aggregate-result.json`
   (`checks[].digest`/`path`) and to the manifest `references[]`
-  (`kind: check-result`). This is generic plumbing for future ChangeSet
-  evidence graphs, not Commons/rights semantics.
+  (`kind: check-result`). Both fields are optional but strict when
+  present: `digest` must be hex64 or `sha256:`-prefixed hex64, and `path`
+  must be a safe relative path (no absolute paths, no `..`, no
+  backslashes). Malformed bindings are rejected, never silently
+  accepted; unknown additive fields stay permitted. The executable
+  validator (`lib/mncs_actions.py::validate_aggregate_result`) is
+  authoritative and mechanically aligned with
+  `schemas/aggregate-result.schema.json` (see
+  `tests/test_evidence_bindings.py`). This is generic plumbing for
+  future ChangeSet evidence graphs, not Commons/rights semantics.
 
 ## Naming correction
 

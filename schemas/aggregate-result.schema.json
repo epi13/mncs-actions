@@ -38,7 +38,17 @@
           "verdict": { "enum": ["PASS", "FAIL", "UNKNOWN"] },
           "required": { "type": "boolean" },
           "provider": { "type": "string" },
-          "scope": { "type": "string" }
+          "scope": { "type": "string" },
+          "digest": {
+            "type": "string",
+            "pattern": "^(sha256:)?[a-f0-9]{64}$",
+            "description": "SHA-256 of the exact consumed check-result bytes (bare hex64 or sha256:-prefixed). Optional; when present it must be well-formed. mncs-actions carries it; the owning provider defines its meaning."
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^(?!/)(?!^[A-Za-z]:)(?!.*(^|/)\\.\\.(/|$))(?!.*\\\\)[^\\x00-\\x1F\\x7F]+$",
+            "description": "Safe relative path of the consumed check-result under the declared working directory (no absolute paths, no .. traversal, no backslashes). Optional; when present it must be safe. Executable validation in lib/mncs_actions.py is authoritative for edge cases."
+          }
         },
         "additionalProperties": true
       }
