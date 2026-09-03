@@ -171,3 +171,113 @@ jobs:
           evidence-directory: .mncs/legacy-evidence
           fail-on-unknown: "true"
           artifact-name: mncs-legacy-verify-evidence
+
+  boundary-matrix:
+    # Shell-level boundary matrix: omission vs missing vs FAIL/UNKNOWN vs
+    # explicit-missing vs nested working directory. Complements pytest with
+    # GitHub-runner execution of the exact shipped scripts.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Omitted optional provider stays PASS
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/omitted-optional"
+          rm -rf "$work"; mkdir -p "$work"
+          cp tests/fixtures/check/pass.json "$work/mncs.json"
+          cp tests/fixtures/check/rights-pass.json "$work/rights.json"
+          export GITHUB_OUTPUT="$work/out" GITHUB_STEP_SUMMARY="$work/sum"
+          export GITHUB_REPOSITORY="epi13/mncs-actions" GITHUB_REF="refs/heads/test" GITHUB_SHA="x" GITHUB_WORKFLOW="ci" GITHUB_RUN_ID="1" GITHUB_ACTOR="x" GITHUB_EVENT_NAME="push" RUNNER_NAME="github-hosted"
+          touch "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+          actions/aggregate/aggregate.sh --checks "mncs.json rights.json" --required "mncs-validation,rights-provenance" --optional "project-tests" --evidence-dir "$work/agg" --working-dir "$work" --boundary "omitted-optional"
+          grep -q '^verdict=PASS$' "$work/out"
+
+      - name: Absent required provider becomes UNKNOWN
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/absent-required"
+          rm -rf "$work"; mkdir -p "$work"
+          cp tests/fixtures/check/pass.json "$work/mncs.json"
+          export GITHUB_OUTPUT="$work/out" GITHUB_STEP_SUMMARY="$work/sum"
+          export GITHUB_REPOSITORY="epi13/mncs-actions" GITHUB_REF="refs/heads/test" GITHUB_SHA="x" GITHUB_WORKFLOW="ci" GITHUB_RUN_ID="1" GITHUB_ACTOR="x" GITHUB_EVENT_NAME="push" RUNNER_NAME="github-hosted"
+          touch "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+          actions/aggregate/aggregate.sh --checks "mncs.json" --required "mncs-validation,rights-provenance" --evidence-dir "$work/agg" --working-dir "$work" --boundary "absent-required"
+          grep -q '^verdict=UNKNOWN$' "$work/out"
+          grep -q '^claim-status=ESTABLISHED$' "$work/out"
+
+      - name: Required FAIL dominates
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/required-fail"
+          rm -rf "$work"; mkdir -p "$work"
+          cp tests/fixtures/check/fail.json "$work/fail.json"
+          cp tests/fixtures/check/unknown.json "$work/unk.json"
+          export GITHUB_OUTPUT="$work/out" GITHUB_STEP_SUMMARY="$work/sum"
+          export GITHUB_REPOSITORY="epi13/mncs-actions" GITHUB_REF="refs/heads/test" GITHUB_SHA="x" GITHUB_WORKFLOW="ci" GITHUB_RUN_ID="1" GITHUB_ACTOR="x" GITHUB_EVENT_NAME="push" RUNNER_NAME="github-hosted"
+          touch "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+          actions/aggregate/aggregate.sh --checks "fail.json unk.json" --required "project-tests,ebpf-backend" --evidence-dir "$work/agg" --working-dir "$work" --boundary "fail-dominance"
+          grep -q '^verdict=FAIL$' "$work/out"
+
+      - name: Explicit missing file stays INVALID
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/explicit-missing"
+          rm -rf "$work"; mkdir -p "$work"
+          cp tests/fixtures/check/pass.json "$work/real.json"
+          export GITHUB_OUTPUT="$work/out" GITHUB_STEP_SUMMARY="$work/sum"
+          export GITHUB_REPOSITORY="epi13/mncs-actions" GITHUB_REF="refs/heads/test" GITHUB_SHA="x" GITHUB_WORKFLOW="ci" GITHUB_RUN_ID="1" GITHUB_ACTOR="x" GITHUB_EVENT_NAME="push" RUNNER_NAME="github-hosted"
+          touch "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+          if actions/aggregate/aggregate.sh --checks "real.json no-such.json" --required "mncs-validation" --evidence-dir "$work/agg" --working-dir "$work" --boundary "explicit-missing"; then
+            echo "::error::expected INVALID for explicitly listed missing file"; exit 1
+          fi
+          grep -q '^verdict=INVALID$' "$work/out"
+          grep -q '^claim-status=NOT_ESTABLISHED$' "$work/out"
+
+      - name: Nested working directory resolves once
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/nested-caller"
+          rm -rf "$root"; mkdir -p "$root/src"
+          cp tests/fixtures/check/pass.json "$root/src/mncs.json"
+          export GITHUB_OUTPUT="$root/out" GITHUB_STEP_SUMMARY="$root/sum"
+          export GITHUB_REPOSITORY="epi13/mncs-actions" GITHUB_REF="refs/heads/test" GITHUB_SHA="x" GITHUB_WORKFLOW="ci" GITHUB_RUN_ID="1" GITHUB_ACTOR="x" GITHUB_EVENT_NAME="push" RUNNER_NAME="github-hosted"
+          touch "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+          # Composite invariant: already inside src, impl root is ".".
+          (cd "$root/src" && "$GITHUB_WORKSPACE/actions/aggregate/aggregate.sh" --checks "mncs.json" --required "mncs-validation" --evidence-dir "agg-ev" --working-dir "." --boundary "nested")
+          grep -q '^verdict=PASS$' "$root/out"
+          test -f "$root/src/agg-ev/aggregate-result.json"
+          test ! -e "$root/src/src"
+
+      - name: Bare caller without local actions still works
+        run: |
+          set -euo pipefail
+          caller="$RUNNER_TEMP/bare-caller"
+          rm -rf "$caller"; mkdir -p "$caller"
+          cp tests/fixtures/check/pass.json "$caller/mncs.json"
+          export GITHUB_OUTPUT="$caller/out" GITHUB_STEP_SUMMARY="$caller/sum"
+          export GITHUB_REPOSITORY="epi13/mncs-actions" GITHUB_REF="refs/heads/test" GITHUB_SHA="x" GITHUB_WORKFLOW="ci" GITHUB_RUN_ID="1" GITHUB_ACTOR="x" GITHUB_EVENT_NAME="push" RUNNER_NAME="github-hosted"
+          touch "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+          (cd "$caller" && "$GITHUB_WORKSPACE/actions/aggregate/aggregate.sh" --checks "mncs.json" --required "mncs-validation" --evidence-dir "agg" --working-dir "." --boundary "bare")
+          grep -q '^verdict=PASS$' "$caller/out"
+
+  reusable-smoke:
+    # Exercises the portable reusable workflow itself (absolute
+    # epi13/mncs-actions/...@main internal refs) with an omitted optional
+    # provider. Proves the workflow resolves independently of caller contents.
+    uses: ./.github/workflows/mncs-family-verify.yml
+    with:
+      required-checks: mncs-validation,rights-provenance
+      optional-checks: project-tests
+      boundary: ci-reusable-smoke
+      fail-on-unknown: true
+      mncs-command: mkdir -p .mncs && python3 adapters/validator_adapter.py --input tests/fixtures/validator/valid-pass.json --output .mncs/mncs-check.json --check-id mncs-validation --provider mncs-validator-rs
+      rights-command: mkdir -p .mncs && python3 adapters/rights_adapter.py --input tests/fixtures/rights/pass.json --output .mncs/rights-check.json --check-id rights-provenance --provider mncs-rights-provenance
+      project-command: ""
+      upload-artifacts: false

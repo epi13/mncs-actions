@@ -19,7 +19,11 @@ Primitives:
   aggregate verdict with explicit required/optional policy.
 - `.github/workflows/mncs-family-verify.yml`: reusable family workflow
   composing the above (`mncs-validation`, `rights-provenance`,
-  `project-tests`, optional backends).
+  `project-tests`, optional backends). Internal actions use
+  `epi13/mncs-actions/actions/...@<revision>` so caller pins resolve
+  portably; empty provider commands mean intentionally absent (absent
+  optional = no effect, absent required = `UNKNOWN`), while explicitly
+  listed-but-missing files stay `INVALID`.
 
 ~~~yaml
 - uses: epi13/mncs-actions/actions/verify@<pinned-revision>

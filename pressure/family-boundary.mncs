@@ -1,0 +1,34 @@
+mncs 0.6;
+
+// mncs-actions pressure: family boundary dominance in MNCS.
+//
+// This module expresses the same dominance the host implementation
+// enforces in lib/mncs_actions.py::aggregate_verdict, using the
+// authoritative lattice from mncs.core.status.v1 (FAIL > UNKNOWN > PASS).
+//
+// Purpose is language pressure, not replacement: pure verdict combination
+// CAN be expressed in MNCS today; process execution, filesystem access,
+// hashing, GitHub environment capture, and JSON canonicalization CANNOT
+// (no safe observable MNCS surface yet), so those remain explicit host
+// escape in actions/*/run scripts + lib/mncs_actions.py.
+
+module mncs.actions.boundary.v01;
+
+use mncs.core.status.v1;
+
+record RequiredPair { first: Status, second: Status }
+
+// Required FAIL dominates; else required UNKNOWN dominates; else PASS.
+// Mirrors aggregate_verdict for two required checks.
+fn required_boundary(pair: RequiredPair) -> (result: Status) {
+    return dominate(pair.first, pair.second);
+}
+
+record ScopedObservation { boundary: Status, optional: Status }
+
+// Optional checks never decide the boundary. They are observed separately
+// and stay visible in unresolved; this function returns the boundary
+// unchanged to prove the type is carried without deciding.
+fn observe_optional(state: ScopedObservation) -> (result: Status) {
+    return state.boundary;
+}

@@ -18,6 +18,7 @@ permissions:
 
 jobs:
   mncs:
+    # Pin a reviewed commit or release tag in production; @main floats.
     uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@main
     with:
       required-checks: mncs-validation,rights-provenance,project-tests
