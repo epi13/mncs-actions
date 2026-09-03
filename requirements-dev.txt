@@ -1,0 +1,9 @@
+# Pinned development/test dependencies. Runtime actions use Python's standard library.
+check-jsonschema==0.38.0
+jsonschema==4.23.0
+pytest==8.4.2
+pyyaml==6.0.3
+
+# Required only by the fixed-revision MNCS validator canary.
+cryptography==46.0.7
+rfc8785==0.1.4

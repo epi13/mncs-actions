@@ -79,6 +79,12 @@ uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@<40-hex-sha>
 - Re-running `scripts/sync-pins.sh` with the baked SHA is a no-op
   (single source of truth, no hidden pins or stale binding file).
 - Examples document SHA pinning and never `@main` for production use.
+- `scripts/check-action-pins.py` scans executable workflow and composite-action
+  YAML, requiring every remote `uses:` reference (including third-party
+  actions) to use a lowercase full commit SHA. Release/tag comments next to
+  those lines preserve maintenance readability. Development package versions
+  are pinned in `requirements-dev.txt`; the hosted runner image remains
+  mutable and is recorded as provenance rather than misrepresented as pinned.
 
 ## Future evolution
 

@@ -67,3 +67,18 @@ Public PR validation stays on GitHub-hosted runners. Trusted experiment
 dispatch is a separate trust domain and never executes untrusted PR code
 on privileged workers. Evidence records runner identity but grants no
 promotion authority; Forge/MNCDS/Commons own promotion semantics.
+
+## Fixed-revision family canary
+
+`family-contract-canary.yml` is the CI integration path for the live sibling
+contracts. It checks out MNCS, rights/provenance, MNCDS, Commons,
+mncs-language, and Forge at the exact SHAs in `family-contracts.json`, then
+runs the adapter canaries and verifies the checked-out contract artifacts.
+The canary fails closed when a required checkout or test is absent; a passing
+job therefore means the fixed revisions were actually exercised, not that a
+local test suite happened to skip unavailable repositories.
+
+This job is deterministic with respect to sibling revisions and action
+dependencies. It still runs on `ubuntu-latest`, whose image and toolchain are
+not immutable, and its evidence is therefore bounded rather than absolute.
+Moving sibling heads are not silently substituted for the recorded revisions.

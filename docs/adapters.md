@@ -75,6 +75,21 @@ The output retains a digest reference to the exact lineage bytes. When local
 evidence bytes are available, `--evidence-root` verifies the declared
 SHA-256; unavailable bytes stay `UNKNOWN` rather than becoming `PASS`.
 
+The adapter's canonicalization is the producer-defined
+`mncs-rights-provenance/rfc8785-compatible-v0.3` transport profile. It matches
+the current producer implementation, including finite-number rendering and
+UTF-16BE object-key ordering; it is intentionally not described as a general
+RFC 8785 implementation. Tests compare consumer bytes with the checked-out
+producer and exercise a numeric/Unicode vector. The local derivation relation
+set is copied from the v0.3 producer schema only to reject malformed
+transport; Commons and MNCDS retain semantic ownership.
+
+The six-repository fixed-revision canary is defined in
+`family-contracts.json` and runs in
+`.github/workflows/family-contract-canary.yml`. Its checked revisions are
+deterministic compatibility inputs. A future moving-head drift job would be a
+different evidence class and must not be used as reproducibility proof.
+
 ## Capability gaps and promotion boundaries
 
 The current MNCS Language and MNCDS checkouts expose capability-gap and

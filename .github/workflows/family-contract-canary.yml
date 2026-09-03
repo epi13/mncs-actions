@@ -1,0 +1,120 @@
+name: MNCS family contract canary
+
+# This is deterministic compatibility evidence, not a moving-head family
+# health claim. Every sibling checkout is bound by family-contracts.json.
+# It runs only on GitHub-hosted infrastructure with read-only permissions;
+# no public PR code is sent to privileged/self-hosted MNCS workers.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic-family-canary:
+    # ubuntu-latest is a hosted runner class, not an immutable machine image.
+    # The runner identity remains recorded in any generated evidence.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out mncs-actions PR
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Check out MNCS standard
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/machine-native-complexity-standard
+          ref: 8dcab5f64816cd1994eff39e78f628a6a02bf8a6
+          path: family/mncs-standard
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out rights and provenance
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-rights-provenance
+          ref: 2b43fcf9555a55d4635d343f0d2d9c7191c1dab2
+          path: family/rights-provenance
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out MNCDS
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/machine-native-complexity-development-specification
+          ref: 256bcad7e6cca9333954c2f2f37b3f6da8f1a8bd
+          path: family/mncds
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out Commons
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/MNCS-Commons
+          ref: ead5366fa4700657ef246df88ca17e206dd62845
+          path: family/commons
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out mncs-language
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-language
+          ref: 4f3146a97f92389490d3e8dffdf08266e3390968
+          path: family/mncs-language
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out Forge
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-forge-mcp
+          ref: 805f821f4eea457c3940274750b21774c487d9a1
+          path: family/forge
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Set up Python
+        # actions/setup-python v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+
+      - name: Install pinned canary dependencies
+        run: python3 -m pip install -r requirements-dev.txt
+
+      - name: Run fixed-revision family canaries
+        env:
+          MNCS_ACTIONS_FAMILY_ROOT: ${{ github.workspace }}
+          MNCS_ACTIONS_REQUIRE_FAMILY: "1"
+          MNCS_ACTIONS_MNCS_STANDARD_ROOT: ${{ github.workspace }}/family/mncs-standard
+          MNCS_ACTIONS_RIGHTS_PROVENANCE_ROOT: ${{ github.workspace }}/family/rights-provenance
+          MNCS_ACTIONS_MNCDS_ROOT: ${{ github.workspace }}/family/mncds
+        run: >-
+          python3 -m pytest -q tests/test_changeset_adapter.py
+          tests/test_family_contracts.py
+          --junitxml "$RUNNER_TEMP/mncs-family-canary.xml"
+
+      - name: Fail if a required family canary skipped
+        env:
+          JUNIT_XML: ${{ runner.temp }}/mncs-family-canary.xml
+        run: |
+          python3 - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse(os.environ["JUNIT_XML"]).getroot()
+          skipped = int(root.attrib.get("skipped", "0"))
+          if skipped:
+              raise SystemExit(f"{skipped} required family canary test(s) skipped")
+          print(f"executed {root.attrib.get('tests', '0')} family canary tests")
+          PY
