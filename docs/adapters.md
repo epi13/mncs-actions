@@ -88,7 +88,31 @@ The six-repository fixed-revision canary is defined in
 `family-contracts.json` and runs in
 `.github/workflows/family-contract-canary.yml`. Its checked revisions are
 deterministic compatibility inputs. A future moving-head drift job would be a
-different evidence class and must not be used as reproducibility proof.
+different evidence class and must not be used as reproducibility proof. The
+implemented `moving-head-family-drift.yml` resolves current `main` heads to a
+candidate SHA set and preserves this distinction; `family-contract-advance.yml`
+provides the manual review path without mutating the fixed contract.
+
+## Owner-native family integration runner
+
+`scripts/run_family_contracts.py` is the fixed/candidate integration harness.
+It verifies that every checkout and declared artifact is at the exact contract
+SHA, then invokes the owner surfaces and writes both native reports and
+independent check-results:
+
+- MNCS standard manifest validation and MNCDS development-record validation;
+- rights/provenance JSON validation;
+- Commons' `scripts/validate_compat.py` plus its family producer registry;
+- `mncs-language` `source-study` for the family boundary, rights projection,
+  and ChangeSet pressure programs;
+- Forge's native Forge Cell document validator and assurance assessor.
+
+The runner does not recreate any of those semantics. It preserves native
+digests, producer revisions, and unresolved details in the evidence bundle.
+The current source studies report unresolved compiler obligations and the
+reference Forge Cell reports unmet process isolation, so those projections are
+`UNKNOWN` until their owning repositories establish more. That is deliberate
+pressure evidence rather than an Actions-level waiver.
 
 ## Capability gaps and promotion boundaries
 

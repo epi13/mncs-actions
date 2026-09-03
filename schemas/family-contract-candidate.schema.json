@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-actions/schemas/family-contract-candidate.schema.json",
+  "title": "MNCS family moving-head candidate",
+  "description": "A moving-head observation tied to an existing fixed family contract. This document has no promotion authority.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "source",
+    "base_schema_version",
+    "base_contract_digest",
+    "branch",
+    "repositories"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "mncs-actions.family-contract-candidate/1"
+    },
+    "source": {
+      "const": "moving-head"
+    },
+    "base_schema_version": {
+      "const": "mncs-actions.family-contracts/1"
+    },
+    "base_contract_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "branch": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^\\S+$"
+    },
+    "repositories": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/repository"
+      }
+    }
+  },
+  "$defs": {
+    "sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?![./])[^\\\\\\u0000-\\u001f\\u007f]+$"
+    },
+    "repository": {
+      "type": "object",
+      "required": [
+        "name",
+        "repository",
+        "branch",
+        "base_revision",
+        "candidate_revision",
+        "checkout_path",
+        "artifacts"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repository": {
+          "type": "string",
+          "pattern": "^[^/\\s]+/[^/\\s]+$"
+        },
+        "branch": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^\\S+$"
+        },
+        "base_revision": {
+          "$ref": "#/$defs/sha"
+        },
+        "candidate_revision": {
+          "$ref": "#/$defs/sha"
+        },
+        "checkout_path": {
+          "$ref": "#/$defs/safePath"
+        },
+        "artifacts": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/safePath"
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -37,13 +37,15 @@ jobs:
           python3 -m json.tool schemas/check-result.schema.json >/dev/null
           python3 -m json.tool schemas/aggregate-result.schema.json >/dev/null
           python3 -m json.tool schemas/badge.schema.json >/dev/null
+          python3 -m json.tool schemas/family-contract-candidate.schema.json >/dev/null
+          python3 scripts/family_contracts.py validate family-contracts.json
           for fixture in tests/fixtures/verify/pass.json tests/fixtures/verify/fail.json tests/fixtures/verify/unknown.json tests/fixtures/check/pass.json; do
             python3 -m json.tool "$fixture" >/dev/null
           done
 
       - name: Validate contracts against schemas
         run: |
-          pip install -r requirements-dev.txt
+          pip install --require-hashes -r requirements-dev.lock
           check-jsonschema --schemafile schemas/verification-result.schema.json tests/fixtures/verify/pass.json tests/fixtures/verify/fail.json tests/fixtures/verify/unknown.json tests/fixtures/verify/extra-fields.json
           check-jsonschema --schemafile schemas/check-result.schema.json tests/fixtures/check/pass.json tests/fixtures/check/fail.json tests/fixtures/check/unknown.json
           # Negative fixtures must fail schema or canonical validation; assert the canonical lib rejects them.
@@ -51,7 +53,7 @@ jobs:
 
       - name: Run deterministic test matrix
         run: |
-          pip install -r requirements-dev.txt
+          pip install --require-hashes -r requirements-dev.lock
           python3 -m pytest tests/ -q
 
       - name: Exercise verify action locally (PASS)
