@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-actions/blob/main/schemas/execution-receipt.schema.json",
+  "title": "MNCS Execution Receipt",
+  "description": "A valid machine-readable receipt for a verifier/provider execution. A receipt is VALID even when no verification claim was established; claim_status distinguishes ESTABLISHED from NOT_ESTABLISHED. Malformed output is NOT_ESTABLISHED, never UNKNOWN.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "command_exit_code",
+    "claim_status",
+    "provenance",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "mncs.execution-receipt/1"
+    },
+    "kind": {
+      "const": "execution-receipt"
+    },
+    "command": {
+      "type": "string"
+    },
+    "command_exit_code": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "claim_status": {
+      "enum": [
+        "ESTABLISHED",
+        "NOT_ESTABLISHED"
+      ]
+    },
+    "claim": {
+      "type": "object",
+      "properties": {
+        "verdict": {
+          "type": "string"
+        },
+        "error_code": {
+          "type": "string"
+        },
+        "error_details": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "result": {
+      "type": "object",
+      "properties": {
+        "present": {
+          "type": "boolean"
+        },
+        "path": {
+          "type": "string"
+        },
+        "valid": {
+          "type": "boolean"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "repository": { "type": "string" },
+        "ref": { "type": "string" },
+        "commit": { "type": "string" },
+        "workflow": { "type": "string" },
+        "run_id": { "type": "string" },
+        "actor": { "type": "string" },
+        "event": { "type": "string" },
+        "runner": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "produced_files": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256"],
+        "properties": {
+          "path": { "type": "string" },
+          "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true
+}

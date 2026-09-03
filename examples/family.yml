@@ -1,0 +1,35 @@
+name: MNCS family verification example
+
+# Language-heavy repository: MNCS validation, rights/provenance, and
+# project tests are required; the eBPF backend stays optional so its
+# UNKNOWN remains visible without blocking the declared boundary.
+#
+# Documentation/spec repositories would require contract/link checks
+# instead of backend checks; Forge would additionally require pressure
+# contract and bounded-evaluator checks.  "Not applicable" means the
+# command is left empty and the check is absent -- never recorded as PASS.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mncs:
+    uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@main
+    with:
+      required-checks: mncs-validation,rights-provenance,project-tests
+      optional-checks: ebpf-backend
+      boundary: family
+      fail-on-unknown: true
+      mncs-command: python3 scripts/mncs-check.py --output .mncs/mncs-check.json
+      mncs-check-id: mncs-validation
+      mncs-provider: mncs-validator-rs
+      rights-command: mncs-rp validate RIGHTS.json --findings-are-not-failures > /tmp/rp.json; python3 ./adapters/rights_adapter.py --input /tmp/rp.json --output .mncs/rights-check.json
+      rights-check-id: rights-provenance
+      rights-provider: mncs-rights-provenance
+      project-command: ./scripts/project-verify.sh
+      project-check-id: project-tests
+      project-provider: project-verifier

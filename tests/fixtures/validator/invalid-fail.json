@@ -1,0 +1,8 @@
+{
+  "valid": false,
+  "schema_version": "0.2",
+  "computed_status": "FAIL",
+  "checked_files": 2,
+  "issues": ["reference hash mismatch: machine/image.bin"],
+  "unsupported": []
+}

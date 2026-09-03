@@ -1,0 +1,43 @@
+name: MNCS aggregate example
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: MNCS check
+        uses: epi13/mncs-actions/actions/run-check@main
+        with:
+          command: ./scripts/mncs-check.sh
+          check-id: mncs-validation
+          provider: mncs-validator-rs
+          result-file: .mncs/mncs-check.json
+          evidence-directory: .mncs/mncs-evidence
+          upload-artifact: "false"
+
+      - name: Optional backend check (UNKNOWN allowed)
+        uses: epi13/mncs-actions/actions/run-check@main
+        with:
+          command: ./scripts/backend-check.sh || true
+          check-id: ebpf-backend
+          provider: mncs-language
+          result-file: .mncs/ebpf-check.json
+          evidence-directory: .mncs/ebpf-evidence
+          upload-artifact: "false"
+
+      - name: Aggregate declared boundary
+        uses: epi13/mncs-actions/actions/aggregate@main
+        with:
+          checks: .mncs/mncs-check.json .mncs/ebpf-check.json
+          required: mncs-validation
+          optional: ebpf-backend
+          boundary: backend-scoped-release
+          evidence-directory: .mncs/aggregate-evidence
+          fail-on-unknown: "true"

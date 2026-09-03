@@ -1,0 +1,5 @@
+{
+  "schema_version": "mncs.check-result/1",
+  "provider": "mncs-validator-rs",
+  "verdict": "PASS"
+}

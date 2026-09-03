@@ -1,0 +1,9 @@
+{
+  "schema_version": "mncs.verification-result/1",
+  "verdict": "FAIL",
+  "summary": "A required check failed.",
+  "checks": [
+    {"id": "compile", "verdict": "PASS"},
+    {"id": "unit", "verdict": "FAIL", "summary": "Tests failed."}
+  ]
+}

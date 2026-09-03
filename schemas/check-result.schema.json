@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-actions/blob/main/schemas/check-result.schema.json",
+  "title": "MNCS Check Result",
+  "description": "Composable result produced by one independent family-owned provider. The orchestration layer validates this contract; the provider owns the semantics. Extra fields are permitted and ignored.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "provider",
+    "verdict"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "mncs.check-result/1"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "provider": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verdict": {
+      "enum": ["PASS", "FAIL", "UNKNOWN"]
+    },
+    "scope": {
+      "type": "string"
+    },
+    "claim": {
+      "type": "string"
+    },
+    "summary": {
+      "type": "string"
+    },
+    "contract_revision": {
+      "type": "string"
+    },
+    "producer_revision": {
+      "type": "string"
+    },
+    "digest": {
+      "type": "string"
+    },
+    "unresolved": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "references": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidenceReference"
+      }
+    },
+    "evidence_refs": {
+      "type": "array",
+      "description": "Deprecated alias for references; consumers should prefer references."
+    }
+  },
+  "$defs": {
+    "evidenceReference": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "producer": { "type": "string" },
+        "contract_revision": { "type": "string" },
+        "schema_revision": { "type": "string" },
+        "producer_revision": { "type": "string" },
+        "path": { "type": "string" },
+        "uri": { "type": "string" },
+        "digest": { "type": "string", "pattern": "^(sha256:)?[a-f0-9]{64}$" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

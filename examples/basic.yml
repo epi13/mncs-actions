@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: read
-  actions: write
 
 jobs:
   verify:
@@ -16,7 +15,8 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run project verification
-        uses: epi13/mncs-actions/actions/verify@bootstrap/verification-action
+        # Pin a reviewed commit or release tag in production.
+        uses: epi13/mncs-actions/actions/verify@main
         with:
           command: ./scripts/verify-mncs.sh
           result-file: .mncs/verification-result.json

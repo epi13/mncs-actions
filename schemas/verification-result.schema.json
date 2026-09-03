@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/epi13/mncs-actions/blob/main/schemas/verification-result.schema.json",
   "title": "MNCS Verification Result",
-  "description": "The experimental v1 result contract consumed by the mncs-actions verify action.",
+  "description": "The experimental v1 result contract consumed by the mncs-actions verify action. Extra fields are permitted and ignored. Semantic rule enforced by the canonical validator (lib/mncs_actions.py) in addition to this schema: top-level PASS must not contain a failing check; such a document is structurally invalid (NOT_ESTABLISHED), not UNKNOWN.",
   "type": "object",
   "required": [
     "schema_version",

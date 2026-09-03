@@ -1,0 +1,127 @@
+name: MNCS Aggregate
+description: Compose validated check-results into one aggregate PASS/FAIL/UNKNOWN verdict with explicit required/optional policy.
+author: epi13
+
+branding:
+  color: purple
+  icon: git-merge
+
+inputs:
+  checks:
+    description: Whitespace or comma separated list of check-result file paths, relative to working-directory.
+    required: true
+  required:
+    description: Comma separated list of required check ids. Required FAIL -> FAIL; required UNKNOWN/missing -> UNKNOWN; all required PASS -> PASS.
+    required: true
+  optional:
+    description: Comma separated list of optional check ids. Optional UNKNOWN stays visible in unresolved without deciding the boundary.
+    required: false
+    default: ""
+  boundary:
+    description: Declared aggregate boundary name (e.g. family-verify, release).
+    required: false
+    default: default
+  working-directory:
+    description: Directory in which check paths and evidence are resolved.
+    required: false
+    default: .
+  evidence-directory:
+    description: Directory, relative to working-directory, for the aggregate evidence.
+    required: false
+    default: .mncs/aggregate-evidence
+  fail-on-unknown:
+    description: Fail the action when the aggregate verdict is UNKNOWN.
+    required: false
+    default: "true"
+  upload-artifact:
+    description: Upload the aggregate evidence directory as a workflow artifact.
+    required: false
+    default: "true"
+  artifact-name:
+    description: Name of the uploaded aggregate artifact.
+    required: false
+    default: mncs-aggregate-evidence
+
+outputs:
+  verdict:
+    description: Aggregate verdict (PASS/FAIL/UNKNOWN) or INVALID when inputs are missing/invalid.
+    value: ${{ steps.compose.outputs.verdict }}
+  claim-status:
+    description: ESTABLISHED or NOT_ESTABLISHED.
+    value: ${{ steps.compose.outputs.claim-status }}
+  evidence-path:
+    description: Absolute path to the aggregate evidence manifest.
+    value: ${{ steps.compose.outputs.evidence-path }}
+  aggregate-path:
+    description: Absolute path to the aggregate-result document.
+    value: ${{ steps.compose.outputs.aggregate-path }}
+  execution-receipt-path:
+    description: Absolute path to the aggregation execution receipt.
+    value: ${{ steps.compose.outputs.execution-receipt-path }}
+  manifest-digest:
+    description: SHA-256 digest of the canonical aggregate manifest.
+    value: ${{ steps.compose.outputs.manifest-digest }}
+  provenance-digest:
+    description: Deprecated alias for manifest-digest.
+    value: ${{ steps.compose.outputs.provenance-digest }}
+  command-exit-code:
+    description: Always 0 for aggregation itself; check failures are represented in the verdict.
+    value: ${{ steps.compose.outputs.command-exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Compose aggregate verdict
+      id: compose
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        MNCS_CHECKS: ${{ inputs.checks }}
+        MNCS_REQUIRED: ${{ inputs.required }}
+        MNCS_OPTIONAL: ${{ inputs.optional }}
+        MNCS_EVIDENCE_DIRECTORY: ${{ inputs.evidence-directory }}
+        MNCS_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        MNCS_BOUNDARY: ${{ inputs.boundary }}
+      run: |
+        set -euo pipefail
+        "$GITHUB_ACTION_PATH/aggregate.sh" --checks "$MNCS_CHECKS" --required "$MNCS_REQUIRED" --optional "$MNCS_OPTIONAL" --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" --working-dir "$MNCS_WORKING_DIRECTORY" --boundary "$MNCS_BOUNDARY"
+
+    - name: Upload aggregate evidence
+      if: ${{ always() && inputs.upload-artifact == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.working-directory }}/${{ inputs.evidence-directory }}
+        if-no-files-found: error
+
+    - name: Apply aggregate gate
+      if: always()
+      shell: bash
+      env:
+        MNCS_FAIL_ON_UNKNOWN: ${{ inputs.fail-on-unknown }}
+        MNCS_COMPOSE_OUTCOME: ${{ steps.compose.outcome }}
+        MNCS_VERDICT: ${{ steps.compose.outputs.verdict }}
+        MNCS_CLAIM_STATUS: ${{ steps.compose.outputs.claim-status }}
+      run: |
+        set -euo pipefail
+        if [[ "$MNCS_COMPOSE_OUTCOME" != "success" ]]; then
+          echo "::error::The aggregate claim was NOT ESTABLISHED (invalid check inputs)."
+          exit 1
+        fi
+        if [[ "$MNCS_CLAIM_STATUS" == "NOT_ESTABLISHED" || "$MNCS_VERDICT" == "INVALID" ]]; then
+          echo "::error::The aggregate claim was NOT ESTABLISHED."
+          exit 1
+        fi
+        case "$MNCS_VERDICT" in
+          PASS) exit 0 ;;
+          FAIL) echo "::error::Aggregate FAIL (a required check failed)."; exit 1 ;;
+          UNKNOWN)
+            if [[ "$MNCS_FAIL_ON_UNKNOWN" == "true" ]]; then
+              echo "::error::Aggregate UNKNOWN and fail-on-unknown is enabled."
+              exit 1
+            fi
+            echo "::warning::Aggregate UNKNOWN."
+            exit 0
+            ;;
+          *) echo "::error::Invalid aggregate verdict: $MNCS_VERDICT"; exit 1 ;;
+        esac

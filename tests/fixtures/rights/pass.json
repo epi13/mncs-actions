@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.3.0",
+  "manifest": "dogfood/human-specification.json",
+  "structural_valid": true,
+  "issues": [],
+  "manifest_identity_expected": "7552ae1e031a4e27f56bd413c6b6bf8103e2846b00efcb952dda5e6a27091b26",
+  "manifest_identity_matches": true,
+  "policy_profile": "default-canonical-release",
+  "outcome": "pass",
+  "severity": "none",
+  "gate_results": [],
+  "findings": [],
+  "note": "fixture",
+  "legal_conclusion": "NOT_MADE"
+}

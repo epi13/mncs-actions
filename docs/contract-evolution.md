@@ -10,6 +10,27 @@ The contracts in this repository are deliberately experimental. Their purpose is
 - Actions should keep accepting the prior contract for a documented compatibility window when practical.
 - A workflow must not promote an artifact solely because a parser ignored a field it did not understand.
 
+## Change log (this increment)
+
+- `mncs.verification-result/1`: unchanged required fields; clarified that
+  top-level PASS containing a failing check is structurally invalid
+  (enforced by `lib/mncs_actions.py`, documented in the schema
+  description). Extra fields remain permitted and ignored.
+- `mncs.evidence-manifest/1`: additive clarification. `kind` now permits
+  `verification | check | aggregation` (existing `verification` manifests
+  remain valid). Optional `receipt`, `references`, `claim_status`
+  (`ESTABLISHED`), `unresolved`, and `boundary` added; no required field
+  changed.
+- New `mncs.execution-receipt/1`: always emitted, even when no claim is
+  established. `claim_status` distinguishes `ESTABLISHED` from
+  `NOT_ESTABLISHED`.
+- New `mncs.check-result/1` and `mncs.aggregate-result/1`: composable
+  provider contract and required/optional composition.
+- Outputs: added `claim-status`, `execution-receipt-path`, and
+  `manifest-digest`. `provenance-digest` retained as a deprecated alias
+  with the identical value (it always hashed the whole canonical
+  manifest).
+
 ## Pressure loop
 
 ~~~text
