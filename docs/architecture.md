@@ -16,7 +16,7 @@ mncs-actions orchestration
         |
         +--> rights & provenance validation (mncs-rp adapter)
         |
-        +--> ChangeSet / coordination validation (future)
+        +--> ChangeSet / coordination validation (bounded lineage adapter)
         |
         +--> project-specific verification
         |
@@ -48,6 +48,34 @@ orchestrates, invokes, transports, aggregates, and packages evidence.
 - mncs-actions connects those decisions to GitHub events and artifacts.
 
 When a workflow needs information from another repository, it should reference that repository's published contract or emitted artifact. It should not copy the semantics into a shell script merely for convenience.
+
+## Extensible family composition
+
+The three convenience provider inputs in the reusable workflow are retained
+for compatibility. New providers do not require a new hard-coded workflow
+role: a caller runs the domain-owned command, validates/packages its native
+output into `mncs.check-result/1`, and lists the resulting path in
+`additional-checks`. The family workflow requires every supplied check id to
+be declared in exactly one of `required-checks` or `optional-checks`.
+Aggregation uses only the declared required set for the boundary; optional
+outcomes remain visible in `unresolved`.
+
+~~~text
+ChangeSet / coordination record
+  +--> repository @ exact commit
+  |      +--> independent check-result digest
+  +--> rights/provenance record
+  +--> Commons relationship reference
+  |
+  +--> aggregate-result checks[].digest + checks[].path
+~~~
+
+This is transport evidence: `mncs-actions` records which bytes were consumed
+and how they were bound. MNCDS, Commons, rights/provenance, Forge, and MNCS
+retain ownership of the meaning of each native relationship. The current
+bridge targets rights/provenance lineage v0.3 because it is the first
+published machine record carrying the cross-repository relationship; it is
+bounded until MNCDS/Commons publish a dedicated stable ChangeSet contract.
 
 ## Verdict semantics
 

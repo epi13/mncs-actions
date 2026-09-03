@@ -125,6 +125,11 @@ on:
         required: false
         default: .mncs/project-evidence
         type: string
+      additional-checks:
+        description: Whitespace or comma separated paths to precomputed check-result/1 files. Their ids must be listed in required-checks or optional-checks.
+        required: false
+        default: ""
+        type: string
       aggregate-evidence-dir:
         required: false
         default: .mncs/aggregate-evidence
@@ -249,12 +254,14 @@ jobs:
             ${{ inputs.mncs-command != '' && inputs.mncs-result-file || '' }}
             ${{ inputs.rights-command != '' && inputs.rights-result-file || '' }}
             ${{ inputs.project-command != '' && inputs.project-result-file || '' }}
+            ${{ inputs.additional-checks }}
           required: ${{ inputs.required-checks }}
           optional: ${{ inputs.optional-checks }}
           boundary: ${{ inputs.boundary }}
           working-directory: ${{ inputs.working-directory }}
           evidence-directory: ${{ inputs.aggregate-evidence-dir }}
           fail-on-unknown: ${{ inputs.fail-on-unknown }}
+          strict-membership: "true"
           upload-artifact: ${{ inputs.upload-artifacts }}
           artifact-name: mncs-family-evidence
 

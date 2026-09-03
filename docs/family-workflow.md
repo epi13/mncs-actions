@@ -9,6 +9,7 @@ jobs:
     uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@<pinned-sha>
     with:
       required-checks: mncs-validation,rights-provenance,project-tests
+      additional-checks: .mncs/changeset-check.json .mncs/compiler-check.json
 ```
 
 Pin an immutable commit SHA (see `revision-coherence.md`); never `@main`.
@@ -27,6 +28,14 @@ Pin an immutable commit SHA (see `revision-coherence.md`); never `@main`.
   (`INVALID`/`NOT_ESTABLISHED`).
 - Leave a command empty to mark that provider not applicable. Absence is
   never recorded as PASS; only the required set decides.
+- `additional-checks` accepts whitespace/comma-separated paths to already
+  established `mncs.check-result/1` documents. This is the extensibility seam
+  for compiler, backend, ChangeSet, Commons, Forge, capability-gap, and
+  repository-specific providers. Every supplied id must be explicitly listed
+  in `required-checks` or `optional-checks`; duplicate ids, overlapping
+  declarations, malformed results, and unsafe paths fail closed. A provider
+  name is carried as evidence and gains no authority merely by appearing in
+  the workflow.
 - Role guidance:
   - language-heavy: MNCS validation + compiler/backend (scoped) +
     rights/provenance + project tests required; ChangeSet when applicable.
@@ -34,6 +43,25 @@ Pin an immutable commit SHA (see `revision-coherence.md`); never `@main`.
     backend tests not applicable (absent, not PASS).
   - Forge: MNCS validation + rights/provenance + pressure contract +
     bounded evaluator required/scoped; ChangeSet when applicable.
+
+## ChangeSet / coordination bridge
+
+`adapters/changeset_adapter.py` consumes the currently published
+`mncs-rights-provenance` v0.3 lineage record, which is the first machine
+transport carrying the MNCDS/Commons ChangeSet relationships. MNCDS remains
+the owner of ChangeSet semantics and Commons remains the owner of coordination
+record exchange. The adapter only checks the bridge mechanically: supported
+lineage revision and content digest, GitHub repository identities and full
+participant commit SHAs, duplicate participants, relationship vocabulary,
+safe paths, and SHA-256 evidence references. Optional expected
+repository-to-revision bindings and local evidence-byte verification are
+available for canaries.
+
+It emits `changeset-coordination` as an independent `mncs.check-result/1`.
+Malformed, contradictory, or unverifiable input emits no check-result and is
+therefore `NOT_ESTABLISHED`/`INVALID`; a valid record with declared unresolved
+coordination fields is `UNKNOWN`. It never decides promotion or interprets a
+Commons relationship.
 
 Public PR validation stays on GitHub-hosted runners. Trusted experiment
 dispatch is a separate trust domain and never executes untrusted PR code

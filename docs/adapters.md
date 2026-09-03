@@ -54,3 +54,35 @@ check-result; let `run-check` emit `NOT_ESTABLISHED`.
 
 Both adapters exit 2 on malformed native input and validate their output
 with the canonical `validate_check_result` before writing.
+
+## ChangeSet / coordination (`adapters/changeset_adapter.py`)
+
+The current owning repositories describe ChangeSets as an experimental MNCDS
+protocol and Commons as a transport/index, rather than exposing a standalone
+stable ChangeSet schema. The first bounded integration therefore consumes the
+published `mncs-rights-provenance` v0.3 `lineage-record` shape, whose
+`changesets[]` entries preserve the owning ChangeSet identity and exact base
+revisions. The adapter is a transport validator, not a second ChangeSet
+semantic model.
+
+| Native lineage state | Check verdict |
+| --- | --- |
+| digest-bound, structurally complete, no unresolved fields | `PASS` |
+| structurally valid but missing participant/evidence coverage or explicit unresolved fields | `UNKNOWN` |
+| malformed, contradictory, wrong digest/revision, duplicate participant, or unverifiable binding | no check; `NOT_ESTABLISHED` |
+
+The output retains a digest reference to the exact lineage bytes. When local
+evidence bytes are available, `--evidence-root` verifies the declared
+SHA-256; unavailable bytes stay `UNKNOWN` rather than becoming `PASS`.
+
+## Capability gaps and promotion boundaries
+
+The current MNCS Language and MNCDS checkouts expose capability-gap and
+promotion-boundary material, but no stable transport contract that
+`mncs-actions` can validate without becoming a second semantic owner. No
+local schema is invented here. Once an owning contract is stable, its native
+report can be adapted through `additional-checks`; until then, providers may
+carry the existing records as evidence and must leave unresolved capability
+or promotion obligations explicit. A capability gap is evidence of a missing
+capability, never permission to omit a required check, and a runner or badge
+never grants promotion authority.

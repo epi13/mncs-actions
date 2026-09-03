@@ -12,6 +12,7 @@ working_dir="."
 boundary=""
 implementation_revision=""
 carrier_revision=""
+strict_membership="false"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -23,6 +24,7 @@ while [[ $# -gt 0 ]]; do
     --boundary) boundary="$2"; shift 2 ;;
     --implementation-revision) implementation_revision="$2"; shift 2 ;;
     --carrier-revision) carrier_revision="$2"; shift 2 ;;
+    --strict-membership) strict_membership="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 64 ;;
   esac
 done
@@ -43,6 +45,7 @@ MNCS_WORKING_DIR="$working_dir" \
 MNCS_BOUNDARY="$boundary" \
 MNCS_IMPLEMENTATION_REVISION="$implementation_revision" \
 MNCS_CARRIER_REVISION="$carrier_revision" \
+MNCS_STRICT_MEMBERSHIP="$strict_membership" \
 MNCS_LIB_DIR="$LIB_DIR" \
 python3 - <<'PY'
 import json
@@ -65,14 +68,16 @@ from mncs_actions import (  # noqa: E402
     github_provenance,
     resolve_implementation_revision,
     sha256_hex,
+    validate_aggregate_declarations,
     validate_aggregate_result,
     validate_check_result,
 )
 
 
 def parse_csv(value: str) -> list[str]:
-    items = [item.strip() for item in value.split(",")]
-    return [item for item in items if item]
+    if not value.strip():
+        return []
+    return [item.strip() for item in value.split(",")]
 
 
 def parse_file_list(value: str) -> list[str]:
@@ -109,6 +114,7 @@ if revision_error is not None:
 for warning in revision_warnings:
     print(f"::warning::{warning}", file=sys.stderr)
 carrier_revision = os.environ.get("MNCS_CARRIER_REVISION", "")
+strict_membership = os.environ.get("MNCS_STRICT_MEMBERSHIP", "false") == "true"
 if carrier_revision:
     token_error = check_revision_token("carrier_revision", carrier_revision)
     if token_error is not None:
@@ -159,7 +165,7 @@ def append_summary(lines) -> None:
 
 
 check_files = parse_file_list(checks_raw)
-errors: list[str] = []
+errors: list[str] = validate_aggregate_declarations(required, optional)
 loaded: dict[str, dict] = {}
 loaded_meta: dict[str, dict] = {}
 # Empty file list is NOT an error here: it means "no checks supplied".
@@ -200,6 +206,13 @@ for rel in check_files:
         continue
     loaded[check_id] = parsed
     loaded_meta[check_id] = {"rel": rel, "sha256": sha256_hex(raw)}
+
+if strict_membership:
+    declared = set(required).union(optional)
+    for check_id in sorted(set(loaded) - declared):
+        errors.append(
+            f"check id is not declared required or optional: {check_id}"
+        )
 
 if errors:
     for error in errors:

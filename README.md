@@ -21,7 +21,8 @@ Primitives:
   a machine-readable sidecar bound to aggregate evidence.
 - `.github/workflows/mncs-family-verify.yml`: reusable family workflow
   composing the above (`mncs-validation`, `rights-provenance`,
-  `project-tests`, optional backends). Internal actions are pinned to a
+  `project-tests`, optional backends, and precomputed additional checks).
+  Internal actions are pinned to a
   synchronized immutable commit SHA so a caller pinning workflow revision
   X executes exactly action revision X (never `./actions/...`, which
   would resolve inside the caller repo, and never `@main`; see
@@ -98,7 +99,10 @@ Providers emit `mncs.check-result/1` (`schemas/check-result.schema.json`):
 
 `actions/aggregate` composes them (`schemas/aggregate-result.schema.json`):
 required FAIL -> FAIL; required UNKNOWN/missing -> UNKNOWN; all required
-PASS -> PASS. Optional UNKNOWN stays visible in `unresolved`.
+PASS -> PASS. Optional UNKNOWN stays visible in `unresolved`. The reusable
+family workflow accepts additional provider result paths without a new
+hard-coded role and requires every supplied id to be explicitly declared as
+required or optional.
 
 Adapters (`adapters/`): `rights_adapter.py` maps
 `pass -> PASS` (requires identity match), `blocked`/`invalid -> FAIL`
@@ -106,7 +110,9 @@ Adapters (`adapters/`): `rights_adapter.py` maps
 UNKNOWN`, unrecognized vocabulary -> `UNKNOWN` with a drift note;
 missing/contradictory reports establish no claim (`NOT_ESTABLISHED`,
 never fabricated); `validator_adapter.py` maps `mncs-rs` `valid` +
-`computed_status` directly, `valid=false -> FAIL`. See `docs/adapters.md`.
+`computed_status` directly, `valid=false -> FAIL`; `changeset_adapter.py`
+mechanically validates the current rights-lineage ChangeSet bridge while
+leaving MNCDS/Commons semantics with their owners. See `docs/adapters.md`.
 
 ## Repository layout
 
@@ -175,6 +181,6 @@ The GitHub workflow exercises the composed actions plus the reusable family work
 
 1. Stabilize the result and evidence contracts through use in the family repositories.
 2. Carry rights/provenance and validator references without duplicating their models (done for v1 adapters; deepen with live integrations).
-3. Add coordination and ChangeSet actions for cross-repository development pressure (mechanical GitHub/revision/evidence validation only; semantics stay with MNCDS/Commons).
+3. Extend coordination and ChangeSet coverage beyond the bounded rights-lineage bridge when MNCDS/Commons publish a dedicated stable contract (current provider composition seam and mechanical bridge are implemented).
 4. Add capability-gap and promotion-boundary actions once their owning contracts are stable.
 5. Implement the action logic in MNCS where the language can express it without weakening observability or security (current host-language escape: process execution, filesystem, hashing, GitHub environment, and JSON canonicalization have no safe MNCS expression yet).

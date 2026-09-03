@@ -97,6 +97,8 @@ def test_reusable_workflow_lists_only_ran_providers():
     # Each line must be conditional, not a bare file path.
     assert "inputs.mncs-result-file" in checks_expr
     assert "|| ''" in checks_expr
+    assert "inputs.additional-checks" in checks_expr
+    assert "strict-membership" in [key for key in agg_step["with"]]
 
 
 def test_aggregate_action_single_resolution_invariant():
@@ -375,6 +377,39 @@ def test_provider_impersonation_rejected(tmp_path):
          "--evidence-dir", "ev", "--command-exit-code", "0",
          "--command", "fixture", "--expected-id", "mncs-validation",
          "--expected-provider", "attacker-provider"],
+        capture_output=True, text=True, env=env, cwd=work,
+    )
+    assert proc.returncode == 2
+    assert read_outputs(out_path)["verdict"] == "INVALID"
+
+
+def test_family_strict_membership_rejects_undeclared_provider(tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    extra = json.loads((CHECK_FIX / "pass.json").read_text(encoding="utf-8"))
+    extra["id"] = "extra-provider"
+    (work / "extra.json").write_text(json.dumps(extra), encoding="utf-8")
+    env, out_path = isolated_env(tmp_path)
+    proc = subprocess.run(
+        [str(AGGREGATE_SH), "--checks", "extra.json",
+         "--required", "mncs-validation", "--evidence-dir", "agg",
+         "--working-dir", ".", "--strict-membership", "true"],
+        capture_output=True, text=True, env=env, cwd=work,
+    )
+    assert proc.returncode == 2
+    assert read_outputs(out_path)["verdict"] == "INVALID"
+
+
+def test_ambiguous_required_optional_declaration_is_invalid(tmp_path):
+    work = tmp_path / "work"
+    work.mkdir()
+    shutil.copyfile(CHECK_FIX / "pass.json", work / "check.json")
+    env, out_path = isolated_env(tmp_path)
+    proc = subprocess.run(
+        [str(AGGREGATE_SH), "--checks", "check.json",
+         "--required", "mncs-validation,mncs-validation",
+         "--optional", "mncs-validation", "--evidence-dir", "agg",
+         "--working-dir", "."],
         capture_output=True, text=True, env=env, cwd=work,
     )
     assert proc.returncode == 2

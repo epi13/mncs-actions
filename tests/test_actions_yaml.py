@@ -34,7 +34,7 @@ def test_run_check_action_shape():
 def test_aggregate_action_shape():
     action = load_action("aggregate")
     for key in ("checks", "required", "evidence-directory", "fail-on-unknown",
-                "implementation-revision", "carrier-revision"):
+                "implementation-revision", "carrier-revision", "strict-membership"):
         assert key in action["inputs"], key
     assert "verdict" in action["outputs"]
     assert "aggregate-path" in action["outputs"]

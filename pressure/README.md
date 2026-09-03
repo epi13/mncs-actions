@@ -33,3 +33,9 @@ Explicit host escape (no safe MNCS surface yet):
 If the language later gains those surfaces observably, move them into
 MNCS and verify through this same evidence system. Do not weaken
 determinism or evidence quality to inflate MNCS percentage.
+
+`pressure/changeset-boundary.mncs` pressure-tests the pure projection of a
+mechanically complete versus incomplete coordination record. JSON parsing,
+canonical hashing, filesystem confinement, and evidence-byte verification
+remain host-side until the language exposes safe bounded text/byte and IO
+capabilities.
