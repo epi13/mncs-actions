@@ -14,9 +14,24 @@ import mncs_actions as lib
 REPO = Path(__file__).resolve().parents[1]
 ADAPTER = REPO / "adapters" / "changeset_adapter.py"
 FIXTURE = REPO / "tests" / "fixtures" / "changeset" / "lineage-v0.3-pass.json"
-RIGHTS_ROOT = REPO.parent / "mncs-rights-provenance"
-MNCS_ROOT = REPO.parent / "machine-native-complexity-standard"
-MNCDS_ROOT = REPO.parent / "machine-native-complexity-development-specification"
+
+
+def family_root(name: str, fallback: Path) -> Path:
+    configured = os.environ.get(f"MNCS_ACTIONS_{name.upper().replace('-', '_')}_ROOT")
+    return Path(configured) if configured else fallback
+
+
+def require_or_skip(path: Path, label: str) -> None:
+    if path.exists():
+        return
+    if os.environ.get("MNCS_ACTIONS_REQUIRE_FAMILY") == "1":
+        pytest.fail(f"required family checkout is unavailable: {label} ({path})")
+    pytest.skip(f"{label} is not available")
+
+
+RIGHTS_ROOT = family_root("rights-provenance", REPO.parent / "mncs-rights-provenance")
+MNCS_ROOT = family_root("mncs-standard", REPO.parent / "machine-native-complexity-standard")
+MNCDS_ROOT = family_root("mncds", REPO.parent / "machine-native-complexity-development-specification")
 
 
 def load_fixture() -> dict:
@@ -38,10 +53,39 @@ def test_current_bridge_fixture_is_pass_and_digest_bound():
     assert summary["content_digest_matches"] is True
 
 
+def test_canonical_vector_matches_v03_transport_profile():
+    value = {"z": 1e-7, "a": 1.0, "😀": "é"}
+    assert lib.canonical_bytes(value) == '{"a":1,"z":1e-7,"😀":"é"}'.encode("utf-8")
+
+
+def test_lineage_digest_matches_rights_provenance_producer():
+    require_or_skip(RIGHTS_ROOT, "mncs-rights-provenance checkout")
+    sys.path.insert(0, str(RIGHTS_ROOT / "src"))
+    try:
+        from mncs_rights_provenance.canonical import canonical_bytes as producer_canonical_bytes
+    except ImportError as exc:
+        pytest.fail(f"fixed rights/provenance producer cannot be imported: {exc}")
+    unsigned = {key: value for key, value in load_fixture().items() if key != "content_digest"}
+    assert lib.canonical_bytes(unsigned) == producer_canonical_bytes(unsigned)
+
+
+def test_derivation_transport_vocabulary_matches_producer_schema():
+    require_or_skip(RIGHTS_ROOT, "mncs-rights-provenance checkout")
+    schema = json.loads(
+        (RIGHTS_ROOT / "schemas/v0.3/lineage-record.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    producer_relations = set(
+        schema["$defs"]["derivation"]["properties"]["relation"]["enum"]
+    )
+    assert lib._DERIVATION_RELATIONS == producer_relations
+
+
 def test_current_rights_lineage_record_is_an_honest_unknown_canary():
     current = RIGHTS_ROOT / "dogfood" / "distributed-pressure-changeset.json"
     if not current.is_file():
-        pytest.skip("current mncs-rights-provenance lineage fixture is not available")
+        require_or_skip(current, "current mncs-rights-provenance lineage fixture")
     record = json.loads(current.read_text(encoding="utf-8"))
     verdict, unresolved, errors, summary = lib.classify_changeset_lineage(record)
     assert errors == []
@@ -63,6 +107,7 @@ def test_adapter_emits_independent_generic_check(tmp_path):
     assert check["id"] == "changeset-coordination"
     assert check["provider"] == "mncs-rights-provenance-lineage"
     assert check["verdict"] == "PASS"
+    assert check["references"][0]["canonical_profile"] == lib.LINEAGE_CANONICAL_PROFILE
     assert check["references"][0]["digest"] == load_fixture()["content_digest"][7:]
     assert lib.validate_check_result(check) == []
 
@@ -144,8 +189,7 @@ def test_wrong_local_evidence_digest_is_not_established(tmp_path):
 
 
 def test_live_rights_validate_canary(tmp_path):
-    if not RIGHTS_ROOT.is_dir():
-        pytest.skip("mncs-rights-provenance checkout is not available")
+    require_or_skip(RIGHTS_ROOT, "mncs-rights-provenance checkout")
     report = tmp_path / "rights-report.json"
     proc = subprocess.run(
         [
@@ -175,8 +219,7 @@ def test_live_rights_validate_canary(tmp_path):
 
 
 def test_live_mncs_validator_canary(tmp_path):
-    if not MNCS_ROOT.is_dir():
-        pytest.skip("machine-native-complexity-standard checkout is not available")
+    require_or_skip(MNCS_ROOT, "machine-native-complexity-standard checkout")
     report = tmp_path / "mncs-report.json"
     script = (
         "from mncs_validator.cli import main; "
@@ -203,8 +246,7 @@ def test_live_mncs_validator_canary(tmp_path):
 
 
 def test_live_mncds_validator_canary():
-    if not MNCDS_ROOT.is_dir():
-        pytest.skip("machine-native-complexity-development-specification checkout is not available")
+    require_or_skip(MNCDS_ROOT, "machine-native-complexity-development-specification checkout")
     script = (
         "from pathlib import Path; import json; "
         "from mncds_validator.mncds import validate_development_record; "

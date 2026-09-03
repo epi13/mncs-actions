@@ -13,10 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        # actions/setup-python v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12"
 
@@ -41,7 +43,7 @@ jobs:
 
       - name: Validate contracts against schemas
         run: |
-          pip install check-jsonschema
+          pip install -r requirements-dev.txt
           check-jsonschema --schemafile schemas/verification-result.schema.json tests/fixtures/verify/pass.json tests/fixtures/verify/fail.json tests/fixtures/verify/unknown.json tests/fixtures/verify/extra-fields.json
           check-jsonschema --schemafile schemas/check-result.schema.json tests/fixtures/check/pass.json tests/fixtures/check/fail.json tests/fixtures/check/unknown.json
           # Negative fixtures must fail schema or canonical validation; assert the canonical lib rejects them.
@@ -49,7 +51,7 @@ jobs:
 
       - name: Run deterministic test matrix
         run: |
-          pip install pytest pyyaml jsonschema
+          pip install -r requirements-dev.txt
           python3 -m pytest tests/ -q
 
       - name: Exercise verify action locally (PASS)
@@ -112,7 +114,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Generate fixture check-results via adapters
         run: |
@@ -196,10 +199,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        # actions/setup-python v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12"
 

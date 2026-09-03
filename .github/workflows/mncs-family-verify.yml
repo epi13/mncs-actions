@@ -199,7 +199,8 @@ jobs:
       badge-sidecar-path: ${{ steps.badge.outputs.sidecar-path }}
     steps:
       - name: Check out caller repository
-        uses: actions/checkout@v4
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: MNCS validation check
         id: mncs

@@ -29,6 +29,11 @@ Primitives:
   `docs/revision-coherence.md`); empty provider commands mean
   intentionally absent (absent optional = no effect, absent required =
   `UNKNOWN`), while explicitly listed-but-missing files stay `INVALID`.
+- `.github/workflows/family-contract-canary.yml`: a separate GitHub-hosted
+  deterministic canary that checks out the six current family repositories at
+  the revisions recorded in `family-contracts.json`. Required canary tests
+  fail if a checkout or test is skipped. This is compatibility evidence for
+  fixed revisions, not proof about moving repository heads.
 
 ~~~yaml
 - uses: epi13/mncs-actions/actions/verify@<pinned-sha>
@@ -114,6 +119,13 @@ never fabricated); `validator_adapter.py` maps `mncs-rs` `valid` +
 mechanically validates the current rights-lineage ChangeSet bridge while
 leaving MNCDS/Commons semantics with their owners. See `docs/adapters.md`.
 
+The ChangeSet bridge uses the exact canonical JSON transport profile currently
+implemented by `mncs-rights-provenance` v0.3. `mncs-actions` does not claim to
+be a general RFC 8785 implementation; a cross-repository vector test detects
+producer/consumer drift. Its recognized derivation strings are a versioned
+transport constraint copied from that owner schema, not a local relationship
+authority.
+
 ## Repository layout
 
 ~~~text
@@ -166,16 +178,23 @@ contains no timestamp, so identical inputs produce byte-identical output.
 
 ## Development
 
-No runtime dependency beyond Bash, Python 3 (stdlib only), and standard GitHub-hosted runner capabilities. Run the local checks with:
+Runtime actions use Bash and Python 3's standard library. Development and
+family-canary tests use the exact versions in `requirements-dev.txt`. Run the
+local checks with:
 
 ~~~bash
 bash -n actions/verify/verify.sh
 bash -n actions/run-check/run_check.sh
 bash -n actions/aggregate/aggregate.sh
 python3 -m pytest tests/ -q
+python3 scripts/check-action-pins.py
 ~~~
 
-The GitHub workflow exercises the composed actions plus the reusable family workflow against deterministic fixtures.
+The GitHub workflows exercise the composed actions plus the reusable family
+workflow against deterministic fixtures. `ubuntu-latest` remains a moving
+hosted runner/toolchain boundary; action commits, sibling revisions, and
+development packages are pinned and execution provenance records the runner
+identity.
 
 ## Roadmap
 

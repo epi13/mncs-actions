@@ -31,6 +31,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from mncs_actions import (  # noqa: E402
     CHECK_RESULT_SCHEMA_VERSION,
+    LINEAGE_CANONICAL_PROFILE,
     classify_changeset_lineage,
     is_safe_relative_path,
     validate_check_result,
@@ -110,6 +111,7 @@ def main() -> int:
         "kind": "lineage-record",
         "producer": "mncs-rights-provenance",
         "contract_revision": args.contract_revision,
+        "canonical_profile": LINEAGE_CANONICAL_PROFILE,
         "digest": summary.get("content_digest_expected", "").removeprefix("sha256:"),
     }
     if is_safe_relative_path(args.input):

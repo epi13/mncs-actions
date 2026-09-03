@@ -49,6 +49,13 @@ orchestrates, invokes, transports, aggregates, and packages evidence.
 
 When a workflow needs information from another repository, it should reference that repository's published contract or emitted artifact. It should not copy the semantics into a shell script merely for convenience.
 
+The fixed-revision family canary makes that rule executable: it consumes the
+six repository identities and revisions in `family-contracts.json`, exercises
+the currently published adapter inputs, and fails when a declared canary is
+skipped. It is a compatibility observation for those revisions, not a
+moving-head or promotion claim. `ubuntu-latest` remains an explicitly
+documented hosted-runner boundary.
+
 ## Extensible family composition
 
 The three convenience provider inputs in the reusable workflow are retained

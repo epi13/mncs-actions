@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 from datetime import datetime, timezone
@@ -87,7 +88,12 @@ _NATIVE_HEX64 = re.compile(r"^[A-Fa-f0-9]{64}$")
 _REPOSITORY_ID = re.compile(
     r"^(?:https://)?github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?$"
 )
-_DERIVATION_RELATIONS = {
+# This is a transport vocabulary copied from the published
+# mncs-rights-provenance v0.3 lineage schema. It is not a Commons/MNCDS
+# semantic vocabulary owned by this repository.
+LINEAGE_SCHEMA_VERSION = "0.3.0"
+LINEAGE_CANONICAL_PROFILE = "mncs-rights-provenance/rfc8785-compatible-v0.3"
+_DERIVATION_RELATIONS = frozenset({
     "derived-from",
     "transformed-by",
     "validated-by",
@@ -101,14 +107,54 @@ _DERIVATION_RELATIONS = {
     "gap-derived-from",
     "evaluated-by",
     "approved-by",
-}
+})
 
 
 def canonical_bytes(value: Any) -> bytes:
-    """RFC8785-style canonical JSON bytes (sorted keys, no whitespace)."""
-    return json.dumps(
-        value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-    ).encode("utf-8")
+    """Encode the rights/provenance v0.3 canonical JSON transport profile.
+
+    This intentionally matches ``mncs_rights_provenance.canonical`` rather
+    than claiming to be a general RFC 8785 implementation. The producer's
+    published v0.3 lineage contract calls this profile RFC 8785-compatible;
+    this profile is the interoperability boundary that this consumer follows.
+    """
+    if value is None:
+        return b"null"
+    if value is True:
+        return b"true"
+    if value is False:
+        return b"false"
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value).encode("ascii")
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("non-finite number is not canonically serializable")
+        if value == 0:
+            return b"0"
+        if value.is_integer():
+            return str(int(value)).encode("ascii")
+        text = repr(value).lower()
+        if "e" in text:
+            mantissa, exponent = text.split("e")
+            sign = "+" if not exponent.startswith("-") else "-"
+            exponent = exponent.lstrip("+-0") or "0"
+            text = mantissa + "e" + sign + exponent
+        return text.encode("ascii")
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    if isinstance(value, (list, tuple)):
+        return b"[" + b",".join(canonical_bytes(item) for item in value) + b"]"
+    if isinstance(value, dict):
+        items = sorted(value.items(), key=lambda item: str(item[0]).encode("utf-16-be"))
+        return (
+            b"{"
+            + b",".join(
+                canonical_bytes(str(key)) + b":" + canonical_bytes(item)
+                for key, item in items
+            )
+            + b"}"
+        )
+    raise TypeError(f"unsupported canonical JSON value: {type(value).__name__}")
 
 
 def sha256_hex(data: bytes) -> str:
@@ -561,8 +607,10 @@ def classify_changeset_lineage(
     summary: Dict[str, Any] = {}
     if not isinstance(record, dict):
         return None, [], ["lineage record must be a JSON object"], summary
-    if record.get("schema_version") != "0.3.0":
-        errors.append("unsupported lineage schema_version; expected 0.3.0")
+    if record.get("schema_version") != LINEAGE_SCHEMA_VERSION:
+        errors.append(
+            f"unsupported lineage schema_version; expected {LINEAGE_SCHEMA_VERSION}"
+        )
     lineage_id = record.get("lineage_id")
     if not isinstance(lineage_id, str) or not lineage_id:
         errors.append("lineage_id must be a non-empty string")

@@ -48,6 +48,14 @@ def test_no_floating_branch_or_tag_pins():
         assert FULL_SHA.match(ref), f"{name} pin is not an immutable full SHA: {ref!r}"
 
 
+def test_all_executable_remote_action_refs_are_immutable():
+    proc = subprocess.run(
+        ["python3", str(REPO / "scripts" / "check-action-pins.py")],
+        capture_output=True, text=True, cwd=str(REPO),
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
 def test_no_caller_relative_action_paths():
     text = WORKFLOW.read_text(encoding="utf-8")
     assert "./actions/run-check" not in text
