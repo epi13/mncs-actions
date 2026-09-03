@@ -10,9 +10,11 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
+COMMONS_ROOT = REPO.parent / "MNCS-Commons"
+FORGE_ROOT = REPO.parent / "mncs-forge-mcp"
 sys.path.insert(0, str(REPO / "lib"))
 sys.path.insert(0, str(REPO / "adapters"))
-sys.path.insert(0, str(REPO.parent / "mncs-forge-mcp" / "src"))
+sys.path.insert(0, str(FORGE_ROOT / "src"))
 
 import commons_adapter
 import forge_adapter
@@ -54,7 +56,9 @@ def test_language_study_missing_stage_or_module_is_not_established():
 
 
 def test_commons_registry_and_owner_validator_projection(tmp_path):
-    registry_path = REPO.parent / "MNCS-Commons" / "compat/family-record-producers.json"
+    if not COMMONS_ROOT.is_dir():
+        pytest.skip("MNCS-Commons checkout is not available")
+    registry_path = COMMONS_ROOT / "compat/family-record-producers.json"
     registry = commons_adapter.load_registry(registry_path)
     passed = commons_adapter.build_check(
         registry=registry,
@@ -81,7 +85,9 @@ def test_commons_registry_and_owner_validator_projection(tmp_path):
 
 
 def test_forge_native_validator_preserves_unknown_assurance():
-    forge_root = REPO.parent / "mncs-forge-mcp"
+    if not FORGE_ROOT.is_dir():
+        pytest.skip("mncs-forge-mcp checkout is not available")
+    forge_root = FORGE_ROOT
     check = forge_adapter.build_check(
         forge_root=forge_root,
         policy_path=forge_root / "examples/forge-cell/policy.json",
@@ -94,7 +100,9 @@ def test_forge_native_validator_preserves_unknown_assurance():
 
 
 def test_forge_wrong_nonce_is_fail_and_malformed_record_is_rejected(tmp_path):
-    forge_root = REPO.parent / "mncs-forge-mcp"
+    if not FORGE_ROOT.is_dir():
+        pytest.skip("mncs-forge-mcp checkout is not available")
+    forge_root = FORGE_ROOT
     check = forge_adapter.build_check(
         forge_root=forge_root,
         policy_path=forge_root / "examples/forge-cell/policy.json",
