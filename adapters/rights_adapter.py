@@ -5,11 +5,21 @@ Owns no policy.  It invokes NOTHING; it consumes the JSON report produced by
 ``mncs-rp validate`` (see mncs-rights-provenance) and maps it with explicit,
 documented semantics:
 
-  pass                  -> PASS
-  blocked / invalid     -> FAIL
+  pass                  -> PASS (requires identity match + structural_valid)
+  blocked / invalid     -> FAIL (valid negative established)
   pass-with-findings /
   review-required /
   unknown               -> UNKNOWN (review outstanding; never PASS)
+
+FAIL vs NOT_ESTABLISHED: a well-formed negative report is FAIL.  A missing
+outcome, an unreadable report, or a self-contradictory report (pass for a
+structurally-invalid manifest, invalid for a structurally-valid one)
+establishes NO claim: the adapter exits 2 emitting nothing, so run-check
+records NOT_ESTABLISHED (INVALID) instead of fabricating a verdict.
+Identity mismatch downgrades an otherwise-passing claim to FAIL (binding
+failure is a valid negative; tampering is Fail, never a pass).
+Unrecognized non-empty outcomes become UNKNOWN with an explicit drift note
+(never PASS).
 
 Unrecognized outcomes map to UNKNOWN with an explicit unresolved entry so a
 vocabulary drift can never masquerade as PASS.  The native outcome,
@@ -32,7 +42,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from mncs_actions import (  # noqa: E402
     CHECK_RESULT_SCHEMA_VERSION,
-    map_rights_outcome,
+    classify_rights_report,
     validate_check_result,
 )
 
@@ -61,7 +71,13 @@ def main() -> int:
         return 2
 
     outcome = str(report.get("outcome", ""))
-    verdict = map_rights_outcome(outcome)
+    # Report-level classification enforces FAIL vs NOT_ESTABLISHED: a
+    # missing/contradictory report establishes no claim (exit 2, caller
+    # records INVALID); vocabulary drift becomes UNKNOWN, never PASS.
+    verdict, classification_notes, classification_error = classify_rights_report(report)
+    if classification_error is not None or verdict is None:
+        print(f"error: {classification_error}", file=sys.stderr)
+        return 2
     severity = str(report.get("severity", ""))
     findings = report.get("findings", [])
     if not isinstance(findings, list):
@@ -81,14 +97,13 @@ def main() -> int:
     summary = "; ".join(summary_parts) + ". Native result preserved; legal_conclusion=NOT_MADE."
 
     unresolved: list[str] = []
+    unresolved.extend(classification_notes)
     for finding in findings:
         unresolved.append(f"rights finding: {finding}")
     for issue in issues:
         unresolved.append(f"rights issue: {issue}")
     if verdict == "UNKNOWN" and not unresolved:
         unresolved.append(f"rights outcome {outcome!r} requires review under adapter semantics")
-    if identity_matches is False:
-        unresolved.append("manifest identity mismatch")
 
     references: list[dict] = []
     if args.manifest_path or args.manifest_digest or identity:

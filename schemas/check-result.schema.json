@@ -41,7 +41,9 @@
       "type": "string"
     },
     "digest": {
-      "type": "string"
+      "type": "string",
+      "pattern": "^(sha256:)?[a-f0-9]{64}$",
+      "description": "Optional content binding: SHA-256 of the exact bytes the claim covers (bare hex64 or sha256:-prefixed). When present it must be well-formed; malformed digests are rejected, never silently accepted."
     },
     "unresolved": {
       "type": "array",
@@ -71,7 +73,11 @@
         "contract_revision": { "type": "string" },
         "schema_revision": { "type": "string" },
         "producer_revision": { "type": "string" },
-        "path": { "type": "string" },
+        "path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!^[A-Za-z]:)(?!.*(^|/)\\.\\.(/|$))(?!.*\\\\)[^\\x00-\\x1F\\x7F]+$",
+          "description": "Safe relative path when present (no absolute paths, no .. traversal, no backslashes). Executable validation in lib/mncs_actions.py is authoritative for edge cases."
+        },
         "uri": { "type": "string" },
         "digest": { "type": "string", "pattern": "^(sha256:)?[a-f0-9]{64}$" }
       },

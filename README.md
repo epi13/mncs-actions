@@ -19,14 +19,16 @@ Primitives:
   aggregate verdict with explicit required/optional policy.
 - `.github/workflows/mncs-family-verify.yml`: reusable family workflow
   composing the above (`mncs-validation`, `rights-provenance`,
-  `project-tests`, optional backends). Internal actions use
-  `epi13/mncs-actions/actions/...@<revision>` so caller pins resolve
-  portably; empty provider commands mean intentionally absent (absent
-  optional = no effect, absent required = `UNKNOWN`), while explicitly
-  listed-but-missing files stay `INVALID`.
+  `project-tests`, optional backends). Internal actions are pinned to a
+  synchronized immutable commit SHA so a caller pinning workflow revision
+  X executes exactly action revision X (never `./actions/...`, which
+  would resolve inside the caller repo, and never `@main`; see
+  `docs/revision-coherence.md`); empty provider commands mean
+  intentionally absent (absent optional = no effect, absent required =
+  `UNKNOWN`), while explicitly listed-but-missing files stay `INVALID`.
 
 ~~~yaml
-- uses: epi13/mncs-actions/actions/verify@<pinned-revision>
+- uses: epi13/mncs-actions/actions/verify@<pinned-sha>
   with:
     command: ./scripts/verify-mncs.sh
     result-file: .mncs/verification-result.json
@@ -34,7 +36,8 @@ Primitives:
     fail-on-unknown: true
 ~~~
 
-Pin a reviewed commit or release tag in production.
+Pin an immutable reviewed commit SHA in production (see
+`docs/revision-coherence.md`); never `@main` or another floating ref.
 
 ## Result contract
 
@@ -96,10 +99,12 @@ required FAIL -> FAIL; required UNKNOWN/missing -> UNKNOWN; all required
 PASS -> PASS. Optional UNKNOWN stays visible in `unresolved`.
 
 Adapters (`adapters/`): `rights_adapter.py` maps
-`pass -> PASS`, `blocked`/`invalid -> FAIL`,
-`pass-with-findings`/`review-required`/`unknown -> UNKNOWN`;
-`validator_adapter.py` maps `mncs-rs` `valid` + `computed_status`
-directly, `valid=false -> FAIL`. See `docs/adapters.md`.
+`pass -> PASS` (requires identity match), `blocked`/`invalid -> FAIL`
+(valid negative), `pass-with-findings`/`review-required`/`unknown ->
+UNKNOWN`, unrecognized vocabulary -> `UNKNOWN` with a drift note;
+missing/contradictory reports establish no claim (`NOT_ESTABLISHED`,
+never fabricated); `validator_adapter.py` maps `mncs-rs` `valid` +
+`computed_status` directly, `valid=false -> FAIL`. See `docs/adapters.md`.
 
 ## Repository layout
 

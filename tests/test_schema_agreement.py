@@ -60,6 +60,10 @@ def test_check_schema_matches_lib():
     assert set(schema["properties"]["verdict"]["enum"]) == set(lib.VERDICTS)
     ref = schema["$defs"]["evidenceReference"]
     assert ref["required"] == ["kind"]
+    # Hardened bindings: digest format and safe-path patterns declared.
+    assert "pattern" in schema["properties"]["digest"]
+    assert "pattern" in ref["properties"]["digest"]
+    assert "pattern" in ref["properties"]["path"]
 
 
 def test_aggregate_schema_matches_lib():
@@ -67,6 +71,16 @@ def test_aggregate_schema_matches_lib():
     assert schema["properties"]["schema_version"]["const"] == lib.AGGREGATE_RESULT_SCHEMA_VERSION
     assert set(schema["required"]) == {"schema_version", "verdict", "required", "checks"}
     assert set(schema["properties"]["verdict"]["enum"]) == set(lib.VERDICTS)
+    entry = schema["properties"]["checks"]["items"]
+    assert set(entry["required"]) == {"id", "verdict"}
+    # Hardened but optional bindings: digest/path declared, never required.
+    for field in ("digest", "path", "provider", "scope"):
+        assert field in entry["properties"], field
+        assert field not in entry["required"]
+    assert "pattern" in entry["properties"]["digest"]
+    assert "pattern" in entry["properties"]["path"]
+    # Forward compatible: extra component fields permitted.
+    assert entry["additionalProperties"] is True
 
 
 def test_lib_validates_published_fixtures():

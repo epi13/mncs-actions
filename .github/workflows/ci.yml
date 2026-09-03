@@ -268,9 +268,11 @@ jobs:
           grep -q '^verdict=PASS$' "$caller/out"
 
   reusable-smoke:
-    # Exercises the portable reusable workflow itself (absolute
-    # epi13/mncs-actions/...@main internal refs) with an omitted optional
-    # provider. Proves the workflow resolves independently of caller contents.
+    # Exercises the portable reusable workflow itself (synchronized
+    # immutable internal pins, omitted optional provider) with the local
+    # path form. Proves the workflow resolves independently of caller
+    # contents; cross-repo callers pin the workflow SHA and inherit the
+    # same baked action pins (see docs/revision-coherence.md).
     uses: ./.github/workflows/mncs-family-verify.yml
     with:
       required-checks: mncs-validation,rights-provenance

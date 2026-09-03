@@ -6,16 +6,19 @@ reusable family verification workflow:
 ```yaml
 jobs:
   mncs:
-    uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@<pinned-revision>
+    uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@<pinned-sha>
     with:
       required-checks: mncs-validation,rights-provenance,project-tests
 ```
 
+Pin an immutable commit SHA (see `revision-coherence.md`); never `@main`.
+
 - Each provider (`mncs-command`, `rights-command`, `project-command`)
   runs via `actions/run-check` and emits an independent check plus receipt.
-  Internal actions use `epi13/mncs-actions/actions/...@<revision>` so a
-  caller pinning the workflow gets the same pinned actions (never
-  `./actions/...`, which would resolve inside the caller repo).
+  Internal actions are pinned to a synchronized immutable SHA so a
+  caller pinning workflow revision X executes exactly action revision X
+  (never `./actions/...`, which would resolve inside the caller repo,
+  and never a floating branch).
 - `actions/aggregate` composes the declared `required-checks` /
   `optional-checks` boundary into one verdict plus manifest. Only result
   files for providers that actually ran are listed: empty commands mean

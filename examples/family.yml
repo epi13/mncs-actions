@@ -18,8 +18,9 @@ permissions:
 
 jobs:
   mncs:
-    # Pin a reviewed commit or release tag in production; @main floats.
-    uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@main
+    # Pin an immutable reviewed commit SHA in production (see
+    # docs/revision-coherence.md); never @main or another floating ref.
+    uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@<pinned-sha>
     with:
       required-checks: mncs-validation,rights-provenance,project-tests
       optional-checks: ebpf-backend

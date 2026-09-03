@@ -227,10 +227,17 @@ def validate_check_result(obj: Any) -> List[str]:
         "summary",
         "contract_revision",
         "producer_revision",
-        "digest",
     ):
         if obj.get(field) is not None and not isinstance(obj[field], str):
             errors.append(f"{field} must be a string when present")
+    # Optional content binding: when a provider binds its claim to exact
+    # bytes, the digest must be a SHA-256 hex (bare or sha256:-prefixed).
+    # A present-but-malformed digest (including explicit null) is rejected,
+    # never silently accepted.
+    if "digest" in obj:
+        digest = obj["digest"]
+        if not isinstance(digest, str) or not _DIGEST.match(digest):
+            errors.append("digest must be hex64 or sha256:hex64 when present")
     unresolved = obj.get("unresolved")
     if unresolved is not None:
         if not isinstance(unresolved, list) or not all(
@@ -320,6 +327,17 @@ def validate_execution_receipt(obj: Any) -> List[str]:
 
 
 def validate_aggregate_result(obj: Any) -> List[str]:
+    """Validate an aggregate-result/1 document.
+
+    Component bindings (``checks[].digest`` / ``checks[].path``) are
+    optional but strict: ``digest`` must be SHA-256 hex (bare or
+    ``sha256:``-prefixed) identifying the exact consumed check bytes, and
+    ``path`` must be a safe relative path (no absolute paths, no ``..``
+    traversal, no backslashes) locating those bytes under the declared
+    working directory. Malformed bindings are rejected, never silently
+    accepted. Unknown additive fields on checks[] and top level are
+    permitted and ignored (forward compatible).
+    """
     errors: List[str] = []
     if not isinstance(obj, dict):
         return ["aggregate result must be a JSON object"]
@@ -355,6 +373,23 @@ def validate_aggregate_result(obj: Any) -> List[str]:
             errors.append(f"{prefix}.verdict must be PASS, FAIL, or UNKNOWN")
         if "required" in check and not isinstance(check["required"], bool):
             errors.append(f"{prefix}.required must be a boolean")
+        for field in ("provider", "scope"):
+            if check.get(field) is not None and not isinstance(
+                check[field], str
+            ):
+                errors.append(f"{prefix}.{field} must be a string when present")
+        if "digest" in check:
+            digest = check["digest"]
+            if not isinstance(digest, str) or not _DIGEST.match(digest):
+                errors.append(
+                    f"{prefix}.digest must be hex64 or sha256:hex64 when present"
+                )
+        if "path" in check:
+            path = check["path"]
+            if not isinstance(path, str) or not is_safe_relative_path(path):
+                errors.append(
+                    f"{prefix}.path must be a safe relative path when present"
+                )
     unresolved = obj.get("unresolved")
     if unresolved is not None and (
         not isinstance(unresolved, list)
@@ -527,6 +562,14 @@ def build_evidence_manifest(
 #     (evidence insufficient for PASS; human/policy review outstanding).
 #   The native outcome, severity, and findings are preserved verbatim in
 #   the check summary/unresolved so nothing is hidden.
+#
+# FAIL vs NOT_ESTABLISHED: a well-formed domain report establishing a
+# negative (blocked, structurally-invalid artifact, identity mismatch on
+# an otherwise-passing claim) is FAIL -- a valid negative claim.  A
+# missing/unreadable report, a report without an outcome, or a
+# self-contradictory report (pass + structurally invalid, invalid +
+# structurally valid) establishes NO claim: the adapter emits nothing and
+# run-check records NOT_ESTABLISHED (INVALID), never a fabricated verdict.
 RIGHTS_PASS = {"pass"}
 RIGHTS_FAIL = {"blocked", "invalid"}
 RIGHTS_UNKNOWN = {"pass-with-findings", "review-required", "unknown"}
@@ -542,6 +585,57 @@ def map_rights_outcome(outcome: str) -> str:
         return "UNKNOWN"
     # Unrecognized vocabulary is not PASS.  Preserve the gap explicitly.
     return "UNKNOWN"
+
+
+def classify_rights_report(report: Any) -> Tuple[Optional[str], List[str], Optional[str]]:
+    """Classify a native ``mncs-rp validate`` report for check projection.
+
+    Returns (verdict, unresolved, error).  ``error`` non-None means the
+    report establishes no claim: the caller must emit no check-result so
+    the execution layer records NOT_ESTABLISHED (INVALID) instead of
+    fabricating PASS/FAIL/UNKNOWN.
+
+    Rules (see docs/adapters.md):
+    - outcome missing/non-string/empty -> error (malformed report).
+    - pass + structural_valid False -> error (self-contradictory).
+    - invalid + structural_valid True -> error (self-contradictory).
+    - pass + identity mismatch (False) -> FAIL (binding failure is a
+      valid negative; tampering is Fail, never a pass).
+    - unrecognized non-empty outcome -> UNKNOWN with a drift note (never
+      PASS), so vocabulary growth stays visible without breaking.
+    """
+    unresolved: List[str] = []
+    if not isinstance(report, dict):
+        return None, [], "rights report must be a JSON object"
+    outcome = report.get("outcome")
+    if not isinstance(outcome, str) or not outcome.strip():
+        return None, [], "rights report has no outcome (malformed report)"
+    normalized = outcome.strip().lower()
+    structural_valid = report.get("structural_valid")
+    identity_matches = report.get("manifest_identity_matches")
+    if normalized == "pass" and structural_valid is False:
+        return None, [], "rights report claims pass for a structurally invalid manifest"
+    if normalized == "invalid" and structural_valid is True:
+        return None, [], "rights report claims invalid for a structurally valid manifest"
+    if normalized in RIGHTS_PASS:
+        verdict = "PASS"
+    elif normalized in RIGHTS_FAIL:
+        verdict = "FAIL"
+    else:
+        verdict = "UNKNOWN"
+        if normalized not in RIGHTS_UNKNOWN:
+            unresolved.append(
+                f"rights outcome {outcome!r} unrecognized; treated as UNKNOWN (vocabulary drift)"
+            )
+    if identity_matches is False:
+        if verdict == "PASS":
+            verdict = "FAIL"
+            unresolved.append(
+                "manifest identity mismatch: binding failure downgrades pass to FAIL"
+            )
+        else:
+            unresolved.append("manifest identity mismatch")
+    return verdict, unresolved, None
 
 
 def map_validator_computed_status(
