@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-actions/blob/main/schemas/evidence-manifest.schema.json",
+  "title": "MNCS Evidence Manifest",
+  "description": "The experimental v1 manifest emitted by the mncs-actions verify action.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "kind",
+    "verdict",
+    "result",
+    "provenance",
+    "command_exit_code",
+    "generated_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "mncs.evidence-manifest/1"
+    },
+    "kind": {
+      "const": "verification"
+    },
+    "verdict": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "UNKNOWN"
+      ]
+    },
+    "result": {
+      "type": "object",
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "repository",
+        "ref",
+        "commit",
+        "workflow",
+        "run_id",
+        "actor",
+        "event",
+        "runner"
+      ],
+      "properties": {
+        "repository": { "type": "string" },
+        "ref": { "type": "string" },
+        "commit": { "type": "string" },
+        "workflow": { "type": "string" },
+        "run_id": { "type": "string" },
+        "actor": { "type": "string" },
+        "event": { "type": "string" },
+        "runner": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "command_exit_code": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "additionalProperties": true
+}
