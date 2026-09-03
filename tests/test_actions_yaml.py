@@ -33,10 +33,20 @@ def test_run_check_action_shape():
 
 def test_aggregate_action_shape():
     action = load_action("aggregate")
-    for key in ("checks", "required", "evidence-directory", "fail-on-unknown"):
+    for key in ("checks", "required", "evidence-directory", "fail-on-unknown",
+                "implementation-revision", "carrier-revision"):
         assert key in action["inputs"], key
     assert "verdict" in action["outputs"]
     assert "aggregate-path" in action["outputs"]
+    assert "aggregate-digest" in action["outputs"]
+
+
+def test_render_badge_action_shape():
+    action = load_action("render-badge")
+    for key in ("verdict", "label", "output-file", "sidecar-file", "working-directory"):
+        assert key in action["inputs"], key
+    for key in ("state", "badge-path", "sidecar-path", "badge-digest", "sidecar-digest"):
+        assert key in action["outputs"], key
 
 
 def test_examples_parse():

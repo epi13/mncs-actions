@@ -25,6 +25,7 @@ jobs:
           bash -n actions/verify/verify.sh
           bash -n actions/run-check/run_check.sh
           bash -n actions/aggregate/aggregate.sh
+          bash -n actions/render-badge/render_badge.sh
 
       - name: Validate JSON contracts
         run: |
@@ -33,6 +34,7 @@ jobs:
           python3 -m json.tool schemas/execution-receipt.schema.json >/dev/null
           python3 -m json.tool schemas/check-result.schema.json >/dev/null
           python3 -m json.tool schemas/aggregate-result.schema.json >/dev/null
+          python3 -m json.tool schemas/badge.schema.json >/dev/null
           for fixture in tests/fixtures/verify/pass.json tests/fixtures/verify/fail.json tests/fixtures/verify/unknown.json tests/fixtures/check/pass.json; do
             python3 -m json.tool "$fixture" >/dev/null
           done
@@ -152,6 +154,7 @@ jobs:
           upload-artifact: "false"
 
       - name: Aggregate family verdict
+        id: aggregate
         uses: ./actions/aggregate
         with:
           checks: .mncs/mncs-check.json .mncs/rights-check.json .mncs/project-check.json
@@ -171,6 +174,20 @@ jobs:
           evidence-directory: .mncs/legacy-evidence
           fail-on-unknown: "true"
           artifact-name: mncs-legacy-verify-evidence
+
+      - name: Render aggregate badge
+        uses: ./actions/render-badge
+        with:
+          verdict: PASS
+          label: MNCS family
+          output-file: .mncs/mncs-badge.svg
+          sidecar-file: .mncs/mncs-badge.json
+          repository: epi13/mncs-actions
+          subject-commit: self-test
+          boundary: ci-family-self-test
+          aggregate-digest: ${{ steps.aggregate.outputs.aggregate-digest }}
+          manifest-digest: ${{ steps.aggregate.outputs.manifest-digest }}
+          carrier-revision: self-test-carrier
 
   boundary-matrix:
     # Shell-level boundary matrix: omission vs missing vs FAIL/UNKNOWN vs

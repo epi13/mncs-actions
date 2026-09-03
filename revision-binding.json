@@ -1,0 +1,9 @@
+{
+  "actions": [
+    "actions/aggregate",
+    "actions/render-badge",
+    "actions/run-check"
+  ],
+  "implementation_revision": "8e67e15ac0112dca1d904609faa37cecd51509ab",
+  "workflow": ".github/workflows/mncs-family-verify.yml"
+}

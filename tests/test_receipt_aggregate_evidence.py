@@ -194,6 +194,36 @@ def test_aggregate_optional_unknown_does_not_block(tmp_path):
     assert any("wasm-backend" in item for item in agg["unresolved"])
 
 
+def test_aggregate_records_revision_bindings_and_document_digest(tmp_path):
+    import shutil
+
+    work = tmp_path / "work"
+    work.mkdir()
+    shutil.copyfile(CHECK_FIX / "pass.json", work / "check.json")
+    ev = work / "agg"
+    env, out_path = isolated_env(tmp_path)
+    implementation = json.loads(
+        (REPO / "revision-binding.json").read_text(encoding="utf-8")
+    )["implementation_revision"]
+    proc = subprocess.run(
+        [str(AGGREGATE), "--checks", "check.json", "--required", "mncs-validation",
+         "--evidence-dir", str(ev), "--working-dir", str(work),
+         "--implementation-revision", implementation,
+         "--carrier-revision", "carrier-ref"],
+        capture_output=True, text=True, env=env, cwd=work,
+    )
+    assert proc.returncode == 0, proc.stderr
+    result = read_outputs(out_path)
+    aggregate = json.loads((ev / "aggregate-result.json").read_text(encoding="utf-8"))
+    receipt = json.loads((ev / "execution-receipt.json").read_text(encoding="utf-8"))
+    manifest = json.loads((ev / "evidence-manifest.json").read_text(encoding="utf-8"))
+    assert result["aggregate-digest"] == lib.sha256_hex((ev / "aggregate-result.json").read_bytes())
+    assert receipt["inputs"]["implementation_revision"] == implementation
+    assert receipt["inputs"]["carrier_revision"] == "carrier-ref"
+    assert manifest["boundary"]["implementation_revision"] == implementation
+    assert manifest["boundary"]["carrier_revision"] == "carrier-ref"
+
+
 def test_aggregate_rejects_invalid_input(tmp_path):
     import shutil
 

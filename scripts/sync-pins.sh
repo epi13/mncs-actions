@@ -10,8 +10,15 @@
 # Usage: scripts/sync-pins.sh <40-hex-sha>
 #
 # On release: merge the release, note the release commit SHA, run this
-# script with that SHA, commit the result, and tag the release. At any
-# tagged release X, workflow X executes exactly action X.
+# script with that SHA, commit the result, and tag the release. The
+# script rewrites both the workflow's `uses:` pins and the
+# machine-readable revision-binding.json so the two can never drift apart
+# (see docs/revision-coherence.md and tests/test_revision_coherence.py).
+#
+# Model reminder: pinning records a RevisionBinding (carrier file at the
+# new commit binds to implementation <sha>). A commit cannot name its own
+# not-yet-created SHA, so the baked implementation revision always names
+# a reviewed ancestor, never the carrier itself.
 set -euo pipefail
 
 if [[ $# -ne 1 ]]; then
@@ -27,6 +34,7 @@ fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WORKFLOW="$ROOT/.github/workflows/mncs-family-verify.yml"
+BINDING="$ROOT/revision-binding.json"
 
 if [[ ! -f "$WORKFLOW" ]]; then
   echo "error: workflow not found: $WORKFLOW" >&2
@@ -60,4 +68,26 @@ if count == 0:
     raise SystemExit(1)
 open(path, "w", encoding="utf-8").write("".join(lines))
 print(f"pinned {count} mncs-actions self-reference(s) to {pin}")
+PY
+
+if [[ ! -f "$BINDING" ]]; then
+  echo "error: revision binding file not found: $BINDING" >&2
+  exit 1
+fi
+
+python3 - "$BINDING" "$PIN" <<'PY'
+import json
+import sys
+
+path, pin = sys.argv[1], sys.argv[2]
+with open(path, encoding="utf-8") as handle:
+    doc = json.load(handle)
+if not isinstance(doc, dict) or not isinstance(doc.get("actions"), list):
+    print("error: revision binding file has unexpected shape", file=sys.stderr)
+    raise SystemExit(1)
+doc["implementation_revision"] = pin
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump(doc, handle, indent=2, sort_keys=True, ensure_ascii=False)
+    handle.write("\n")
+print(f"recorded implementation_revision {pin} in {path}")
 PY

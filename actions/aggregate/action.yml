@@ -21,6 +21,14 @@ inputs:
     description: Declared aggregate boundary name (e.g. family-verify, release).
     required: false
     default: default
+  implementation-revision:
+    description: Explicit mncs-actions implementation revision to record in evidence (40-char SHA). Empty means self-report from the executing checkout's revision-binding.json. Must agree with that file when both are present.
+    required: false
+    default: ""
+  carrier-revision:
+    description: Caller-asserted workflow carrier revision (the SHA the caller pinned to invoke the reusable workflow). Recorded verbatim in evidence when non-empty; the runner cannot independently verify it.
+    required: false
+    default: ""
   working-directory:
     description: Directory in which check paths and evidence are resolved.
     required: false
@@ -55,6 +63,9 @@ outputs:
   aggregate-path:
     description: Absolute path to the aggregate-result document.
     value: ${{ steps.compose.outputs.aggregate-path }}
+  aggregate-digest:
+    description: SHA-256 digest of the aggregate-result document bytes.
+    value: ${{ steps.compose.outputs.aggregate-digest }}
   execution-receipt-path:
     description: Absolute path to the aggregation execution receipt.
     value: ${{ steps.compose.outputs.execution-receipt-path }}
@@ -86,9 +97,11 @@ runs:
         # directories. Keep traversal protection inside aggregate.sh.
         MNCS_WORKING_DIRECTORY: .
         MNCS_BOUNDARY: ${{ inputs.boundary }}
+        MNCS_IMPLEMENTATION_REVISION: ${{ inputs.implementation-revision }}
+        MNCS_CARRIER_REVISION: ${{ inputs.carrier-revision }}
       run: |
         set -euo pipefail
-        "$GITHUB_ACTION_PATH/aggregate.sh" --checks "$MNCS_CHECKS" --required "$MNCS_REQUIRED" --optional "$MNCS_OPTIONAL" --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" --working-dir "$MNCS_WORKING_DIRECTORY" --boundary "$MNCS_BOUNDARY"
+        "$GITHUB_ACTION_PATH/aggregate.sh" --checks "$MNCS_CHECKS" --required "$MNCS_REQUIRED" --optional "$MNCS_OPTIONAL" --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" --working-dir "$MNCS_WORKING_DIRECTORY" --boundary "$MNCS_BOUNDARY" --implementation-revision "$MNCS_IMPLEMENTATION_REVISION" --carrier-revision "$MNCS_CARRIER_REVISION"
 
     - name: Upload aggregate evidence
       if: ${{ always() && inputs.upload-artifact == 'true' }}

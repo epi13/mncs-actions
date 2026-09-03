@@ -97,3 +97,12 @@ def test_digest_output_naming():
     # Correct name is manifest-digest; provenance-digest is a compat alias.
     assert lib.MANIFEST_DIGEST_OUTPUT == "manifest-digest"
     assert lib.PROVENANCE_DIGEST_OUTPUT_COMPAT == "provenance-digest"
+
+
+def test_badge_schema_matches_lib():
+    schema = load_schema("badge.schema.json")
+    assert schema["properties"]["schema_version"]["const"] == lib.BADGE_SCHEMA_VERSION
+    assert set(schema["properties"]["verdict"]["enum"]) == set(lib.BADGE_STATES)
+    assert set(schema["required"]) == {"schema_version", "label", "verdict"}
+    assert schema["properties"]["label"]["maxLength"] == lib.BADGE_LABEL_MAX_LEN
+    assert schema["additionalProperties"] is True
