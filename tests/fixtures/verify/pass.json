@@ -1,0 +1,9 @@
+{
+  "schema_version": "mncs.verification-result/1",
+  "verdict": "PASS",
+  "summary": "All required checks passed.",
+  "checks": [
+    {"id": "compile", "verdict": "PASS", "summary": "Compiled."},
+    {"id": "unit", "verdict": "PASS", "summary": "Tests passed."}
+  ]
+}

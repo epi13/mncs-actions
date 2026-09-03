@@ -1,0 +1,209 @@
+name: MNCS family verify
+
+# First practical reusable family verification workflow.
+#
+# A repository invokes this with a pinned revision:
+#
+#   jobs:
+#     mncs:
+#       uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@<pinned-revision>
+#       with:
+#         required-checks: mncs-validation,rights-provenance,project-tests
+#         mncs-command: ./scripts/mncs-check.sh
+#         rights-command: ./scripts/rights-check.sh
+#         project-command: ./scripts/project-verify.sh
+#
+# Composition is role-based: leave a command empty to mark that provider
+# not applicable for the caller.  "Not applicable" is never recorded as
+# PASS; the check is simply absent and the required set decides the
+# boundary.  Unavailable required coverage becomes UNKNOWN/FAIL, never PASS.
+#
+# Trust domains: this workflow runs on the caller's runner (expected
+# GitHub-hosted for public PRs).  It never dispatches to privileged
+# self-hosted MNCS workers; hardware-gated checks must report UNKNOWN
+# when their runner is unavailable.
+
+on:
+  workflow_call:
+    inputs:
+      required-checks:
+        description: Comma separated required check ids (e.g. mncs-validation,rights-provenance,project-tests).
+        required: true
+        type: string
+      optional-checks:
+        description: Comma separated optional check ids (UNKNOWN stays visible but does not decide the boundary).
+        required: false
+        default: ""
+        type: string
+      boundary:
+        description: Declared aggregate boundary name.
+        required: false
+        default: family
+        type: string
+      fail-on-unknown:
+        description: Fail when the aggregate verdict is UNKNOWN.
+        required: false
+        default: true
+        type: boolean
+      working-directory:
+        description: Directory checked out by the caller where commands run.
+        required: false
+        default: .
+        type: string
+      mncs-command:
+        description: Provider command writing the MNCS check-result (empty = not applicable).
+        required: false
+        default: ""
+        type: string
+      mncs-check-id:
+        required: false
+        default: mncs-validation
+        type: string
+      mncs-provider:
+        required: false
+        default: mncs-validator-rs
+        type: string
+      mncs-result-file:
+        required: false
+        default: .mncs/mncs-check.json
+        type: string
+      mncs-evidence-dir:
+        required: false
+        default: .mncs/mncs-evidence
+        type: string
+      rights-command:
+        description: Provider command writing the rights check-result (empty = not applicable).
+        required: false
+        default: ""
+        type: string
+      rights-check-id:
+        required: false
+        default: rights-provenance
+        type: string
+      rights-provider:
+        required: false
+        default: mncs-rights-provenance
+        type: string
+      rights-result-file:
+        required: false
+        default: .mncs/rights-check.json
+        type: string
+      rights-evidence-dir:
+        required: false
+        default: .mncs/rights-evidence
+        type: string
+      project-command:
+        description: Provider command writing the project check-result (empty = not applicable).
+        required: false
+        default: ""
+        type: string
+      project-check-id:
+        required: false
+        default: project-tests
+        type: string
+      project-provider:
+        required: false
+        default: project-verifier
+        type: string
+      project-result-file:
+        required: false
+        default: .mncs/project-check.json
+        type: string
+      project-evidence-dir:
+        required: false
+        default: .mncs/project-evidence
+        type: string
+      aggregate-evidence-dir:
+        required: false
+        default: .mncs/aggregate-evidence
+        type: string
+      upload-artifacts:
+        required: false
+        default: true
+        type: boolean
+    outputs:
+      verdict:
+        description: Aggregate verdict PASS/FAIL/UNKNOWN.
+        value: ${{ jobs.family-verify.outputs.verdict }}
+      manifest-digest:
+        description: Digest of the canonical aggregate manifest.
+        value: ${{ jobs.family-verify.outputs.manifest-digest }}
+      aggregate-path:
+        description: Path to the aggregate-result document.
+        value: ${{ jobs.family-verify.outputs.aggregate-path }}
+  workflow_dispatch:
+    inputs:
+      required-checks:
+        description: Required check ids.
+        required: false
+        default: demo-mncs,demo-rights
+
+permissions:
+  contents: read
+
+jobs:
+  family-verify:
+    runs-on: ubuntu-latest
+    outputs:
+      verdict: ${{ steps.aggregate.outputs.verdict }}
+      manifest-digest: ${{ steps.aggregate.outputs.manifest-digest }}
+      aggregate-path: ${{ steps.aggregate.outputs.aggregate-path }}
+    steps:
+      - name: Check out caller repository
+        uses: actions/checkout@v4
+
+      - name: MNCS validation check
+        id: mncs
+        if: ${{ inputs.mncs-command != '' }}
+        uses: ./actions/run-check
+        with:
+          command: ${{ inputs.mncs-command }}
+          check-id: ${{ inputs.mncs-check-id }}
+          provider: ${{ inputs.mncs-provider }}
+          working-directory: ${{ inputs.working-directory }}
+          result-file: ${{ inputs.mncs-result-file }}
+          evidence-directory: ${{ inputs.mncs-evidence-dir }}
+          upload-artifact: "false"
+
+      - name: Rights and provenance check
+        id: rights
+        if: ${{ inputs.rights-command != '' }}
+        uses: ./actions/run-check
+        with:
+          command: ${{ inputs.rights-command }}
+          check-id: ${{ inputs.rights-check-id }}
+          provider: ${{ inputs.rights-provider }}
+          working-directory: ${{ inputs.working-directory }}
+          result-file: ${{ inputs.rights-result-file }}
+          evidence-directory: ${{ inputs.rights-evidence-dir }}
+          upload-artifact: "false"
+
+      - name: Project verification check
+        id: project
+        if: ${{ inputs.project-command != '' }}
+        uses: ./actions/run-check
+        with:
+          command: ${{ inputs.project-command }}
+          check-id: ${{ inputs.project-check-id }}
+          provider: ${{ inputs.project-provider }}
+          working-directory: ${{ inputs.working-directory }}
+          result-file: ${{ inputs.project-result-file }}
+          evidence-directory: ${{ inputs.project-evidence-dir }}
+          upload-artifact: "false"
+
+      - name: Aggregate family verdict
+        id: aggregate
+        uses: ./actions/aggregate
+        with:
+          checks: >-
+            ${{ inputs.mncs-result-file }}
+            ${{ inputs.rights-result-file }}
+            ${{ inputs.project-result-file }}
+          required: ${{ inputs.required-checks }}
+          optional: ${{ inputs.optional-checks }}
+          boundary: ${{ inputs.boundary }}
+          working-directory: ${{ inputs.working-directory }}
+          evidence-directory: ${{ inputs.aggregate-evidence-dir }}
+          fail-on-unknown: ${{ inputs.fail-on-unknown }}
+          upload-artifact: ${{ inputs.upload-artifacts }}
+          artifact-name: mncs-family-evidence

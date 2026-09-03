@@ -1,0 +1,5 @@
+{
+  "schema_version": "mncs.verification-result/9",
+  "verdict": "PASS",
+  "checks": [{"id": "compile", "verdict": "PASS"}]
+}

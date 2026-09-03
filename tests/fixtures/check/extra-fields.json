@@ -1,0 +1,8 @@
+{
+  "schema_version": "mncs.check-result/1",
+  "id": "extra",
+  "provider": "fixture",
+  "verdict": "PASS",
+  "future_field": {"nested": true},
+  "summary": "Extra fields ignored."
+}

@@ -1,0 +1,6 @@
+{
+  "schema_version": "mncs.verification-result/1",
+  "verdict": "PASS",
+  "summary": "Vacuous pass with no checks.",
+  "checks": []
+}

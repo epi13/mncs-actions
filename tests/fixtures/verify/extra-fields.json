@@ -1,0 +1,10 @@
+{
+  "schema_version": "mncs.verification-result/1",
+  "verdict": "PASS",
+  "summary": "Extra fields must be ignored, verdict unchanged.",
+  "checks": [
+    {"id": "compile", "verdict": "PASS", "summary": "ok", "experimental_future_field": {"nested": [1, 2, 3]}, "another": 42}
+  ],
+  "future_top_level": "must-be-ignored",
+  "metadata": {"producer": "fixture", "revision": "test"}
+}

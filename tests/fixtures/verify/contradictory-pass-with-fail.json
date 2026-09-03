@@ -1,0 +1,9 @@
+{
+  "schema_version": "mncs.verification-result/1",
+  "verdict": "PASS",
+  "summary": "Contradictory: claims PASS but a check failed.",
+  "checks": [
+    {"id": "compile", "verdict": "PASS"},
+    {"id": "unit", "verdict": "FAIL"}
+  ]
+}

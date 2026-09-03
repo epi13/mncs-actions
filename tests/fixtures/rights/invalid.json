@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.3.0",
+  "manifest": "fixture.json",
+  "structural_valid": false,
+  "issues": ["manifest is not valid JSON"],
+  "manifest_identity_expected": "",
+  "manifest_identity_matches": false,
+  "policy_profile": "default-canonical-release",
+  "outcome": "invalid",
+  "severity": "blocking",
+  "gate_results": [],
+  "findings": [],
+  "note": "fixture",
+  "legal_conclusion": "NOT_MADE"
+}

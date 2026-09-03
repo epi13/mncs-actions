@@ -1,5 +1,5 @@
 name: MNCS Verify
-description: Run a project verifier, validate its result, and emit provenance-bearing evidence.
+description: Run a project verifier, validate its result, emit an execution receipt, and package provenance-bearing evidence.
 author: epi13
 
 branding:
@@ -8,7 +8,7 @@ branding:
 
 inputs:
   command:
-    description: Shell command that runs the project verifier and writes result-file.
+    description: Shell command that runs the project verifier and writes result-file. Workflow-author controlled; do not pass untrusted PR content here.
     required: true
   working-directory:
     description: Directory in which command and result validation run.
@@ -27,7 +27,7 @@ inputs:
     required: false
     default: "false"
   upload-artifact:
-    description: Upload the generated evidence directory as a workflow artifact.
+    description: Upload the generated evidence directory as a workflow artifact (including the execution receipt on negative paths).
     required: false
     default: "true"
   artifact-name:
@@ -37,16 +37,25 @@ inputs:
 
 outputs:
   verdict:
-    description: Normalized verification verdict: PASS, FAIL, or UNKNOWN.
+    description: Verification verdict when a claim is established (PASS/FAIL/UNKNOWN), else INVALID for missing/malformed/invalid results.
     value: ${{ steps.package.outputs.verdict }}
+  claim-status:
+    description: ESTABLISHED when a valid verification claim exists, else NOT_ESTABLISHED.
+    value: ${{ steps.package.outputs.claim-status }}
   evidence-path:
-    description: Absolute path to the generated evidence manifest.
+    description: Absolute path to the generated evidence manifest (only when a claim is established).
     value: ${{ steps.package.outputs.evidence-path }}
   result-path:
-    description: Absolute path to the copied result in the evidence directory.
+    description: Absolute path to the copied result in the evidence directory (only when a claim is established).
     value: ${{ steps.package.outputs.result-path }}
-  provenance-digest:
+  execution-receipt-path:
+    description: Absolute path to the execution receipt (always written, even when no claim is established).
+    value: ${{ steps.package.outputs.execution-receipt-path }}
+  manifest-digest:
     description: SHA-256 digest of the canonical evidence manifest.
+    value: ${{ steps.package.outputs.manifest-digest }}
+  provenance-digest:
+    description: Deprecated alias for manifest-digest (the digest always covered the entire canonical manifest, not only provenance).
     value: ${{ steps.package.outputs.provenance-digest }}
   command-exit-code:
     description: Exit code returned by the project verifier command.
@@ -64,7 +73,7 @@ runs:
         set +e
         ${{ inputs.command }}
         status=$?
-        printf '%s' "$status" > "$RUNNER_TEMP/mncs-actions-command-exit"
+        echo "exit-code=$status" >> "$GITHUB_OUTPUT"
         exit 0
 
     - name: Validate result and package evidence
@@ -75,13 +84,18 @@ runs:
       env:
         MNCS_RESULT_FILE: ${{ inputs.result-file }}
         MNCS_EVIDENCE_DIRECTORY: ${{ inputs.evidence-directory }}
+        MNCS_COMMAND_EXIT_CODE: ${{ steps.run-verifier.outputs.exit-code }}
+        MNCS_COMMAND_LABEL: ${{ inputs.command }}
       run: |
         set -euo pipefail
-        command_exit_code="$(cat "$RUNNER_TEMP/mncs-actions-command-exit")"
-        "$GITHUB_ACTION_PATH/verify.sh"           --result-file "$MNCS_RESULT_FILE"           --evidence-dir "$MNCS_EVIDENCE_DIRECTORY"           --command-exit-code "$command_exit_code"
+        if [[ -z "${MNCS_COMMAND_EXIT_CODE:-}" ]]; then
+          echo "::error::Missing verifier exit code from run-verifier step."
+          exit 2
+        fi
+        "$GITHUB_ACTION_PATH/verify.sh" --result-file "$MNCS_RESULT_FILE" --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" --command-exit-code "$MNCS_COMMAND_EXIT_CODE" --command "$MNCS_COMMAND_LABEL"
 
     - name: Upload evidence artifact
-      if: ${{ steps.package.outcome == 'success' && inputs.upload-artifact == 'true' }}
+      if: ${{ always() && inputs.upload-artifact == 'true' }}
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.artifact-name }}
@@ -95,12 +109,18 @@ runs:
         MNCS_FAIL_ON_UNKNOWN: ${{ inputs.fail-on-unknown }}
         MNCS_PACKAGE_OUTCOME: ${{ steps.package.outcome }}
         MNCS_VERDICT: ${{ steps.package.outputs.verdict }}
+        MNCS_CLAIM_STATUS: ${{ steps.package.outputs.claim-status }}
         MNCS_COMMAND_EXIT_CODE: ${{ steps.package.outputs.command-exit-code }}
       run: |
         set -euo pipefail
 
         if [[ "$MNCS_PACKAGE_OUTCOME" != "success" ]]; then
-          echo "::error::The verification result was missing or malformed."
+          echo "::error::The verification claim was NOT ESTABLISHED (missing or malformed result; see execution receipt)."
+          exit 1
+        fi
+
+        if [[ "$MNCS_CLAIM_STATUS" == "NOT_ESTABLISHED" || "$MNCS_VERDICT" == "INVALID" ]]; then
+          echo "::error::The verification claim was NOT ESTABLISHED (missing or malformed result; see execution receipt)."
           exit 1
         fi
 

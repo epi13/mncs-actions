@@ -1,0 +1,162 @@
+name: MNCS Run Check
+description: Invoke one family-owned provider, validate its check-result, and package a receipt plus check evidence for later aggregation.
+author: epi13
+
+branding:
+  color: green
+  icon: package
+
+inputs:
+  command:
+    description: Shell command that runs the provider and writes result-file (a check-result/1 document).
+    required: true
+  check-id:
+    description: Expected check id; when non-empty the result file id must match.
+    required: false
+    default: ""
+  provider:
+    description: Expected provider name; when non-empty the result file provider must match.
+    required: false
+    default: ""
+  working-directory:
+    description: Directory in which command and validation run.
+    required: false
+    default: .
+  result-file:
+    description: Path, relative to working-directory, of the JSON check result.
+    required: false
+    default: .mncs/check-result.json
+  evidence-directory:
+    description: Directory, relative to working-directory, for generated evidence.
+    required: false
+    default: .mncs/evidence
+  fail-on-unknown:
+    description: Fail this step when the provider produces a valid UNKNOWN check.
+    required: false
+    default: "false"
+  fail-on-fail:
+    description: Fail this step when the provider produces a valid FAIL check. Keep false when aggregation decides the boundary.
+    required: false
+    default: "false"
+  upload-artifact:
+    description: Upload the generated evidence directory as a workflow artifact.
+    required: false
+    default: "false"
+  artifact-name:
+    description: Name of the uploaded evidence artifact.
+    required: false
+    default: mncs-check-evidence
+
+outputs:
+  verdict:
+    description: Check verdict when established (PASS/FAIL/UNKNOWN), else INVALID.
+    value: ${{ steps.package.outputs.verdict }}
+  claim-status:
+    description: ESTABLISHED or NOT_ESTABLISHED.
+    value: ${{ steps.package.outputs.claim-status }}
+  evidence-path:
+    description: Absolute path to the check evidence manifest (only when established).
+    value: ${{ steps.package.outputs.evidence-path }}
+  check-path:
+    description: Absolute path to the packaged check-result.
+    value: ${{ steps.package.outputs.check-path }}
+  execution-receipt-path:
+    description: Absolute path to the execution receipt (always written).
+    value: ${{ steps.package.outputs.execution-receipt-path }}
+  manifest-digest:
+    description: SHA-256 digest of the canonical check manifest.
+    value: ${{ steps.package.outputs.manifest-digest }}
+  provenance-digest:
+    description: Deprecated alias for manifest-digest.
+    value: ${{ steps.package.outputs.provenance-digest }}
+  command-exit-code:
+    description: Exit code returned by the provider command.
+    value: ${{ steps.package.outputs.command-exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Run provider
+      id: run-provider
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      continue-on-error: true
+      run: |
+        set +e
+        ${{ inputs.command }}
+        status=$?
+        echo "exit-code=$status" >> "$GITHUB_OUTPUT"
+        exit 0
+
+    - name: Validate check and package evidence
+      id: package
+      if: always()
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        MNCS_RESULT_FILE: ${{ inputs.result-file }}
+        MNCS_EVIDENCE_DIRECTORY: ${{ inputs.evidence-directory }}
+        MNCS_COMMAND_EXIT_CODE: ${{ steps.run-provider.outputs.exit-code }}
+        MNCS_COMMAND_LABEL: ${{ inputs.command }}
+        MNCS_EXPECTED_ID: ${{ inputs.check-id }}
+        MNCS_EXPECTED_PROVIDER: ${{ inputs.provider }}
+      run: |
+        set -euo pipefail
+        if [[ -z "${MNCS_COMMAND_EXIT_CODE:-}" ]]; then
+          echo "::error::Missing provider exit code from run-provider step."
+          exit 2
+        fi
+        "$GITHUB_ACTION_PATH/run_check.sh" --result-file "$MNCS_RESULT_FILE" --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" --command-exit-code "$MNCS_COMMAND_EXIT_CODE" --command "$MNCS_COMMAND_LABEL" --expected-id "$MNCS_EXPECTED_ID" --expected-provider "$MNCS_EXPECTED_PROVIDER"
+
+    - name: Upload check evidence
+      if: ${{ always() && inputs.upload-artifact == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.working-directory }}/${{ inputs.evidence-directory }}
+        if-no-files-found: error
+
+    - name: Apply check gate
+      if: always()
+      shell: bash
+      env:
+        MNCS_FAIL_ON_UNKNOWN: ${{ inputs.fail-on-unknown }}
+        MNCS_FAIL_ON_FAIL: ${{ inputs.fail-on-fail }}
+        MNCS_PACKAGE_OUTCOME: ${{ steps.package.outcome }}
+        MNCS_VERDICT: ${{ steps.package.outputs.verdict }}
+        MNCS_CLAIM_STATUS: ${{ steps.package.outputs.claim-status }}
+        MNCS_COMMAND_EXIT_CODE: ${{ steps.package.outputs.command-exit-code }}
+      run: |
+        set -euo pipefail
+        if [[ "$MNCS_PACKAGE_OUTCOME" != "success" ]]; then
+          echo "::error::The check claim was NOT ESTABLISHED (missing or malformed check-result)."
+          exit 1
+        fi
+        if [[ "$MNCS_CLAIM_STATUS" == "NOT_ESTABLISHED" || "$MNCS_VERDICT" == "INVALID" ]]; then
+          echo "::error::The check claim was NOT ESTABLISHED."
+          exit 1
+        fi
+        if [[ "$MNCS_COMMAND_EXIT_CODE" != "0" ]]; then
+          echo "::error::The provider command exited with $MNCS_COMMAND_EXIT_CODE."
+          exit 1
+        fi
+        case "$MNCS_VERDICT" in
+          PASS) exit 0 ;;
+          FAIL)
+            if [[ "$MNCS_FAIL_ON_FAIL" == "true" ]]; then
+              echo "::error::The provider returned FAIL."
+              exit 1
+            fi
+            echo "::warning::The provider returned FAIL (deferred to aggregation)."
+            exit 0
+            ;;
+          UNKNOWN)
+            if [[ "$MNCS_FAIL_ON_UNKNOWN" == "true" ]]; then
+              echo "::error::The provider returned UNKNOWN and fail-on-unknown is enabled."
+              exit 1
+            fi
+            echo "::warning::The provider returned UNKNOWN."
+            exit 0
+            ;;
+          *) echo "::error::Invalid check verdict: $MNCS_VERDICT"; exit 1 ;;
+        esac

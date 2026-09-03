@@ -1,0 +1,5 @@
+{
+  "schema_version": "mncs.verification-result/1",
+  "verdict": "PASS",
+  "summary": "Missing checks array."
+}

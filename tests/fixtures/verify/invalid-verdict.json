@@ -1,0 +1,6 @@
+{
+  "schema_version": "mncs.verification-result/1",
+  "verdict": "PASSED",
+  "summary": "Invalid top verdict.",
+  "checks": [{"id": "compile", "verdict": "PASS"}]
+}

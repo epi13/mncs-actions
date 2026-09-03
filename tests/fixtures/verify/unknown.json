@@ -1,0 +1,9 @@
+{
+  "schema_version": "mncs.verification-result/1",
+  "verdict": "UNKNOWN",
+  "summary": "Backend unavailable, coverage incomplete.",
+  "checks": [
+    {"id": "compile", "verdict": "PASS"},
+    {"id": "ebpf-backend", "verdict": "UNKNOWN", "summary": "Runner lacks eBPF support."}
+  ]
+}

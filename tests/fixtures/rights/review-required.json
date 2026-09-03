@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.3.0",
+  "manifest": "fixture.json",
+  "structural_valid": true,
+  "issues": [],
+  "manifest_identity_expected": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "manifest_identity_matches": true,
+  "policy_profile": "default-canonical-release",
+  "outcome": "review-required",
+  "severity": "review",
+  "gate_results": [],
+  "findings": ["human review state is unacceptable for release"],
+  "note": "fixture",
+  "legal_conclusion": "NOT_MADE"
+}

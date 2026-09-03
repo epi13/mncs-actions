@@ -15,34 +15,49 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
       - name: Validate shell syntax
-        run: bash -n actions/verify/verify.sh
+        run: |
+          bash -n actions/verify/verify.sh
+          bash -n actions/run-check/run_check.sh
+          bash -n actions/aggregate/aggregate.sh
 
       - name: Validate JSON contracts
         run: |
           python3 -m json.tool schemas/verification-result.schema.json >/dev/null
           python3 -m json.tool schemas/evidence-manifest.schema.json >/dev/null
+          python3 -m json.tool schemas/execution-receipt.schema.json >/dev/null
+          python3 -m json.tool schemas/check-result.schema.json >/dev/null
+          python3 -m json.tool schemas/aggregate-result.schema.json >/dev/null
+          for fixture in tests/fixtures/verify/pass.json tests/fixtures/verify/fail.json tests/fixtures/verify/unknown.json tests/fixtures/check/pass.json; do
+            python3 -m json.tool "$fixture" >/dev/null
+          done
 
-      - name: Exercise passing result
+      - name: Validate contracts against schemas
+        run: |
+          pip install check-jsonschema
+          check-jsonschema --schemafile schemas/verification-result.schema.json tests/fixtures/verify/pass.json tests/fixtures/verify/fail.json tests/fixtures/verify/unknown.json tests/fixtures/verify/extra-fields.json
+          check-jsonschema --schemafile schemas/check-result.schema.json tests/fixtures/check/pass.json tests/fixtures/check/fail.json tests/fixtures/check/unknown.json
+          # Negative fixtures must fail schema or canonical validation; assert the canonical lib rejects them.
+          python3 -c "import sys; sys.path.insert(0,'lib'); import mncs_actions, json; assert mncs_actions.validate_verification_result(json.load(open('tests/fixtures/verify/contradictory-pass-with-fail.json')))"
+
+      - name: Run deterministic test matrix
+        run: |
+          pip install pytest pyyaml jsonschema
+          python3 -m pytest tests/ -q
+
+      - name: Exercise verify action locally (PASS)
         shell: bash
         run: |
           set -euo pipefail
           test_dir="$RUNNER_TEMP/mncs-actions-self-test"
+          rm -rf "$test_dir"
           mkdir -p "$test_dir/evidence"
-          cat > "$test_dir/result.json" <<'JSON'
-          {
-            "schema_version": "mncs.verification-result/1",
-            "verdict": "PASS",
-            "summary": "Self-test passed.",
-            "checks": [
-              {
-                "id": "shell",
-                "verdict": "PASS",
-                "summary": "The action script passed shell validation."
-              }
-            ]
-          }
-          JSON
+          cp tests/fixtures/verify/pass.json "$test_dir/result.json"
           export GITHUB_OUTPUT="$test_dir/output"
           export GITHUB_STEP_SUMMARY="$test_dir/summary"
           export GITHUB_REPOSITORY="epi13/mncs-actions"
@@ -53,7 +68,106 @@ jobs:
           export GITHUB_ACTOR="self-test"
           export GITHUB_EVENT_NAME="workflow_dispatch"
           export RUNNER_NAME="github-hosted"
-          actions/verify/verify.sh             --result-file "$test_dir/result.json"             --evidence-dir "$test_dir/evidence"             --command-exit-code 0
+          touch "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+          actions/verify/verify.sh --result-file "$test_dir/result.json" --evidence-dir "$test_dir/evidence" --command-exit-code 0 --command "self-test"
           grep -q '^verdict=PASS$' "$test_dir/output"
+          grep -q '^claim-status=ESTABLISHED$' "$test_dir/output"
+          grep -q '^manifest-digest=[a-f0-9]\{64\}$' "$test_dir/output"
           test -s "$test_dir/evidence/evidence-manifest.json"
           test -s "$test_dir/evidence/verification-result.json"
+          test -s "$test_dir/evidence/execution-receipt.json"
+
+      - name: Exercise composed run-check plus aggregate locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/mncs-actions-compose-test"
+          rm -rf "$work"
+          mkdir -p "$work"
+          cp tests/fixtures/check/pass.json "$work/mncs.json"
+          cp tests/fixtures/check/unknown.json "$work/ebpf.json"
+          export GITHUB_OUTPUT="$work/output-agg"
+          export GITHUB_STEP_SUMMARY="$work/summary-agg"
+          export GITHUB_REPOSITORY="epi13/mncs-actions"
+          export GITHUB_REF="refs/heads/main"
+          export GITHUB_SHA="self-test"
+          export GITHUB_WORKFLOW="CI"
+          export GITHUB_RUN_ID="self-test"
+          export GITHUB_ACTOR="self-test"
+          export GITHUB_EVENT_NAME="workflow_dispatch"
+          export RUNNER_NAME="github-hosted"
+          touch "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+          actions/aggregate/aggregate.sh --checks "mncs.json ebpf.json" --required "mncs-validation,ebpf-backend" --evidence-dir "$work/agg-evidence" --working-dir "$work" --boundary "ci-self-test"
+          grep -q '^verdict=UNKNOWN$' "$work/output-agg"
+          test -s "$work/agg-evidence/aggregate-result.json"
+          test -s "$work/agg-evidence/execution-receipt.json"
+          python3 adapters/rights_adapter.py --input tests/fixtures/rights/review-required.json --output "$work/rights-check.json"
+          python3 -c "import json; assert json.load(open('$work/rights-check.json'))['verdict']=='UNKNOWN'"
+          python3 adapters/validator_adapter.py --input tests/fixtures/validator/valid-pass.json --output "$work/mncs-check.json"
+          python3 -c "import json; assert json.load(open('$work/mncs-check.json'))['verdict']=='PASS'"
+
+  family-self-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Generate fixture check-results via adapters
+        run: |
+          set -euo pipefail
+          mkdir -p .mncs
+          python3 adapters/validator_adapter.py --input tests/fixtures/validator/valid-pass.json --output .mncs/mncs-check.json --check-id mncs-validation --provider mncs-validator-rs --contract-revision 0.2
+          python3 adapters/rights_adapter.py --input tests/fixtures/rights/pass.json --output .mncs/rights-check.json --check-id rights-provenance --provider mncs-rights-provenance --contract-revision 0.3.0
+          cp tests/fixtures/check/pass.json .mncs/project-check.json
+          python3 -c "import json; d=json.load(open('.mncs/project-check.json')); d['id']='project-tests'; d['provider']='project-verifier'; json.dump(d, open('.mncs/project-check.json','w'), indent=2, sort_keys=True)"
+
+      - name: Run MNCS check (fixture command)
+        uses: ./actions/run-check
+        with:
+          command: python3 adapters/validator_adapter.py --input tests/fixtures/validator/valid-pass.json --output .mncs/mncs-check.json --check-id mncs-validation --provider mncs-validator-rs
+          check-id: mncs-validation
+          provider: mncs-validator-rs
+          result-file: .mncs/mncs-check.json
+          evidence-directory: .mncs/mncs-evidence
+          upload-artifact: "false"
+
+      - name: Run rights check (fixture command)
+        uses: ./actions/run-check
+        with:
+          command: python3 adapters/rights_adapter.py --input tests/fixtures/rights/pass.json --output .mncs/rights-check.json --check-id rights-provenance --provider mncs-rights-provenance
+          check-id: rights-provenance
+          provider: mncs-rights-provenance
+          result-file: .mncs/rights-check.json
+          evidence-directory: .mncs/rights-evidence
+          upload-artifact: "false"
+
+      - name: Run project check (repeated action use)
+        uses: ./actions/run-check
+        with:
+          command: cp tests/fixtures/check/pass.json .mncs/project-check.json && python3 -c "import json; p='.mncs/project-check.json'; d=json.load(open(p)); d['id']='project-tests'; d['provider']='project-verifier'; json.dump(d, open(p,'w'), indent=2, sort_keys=True)"
+          check-id: project-tests
+          provider: project-verifier
+          result-file: .mncs/project-check.json
+          evidence-directory: .mncs/project-evidence
+          upload-artifact: "false"
+
+      - name: Aggregate family verdict
+        uses: ./actions/aggregate
+        with:
+          checks: .mncs/mncs-check.json .mncs/rights-check.json .mncs/project-check.json
+          required: mncs-validation,rights-provenance,project-tests
+          optional: ebpf-backend
+          boundary: ci-family-self-test
+          evidence-directory: .mncs/aggregate-evidence
+          fail-on-unknown: "true"
+          upload-artifact: "true"
+          artifact-name: mncs-family-self-test-evidence
+
+      - name: Run legacy verify once (compatibility)
+        uses: ./actions/verify
+        with:
+          command: cp tests/fixtures/verify/pass.json .mncs/verification-result.json
+          result-file: .mncs/verification-result.json
+          evidence-directory: .mncs/legacy-evidence
+          fail-on-unknown: "true"
+          artifact-name: mncs-legacy-verify-evidence
