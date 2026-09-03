@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate shell syntax
+        run: bash -n actions/verify/verify.sh
+
+      - name: Validate JSON contracts
+        run: |
+          python3 -m json.tool schemas/verification-result.schema.json >/dev/null
+          python3 -m json.tool schemas/evidence-manifest.schema.json >/dev/null
+
+      - name: Exercise passing result
+        shell: bash
+        run: |
+          set -euo pipefail
+          test_dir="$RUNNER_TEMP/mncs-actions-self-test"
+          mkdir -p "$test_dir/evidence"
+          cat > "$test_dir/result.json" <<'JSON'
+          {
+            "schema_version": "mncs.verification-result/1",
+            "verdict": "PASS",
+            "summary": "Self-test passed.",
+            "checks": [
+              {
+                "id": "shell",
+                "verdict": "PASS",
+                "summary": "The action script passed shell validation."
+              }
+            ]
+          }
+          JSON
+          export GITHUB_OUTPUT="$test_dir/output"
+          export GITHUB_STEP_SUMMARY="$test_dir/summary"
+          export GITHUB_REPOSITORY="epi13/mncs-actions"
+          export GITHUB_REF="refs/heads/main"
+          export GITHUB_SHA="self-test"
+          export GITHUB_WORKFLOW="CI"
+          export GITHUB_RUN_ID="self-test"
+          export GITHUB_ACTOR="self-test"
+          export GITHUB_EVENT_NAME="workflow_dispatch"
+          export RUNNER_NAME="github-hosted"
+          actions/verify/verify.sh             --result-file "$test_dir/result.json"             --evidence-dir "$test_dir/evidence"             --command-exit-code 0
+          grep -q '^verdict=PASS$' "$test_dir/output"
+          test -s "$test_dir/evidence/evidence-manifest.json"
+          test -s "$test_dir/evidence/verification-result.json"

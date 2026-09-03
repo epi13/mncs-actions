@@ -1,0 +1,132 @@
+name: MNCS Verify
+description: Run a project verifier, validate its result, and emit provenance-bearing evidence.
+author: epi13
+
+branding:
+  color: blue
+  icon: check-circle
+
+inputs:
+  command:
+    description: Shell command that runs the project verifier and writes result-file.
+    required: true
+  working-directory:
+    description: Directory in which command and result validation run.
+    required: false
+    default: .
+  result-file:
+    description: Path, relative to working-directory, of the JSON verification result.
+    required: false
+    default: .mncs/verification-result.json
+  evidence-directory:
+    description: Directory, relative to working-directory, for generated evidence.
+    required: false
+    default: .mncs/evidence
+  fail-on-unknown:
+    description: Fail the action when the verifier produces a valid UNKNOWN result.
+    required: false
+    default: "false"
+  upload-artifact:
+    description: Upload the generated evidence directory as a workflow artifact.
+    required: false
+    default: "true"
+  artifact-name:
+    description: Name of the uploaded evidence artifact.
+    required: false
+    default: mncs-verification-evidence
+
+outputs:
+  verdict:
+    description: Normalized verification verdict: PASS, FAIL, or UNKNOWN.
+    value: ${{ steps.package.outputs.verdict }}
+  evidence-path:
+    description: Absolute path to the generated evidence manifest.
+    value: ${{ steps.package.outputs.evidence-path }}
+  result-path:
+    description: Absolute path to the copied result in the evidence directory.
+    value: ${{ steps.package.outputs.result-path }}
+  provenance-digest:
+    description: SHA-256 digest of the canonical evidence manifest.
+    value: ${{ steps.package.outputs.provenance-digest }}
+  command-exit-code:
+    description: Exit code returned by the project verifier command.
+    value: ${{ steps.package.outputs.command-exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Run project verifier
+      id: run-verifier
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      continue-on-error: true
+      run: |
+        set +e
+        ${{ inputs.command }}
+        status=$?
+        printf '%s' "$status" > "$RUNNER_TEMP/mncs-actions-command-exit"
+        exit 0
+
+    - name: Validate result and package evidence
+      id: package
+      if: always()
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        MNCS_RESULT_FILE: ${{ inputs.result-file }}
+        MNCS_EVIDENCE_DIRECTORY: ${{ inputs.evidence-directory }}
+      run: |
+        set -euo pipefail
+        command_exit_code="$(cat "$RUNNER_TEMP/mncs-actions-command-exit")"
+        "$GITHUB_ACTION_PATH/verify.sh"           --result-file "$MNCS_RESULT_FILE"           --evidence-dir "$MNCS_EVIDENCE_DIRECTORY"           --command-exit-code "$command_exit_code"
+
+    - name: Upload evidence artifact
+      if: ${{ steps.package.outcome == 'success' && inputs.upload-artifact == 'true' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: ${{ inputs.working-directory }}/${{ inputs.evidence-directory }}
+        if-no-files-found: error
+
+    - name: Apply verification gate
+      if: always()
+      shell: bash
+      env:
+        MNCS_FAIL_ON_UNKNOWN: ${{ inputs.fail-on-unknown }}
+        MNCS_PACKAGE_OUTCOME: ${{ steps.package.outcome }}
+        MNCS_VERDICT: ${{ steps.package.outputs.verdict }}
+        MNCS_COMMAND_EXIT_CODE: ${{ steps.package.outputs.command-exit-code }}
+      run: |
+        set -euo pipefail
+
+        if [[ "$MNCS_PACKAGE_OUTCOME" != "success" ]]; then
+          echo "::error::The verification result was missing or malformed."
+          exit 1
+        fi
+
+        if [[ "$MNCS_COMMAND_EXIT_CODE" != "0" ]]; then
+          echo "::error::The verifier command exited with $MNCS_COMMAND_EXIT_CODE."
+          exit 1
+        fi
+
+        case "$MNCS_VERDICT" in
+          PASS)
+            exit 0
+            ;;
+          FAIL)
+            echo "::error::The verifier returned FAIL."
+            exit 1
+            ;;
+          UNKNOWN)
+            if [[ "$MNCS_FAIL_ON_UNKNOWN" == "true" ]]; then
+              echo "::error::The verifier returned UNKNOWN and fail-on-unknown is enabled."
+              exit 1
+            fi
+            echo "::warning::The verifier returned UNKNOWN."
+            exit 0
+            ;;
+          *)
+            echo "::error::The action produced an invalid verdict: $MNCS_VERDICT"
+            exit 1
+            ;;
+        esac

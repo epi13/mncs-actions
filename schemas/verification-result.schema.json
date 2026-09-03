@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-actions/blob/main/schemas/verification-result.schema.json",
+  "title": "MNCS Verification Result",
+  "description": "The experimental v1 result contract consumed by the mncs-actions verify action.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "verdict",
+    "checks"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "mncs.verification-result/1"
+    },
+    "verdict": {
+      "enum": [
+        "PASS",
+        "FAIL",
+        "UNKNOWN"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/check"
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "required": [
+        "id",
+        "verdict"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verdict": {
+          "enum": [
+            "PASS",
+            "FAIL",
+            "UNKNOWN"
+          ]
+        },
+        "summary": {
+          "type": "string"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,25 @@
+name: MNCS verification example
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Run project verification
+        uses: epi13/mncs-actions/actions/verify@bootstrap/verification-action
+        with:
+          command: ./scripts/verify-mncs.sh
+          result-file: .mncs/verification-result.json
+          evidence-directory: .mncs/evidence
+          fail-on-unknown: "true"
+          artifact-name: mncs-verification-evidence
