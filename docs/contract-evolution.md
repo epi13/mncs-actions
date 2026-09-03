@@ -91,3 +91,32 @@ workflow consumes contract
 ~~~
 
 A capability gap is evidence about the current language, standard, or integration surface. It is not permission to weaken the contract silently. Future actions may emit canonical capability-gap records once the owning MNCS-family contract is available.
+
+## Family revision advancement
+
+`family-contracts.json` is the fixed family contract. It is never rewritten by
+a moving-head observation. `scripts/family_contracts.py propose` resolves a
+configured branch to exact SHAs and emits a candidate tied to the fixed
+contract's SHA-256 digest. `validate` requires candidate metadata and base
+revisions to match the fixed contract; `promote` writes a separate proposed
+fixed document so review and merge remain visible repository changes.
+
+The workflows preserve this distinction:
+
+- `moving-head-family-drift.yml` observes current heads and reports drift;
+- `family-contract-advance.yml` runs the candidate path for explicit review;
+- `family-contract-canary.yml` validates only the committed fixed SHA set.
+
+The advancement contract is moving-head -> candidate evidence -> reviewed
+fixed-contract change -> fixed canary. No `UNKNOWN` result, scheduled run, or
+generated file has promotion authority.
+
+## Adding or deepening a family provider
+
+Prefer an owner-native validator or source-study command over a duplicate
+semantic implementation in Actions. Add a focused adapter that preserves the
+native report and maps only its established result to `mncs.check-result/1`.
+Add the provider to the integration runner, required aggregation list, tests,
+and the fixed contract's artifact inventory. Keep unresolved obligations as
+`UNKNOWN`, and make missing or malformed native output fail closed. Record the
+provider's exact checkout SHA in references and in the family evidence.

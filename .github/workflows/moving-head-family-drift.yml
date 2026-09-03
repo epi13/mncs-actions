@@ -1,0 +1,162 @@
+name: MNCS family moving-head drift observation
+
+# This workflow observes current default-branch heads.  It is deliberately
+# separate from family-contract-canary.yml: its revisions are resolved at run
+# time and can never silently become fixed compatibility evidence.
+on:
+  schedule:
+    - cron: "23 6 * * 1"
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "family-contracts.json"
+      - "adapters/**"
+      - "scripts/**"
+      - "pressure/**"
+      - ".github/workflows/moving-head-family-drift.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mncs-family-moving-head-drift
+  cancel-in-progress: true
+
+jobs:
+  moving-head-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out mncs-actions
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        # actions/setup-python v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+
+      - name: Install locked canary dependencies
+        run: python3 -m pip install --require-hashes -r requirements-dev.lock
+
+      - name: Resolve current family heads to exact SHAs
+        id: resolve
+        run: |
+          mkdir -p .mncs
+          python3 scripts/family_contracts.py propose \
+            --contracts family-contracts.json \
+            --branch main \
+            --output "$RUNNER_TEMP/mncs-family-candidate.json"
+          cp "$RUNNER_TEMP/mncs-family-candidate.json" .mncs/moving-head-candidate.json
+
+      - name: Check out MNCS standard at resolved head
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/machine-native-complexity-standard
+          ref: ${{ steps.resolve.outputs.mncs_standard }}
+          path: family/mncs-standard
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out rights and provenance at resolved head
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-rights-provenance
+          ref: ${{ steps.resolve.outputs.rights_provenance }}
+          path: family/rights-provenance
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out MNCDS at resolved head
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/machine-native-complexity-development-specification
+          ref: ${{ steps.resolve.outputs.mncds }}
+          path: family/mncds
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out Commons at resolved head
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/MNCS-Commons
+          ref: ${{ steps.resolve.outputs.commons }}
+          path: family/commons
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out mncs-language at resolved head
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-language
+          ref: ${{ steps.resolve.outputs.mncs_language }}
+          path: family/mncs-language
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out Forge at resolved head
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-forge-mcp
+          ref: ${{ steps.resolve.outputs.forge }}
+          path: family/forge
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Build resolved mncs-language compiler
+        run: cargo build --locked --manifest-path family/mncs-language/Cargo.toml --bin mncs
+
+      - name: Validate candidate metadata and exact checkouts
+        run: |
+          python3 scripts/family_contracts.py validate \
+            .mncs/moving-head-candidate.json \
+            --fixed family-contracts.json \
+            --checkouts-root .
+
+      - name: Run moving-head owner contracts
+        run: |
+          python3 scripts/run_family_contracts.py \
+            --family-root . \
+            --actions-root . \
+            --contracts .mncs/moving-head-candidate.json \
+            --fixed-contracts family-contracts.json \
+            --output-dir .mncs/moving-head \
+            --language-binary family/mncs-language/target/debug/mncs
+
+      - name: Aggregate moving-head observation
+        id: aggregate
+        run: |
+          checks="$(find .mncs/moving-head -maxdepth 1 -type f -name '*.json' ! -name 'family-contract-evidence.json' | sort | tr '\n' ' ')"
+          actions/aggregate/aggregate.sh \
+            --checks "$checks" \
+            --required "mncs-validation,rights-provenance,mncds-development-record,commons-family-compatibility,mncs-language-family-boundary,mncs-language-rights-projection,mncs-language-changeset-boundary,forge-cell-contract" \
+            --boundary "family-moving-head-drift" \
+            --working-dir . \
+            --evidence-dir .mncs/moving-head/aggregate-evidence \
+            --carrier-revision "$GITHUB_SHA" \
+            --strict-membership true
+          verdict="$(grep '^verdict=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)"
+          echo "moving-head observation verdict=$verdict"
+          if [[ "$verdict" == "FAIL" || "$verdict" == "INVALID" ]]; then
+            exit 1
+          fi
+          if [[ "$verdict" == "UNKNOWN" ]]; then
+            echo "::warning::moving-head family compatibility is UNKNOWN; no fixed contract was changed"
+          fi
+
+      - name: Upload moving-head drift evidence
+        if: ${{ always() }}
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: mncs-family-moving-head-drift
+          path: .mncs/moving-head
+          if-no-files-found: error

@@ -82,3 +82,36 @@ This job is deterministic with respect to sibling revisions and action
 dependencies. It still runs on `ubuntu-latest`, whose image and toolchain are
 not immutable, and its evidence is therefore bounded rather than absolute.
 Moving sibling heads are not silently substituted for the recorded revisions.
+
+## Moving-head drift observation
+
+`moving-head-family-drift.yml` is a separate evidence class. On a schedule or
+manual dispatch it resolves each family repository's `main` head to a full
+commit SHA, writes `mncs-actions.family-contract-candidate/1`, checks out
+exactly those SHAs, and runs the owner-native contract runner. The candidate is
+tied to the SHA-256 digest of the fixed contract it was compared against. It
+never edits `family-contracts.json`, and drift `UNKNOWN` is not promoted to
+`PASS`.
+
+The runner covers the standard validator, rights/provenance, MNCDS, Commons'
+compatibility validator, three `mncs-language` source studies, and Forge Cell
+validation/assurance. Native reports remain in the evidence artifact; adapters
+only project their result into `mncs.check-result/1`. Unresolved compiler
+obligations and unmet Forge isolation therefore remain visible as `UNKNOWN`.
+
+## Explicit advancement path
+
+`family-contract-advance.yml` is a manual candidate-generation and review
+workflow. The advancement sequence is:
+
+1. resolve moving heads into a candidate and run the moving-head contract set;
+2. inspect the candidate and all evidence, including each `PASS`/`FAIL`/
+   `UNKNOWN` result and exact producer SHA;
+3. use `scripts/family_contracts.py promote` to write a separate proposed fixed
+   document;
+4. review and merge the explicit `family-contracts.json` change;
+5. rerun the fixed-revision canary and retain its evidence.
+
+No workflow step silently performs steps 3 or 4. The fixed canary remains the
+authoritative compatibility boundary after review; drift evidence is input to
+that review, not a replacement for it.

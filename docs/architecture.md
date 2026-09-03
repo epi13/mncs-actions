@@ -56,6 +56,28 @@ skipped. It is a compatibility observation for those revisions, not a
 moving-head or promotion claim. `ubuntu-latest` remains an explicitly
 documented hosted-runner boundary.
 
+## Fixed, drift, and advancement boundaries
+
+The family has three deliberately separate revision states:
+
+- fixed: the six full SHAs in `family-contracts.json`, used by the
+  deterministic compatibility canary;
+- moving-head: a scheduled observation that resolves current `main` heads to a
+  candidate document and checks out those exact candidate SHAs;
+- advancement: a manually reviewed candidate that may become a new fixed set
+  only through an explicit contract-file change and the fixed canary.
+
+The candidate carries the fixed-contract digest and both base and candidate
+SHA for every repository. This makes a moving-head result auditable without
+allowing it to mutate the family contract or masquerade as fixed evidence.
+
+The owner-native runner is an integration seam, not a policy replacement:
+MNCS/MNCDS validation, rights/provenance validation, Commons compatibility,
+mncs-language source studies, and Forge Cell checks each produce an independent
+`mncs.check-result/1`. Native reports and exact producer revisions are retained
+in the evidence bundle. PASS/FAIL/UNKNOWN remains explicit; malformed or
+unavailable execution is not rewritten as a positive claim.
+
 ## Extensible family composition
 
 The three convenience provider inputs in the reusable workflow are retained

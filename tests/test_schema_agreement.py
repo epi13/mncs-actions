@@ -83,6 +83,21 @@ def test_aggregate_schema_matches_lib():
     assert entry["additionalProperties"] is True
 
 
+def test_family_candidate_schema_is_explicit_and_forward_compatible():
+    schema = load_schema("family-contract-candidate.schema.json")
+    assert schema["properties"]["schema_version"]["const"] == "mncs-actions.family-contract-candidate/1"
+    assert schema["properties"]["source"]["const"] == "moving-head"
+    assert set(schema["required"]) == {
+        "schema_version",
+        "source",
+        "base_schema_version",
+        "base_contract_digest",
+        "branch",
+        "repositories",
+    }
+    assert schema["additionalProperties"] is True
+
+
 def test_lib_validates_published_fixtures():
     # Every shipping example fixture for the happy path must validate.
     for name in ("pass.json", "extra-fields.json"):

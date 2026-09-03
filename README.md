@@ -34,6 +34,12 @@ Primitives:
   the revisions recorded in `family-contracts.json`. Required canary tests
   fail if a checkout or test is skipped. This is compatibility evidence for
   fixed revisions, not proof about moving repository heads.
+- `.github/workflows/moving-head-family-drift.yml`: a scheduled/manual
+  observation that resolves each family `main` head to an exact candidate SHA,
+  runs owner-native contracts, and never edits the fixed contract.
+- `.github/workflows/family-contract-advance.yml`: a manual candidate path for
+  evidence review; promotion still requires an explicit reviewed change to
+  `family-contracts.json` followed by the fixed canary.
 
 ~~~yaml
 - uses: epi13/mncs-actions/actions/verify@<pinned-sha>
@@ -179,7 +185,9 @@ contains no timestamp, so identical inputs produce byte-identical output.
 ## Development
 
 Runtime actions use Bash and Python 3's standard library. Development and
-family-canary tests use the exact versions in `requirements-dev.txt`. Run the
+family-canary tests use the fully resolved, hash-pinned dependency set in
+`requirements-dev.lock` (generated from the direct pins in
+`requirements-dev.txt`). Run the
 local checks with:
 
 ~~~bash
@@ -188,6 +196,7 @@ bash -n actions/run-check/run_check.sh
 bash -n actions/aggregate/aggregate.sh
 python3 -m pytest tests/ -q
 python3 scripts/check-action-pins.py
+python3 scripts/family_contracts.py validate family-contracts.json
 ~~~
 
 The GitHub workflows exercise the composed actions plus the reusable family
@@ -199,7 +208,7 @@ identity.
 ## Roadmap
 
 1. Stabilize the result and evidence contracts through use in the family repositories.
-2. Carry rights/provenance and validator references without duplicating their models (done for v1 adapters; deepen with live integrations).
+2. Carry rights/provenance and validator references without duplicating their models (done for v1 adapters and fixed/candidate family integration).
 3. Extend coordination and ChangeSet coverage beyond the bounded rights-lineage bridge when MNCDS/Commons publish a dedicated stable contract (current provider composition seam and mechanical bridge are implemented).
 4. Add capability-gap and promotion-boundary actions once their owning contracts are stable.
 5. Implement the action logic in MNCS where the language can express it without weakening observability or security (current host-language escape: process execution, filesystem, hashing, GitHub environment, and JSON canonicalization have no safe MNCS expression yet).

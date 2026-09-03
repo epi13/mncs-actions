@@ -89,8 +89,11 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install pinned canary dependencies
-        run: python3 -m pip install -r requirements-dev.txt
+      - name: Install fully locked canary dependencies
+        run: python3 -m pip install --require-hashes -r requirements-dev.lock
+
+      - name: Build fixed mncs-language compiler
+        run: cargo build --locked --manifest-path family/mncs-language/Cargo.toml --bin mncs
 
       - name: Run fixed-revision family canaries
         env:
@@ -118,3 +121,35 @@ jobs:
               raise SystemExit(f"{skipped} required family canary test(s) skipped")
           print(f"executed {root.attrib.get('tests', '0')} family canary tests")
           PY
+
+      - name: Execute owner-native family contracts
+        run: |
+          python3 scripts/run_family_contracts.py \
+            --family-root . \
+            --actions-root . \
+            --contracts family-contracts.json \
+            --output-dir .mncs/fixed-family \
+            --language-binary family/mncs-language/target/debug/mncs
+
+      - name: Aggregate fixed family compatibility evidence
+        id: fixed-aggregate
+        run: |
+          checks="$(find .mncs/fixed-family -maxdepth 1 -type f -name '*.json' ! -name 'family-contract-evidence.json' | sort | tr '\n' ' ')"
+          actions/aggregate/aggregate.sh \
+            --checks "$checks" \
+            --required "mncs-validation,rights-provenance,mncds-development-record,commons-family-compatibility,mncs-language-family-boundary,mncs-language-rights-projection,mncs-language-changeset-boundary,forge-cell-contract" \
+            --boundary "family-fixed-revision-compatibility" \
+            --working-dir . \
+            --evidence-dir .mncs/fixed-family/aggregate-evidence \
+            --carrier-revision "$GITHUB_SHA" \
+            --strict-membership true
+          echo "Fixed family boundary verdict: $(grep '^verdict=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)"
+
+      - name: Upload fixed family evidence
+        if: ${{ always() }}
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: mncs-family-fixed-revision-evidence
+          path: .mncs/fixed-family
+          if-no-files-found: error
