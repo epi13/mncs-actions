@@ -87,7 +87,10 @@ def test_render_badge_writes_svg_sidecar_and_outputs(tmp_path):
     assert Path(result["sidecar-path"]).is_file()
     sidecar = json.loads((tmp_path / "badge.json").read_text(encoding="utf-8"))
     assert sidecar["verdict"] == "PASS"
-    assert sidecar["revisions"]["implementation_revision"] == "dceb839c097b328f23785ab40d35016832a79f6d"
+    expected_revision = json.loads(
+        (REPO / "revision-binding.json").read_text(encoding="utf-8")
+    )["implementation_revision"]
+    assert sidecar["revisions"]["implementation_revision"] == expected_revision
     assert lib.validate_badge(sidecar) == []
 
 
