@@ -83,6 +83,25 @@ REVISION_TOKEN_RE = re.compile(r"^[^\s\x00-\x1f\x7f]{1,128}$")
 
 _HEX64 = re.compile(r"^[a-f0-9]{64}$")
 _DIGEST = re.compile(r"^(sha256:)?[a-f0-9]{64}$")
+_NATIVE_HEX64 = re.compile(r"^[A-Fa-f0-9]{64}$")
+_REPOSITORY_ID = re.compile(
+    r"^(?:https://)?github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?$"
+)
+_DERIVATION_RELATIONS = {
+    "derived-from",
+    "transformed-by",
+    "validated-by",
+    "executed-by",
+    "attested-by",
+    "referenced",
+    "member-of",
+    "supersedes",
+    "superseded-by",
+    "resolves-gap",
+    "gap-derived-from",
+    "evaluated-by",
+    "approved-by",
+}
 
 
 def canonical_bytes(value: Any) -> bytes:
@@ -427,6 +446,291 @@ def validate_aggregate_result(obj: Any) -> List[str]:
     ):
         errors.append("unresolved must be an array of non-empty strings")
     return errors
+
+
+def validate_aggregate_declarations(
+    required: List[str], optional: Optional[List[str]] = None
+) -> List[str]:
+    """Validate the caller-owned required/optional composition boundary.
+
+    The declaration is deliberately not part of ``aggregate-result/1``'s
+    required fields, so old result documents remain readable.  The action
+    validates it before producing a new aggregate: duplicate ids and
+    required/optional overlap are ambiguous policy, not UNKNOWN evidence.
+    """
+    optional = optional or []
+    errors: List[str] = []
+    for name, values in (("required", required), ("optional", optional)):
+        seen: set[str] = set()
+        for index, value in enumerate(values):
+            if not isinstance(value, str) or not value.strip():
+                errors.append(f"{name}[{index}] must be a non-empty check id")
+                continue
+            if value in seen:
+                errors.append(f"duplicate {name} check id: {value}")
+            seen.add(value)
+    overlap = sorted(set(required).intersection(optional))
+    for check_id in overlap:
+        errors.append(f"check id cannot be both required and optional: {check_id}")
+    return errors
+
+
+def _validate_native_digest(value: Any, label: str, errors: List[str]) -> None:
+    if not isinstance(value, str) or not value.startswith("sha256:") or not _NATIVE_HEX64.match(value[7:]):
+        errors.append(f"{label} must be 'sha256:<64 hex>'")
+
+
+def _validate_native_evidence_reference(
+    value: Any, label: str, errors: List[str]
+) -> None:
+    """Validate the currently published mncs-rp lineage evidence reference.
+
+    This is intentionally a small transport check, not a copy of the
+    rights/provenance schema.  The owning repository remains authoritative;
+    this only rejects malformed references before they enter an aggregate.
+    """
+    if not isinstance(value, dict):
+        errors.append(f"{label} must be an object")
+        return
+    for field in ("kind", "reference"):
+        if not isinstance(value.get(field), str) or not value[field]:
+            errors.append(f"{label}.{field} must be a non-empty string")
+    if "sha256" in value and (
+        not isinstance(value["sha256"], str) or not _NATIVE_HEX64.match(value["sha256"])
+    ):
+        errors.append(f"{label}.sha256 must be 64 hexadecimal characters")
+    producer = value.get("producer_reference")
+    if producer is not None:
+        if not isinstance(producer, dict):
+            errors.append(f"{label}.producer_reference must be an object")
+        else:
+            for field in ("producer", "recordKind", "schemaVersion", "stableId"):
+                if not isinstance(producer.get(field), str) or not producer[field]:
+                    errors.append(
+                        f"{label}.producer_reference.{field} must be a non-empty string"
+                    )
+            if "contentDigest" in producer:
+                _validate_native_digest(
+                    producer["contentDigest"],
+                    f"{label}.producer_reference.contentDigest",
+                    errors,
+                )
+    path = value.get("path")
+    if path is not None and (not isinstance(path, str) or not is_safe_relative_path(path)):
+        errors.append(f"{label}.path must be a safe relative path")
+
+
+def _iter_native_evidence_references(record: Dict[str, Any]):
+    subject = record.get("subject")
+    if isinstance(subject, dict) and "evidence_refs" in subject:
+        yield "subject.evidence_refs", subject.get("evidence_refs")
+    for field in ("derivations", "contributions", "evaluations", "approvals", "authority_claims"):
+        entries = record.get(field)
+        if not isinstance(entries, list):
+            continue
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                continue
+            for evidence_field in ("evidence", "basis_evidence"):
+                if evidence_field in entry:
+                    yield f"{field}[{index}].{evidence_field}", entry[evidence_field]
+    lifecycle = record.get("lifecycle")
+    if isinstance(lifecycle, dict) and "evidence" in lifecycle:
+        yield "lifecycle.evidence", lifecycle["evidence"]
+
+
+def classify_changeset_lineage(
+    record: Any,
+    *,
+    expected_revisions: Optional[Dict[str, str]] = None,
+    evidence_root: Optional[Path] = None,
+) -> Tuple[Optional[str], List[str], List[str], Dict[str, Any]]:
+    """Mechanically classify the published mncs-rp lineage/ChangeSet bridge.
+
+    The v0.3 rights lineage record references ChangeSets owned by MNCDS and
+    coordination records owned by Commons.  This function validates only
+    identity, digest, revision, path, and relationship structure.  It never
+    evaluates promotion, rights, or language semantics.
+
+    Returns ``(verdict, unresolved, errors, summary)``.  ``verdict`` is
+    ``None`` when no claim can be established (the adapter must emit no
+    check-result); valid but incomplete records become ``UNKNOWN``.
+    """
+    errors: List[str] = []
+    unresolved: List[str] = []
+    summary: Dict[str, Any] = {}
+    if not isinstance(record, dict):
+        return None, [], ["lineage record must be a JSON object"], summary
+    if record.get("schema_version") != "0.3.0":
+        errors.append("unsupported lineage schema_version; expected 0.3.0")
+    lineage_id = record.get("lineage_id")
+    if not isinstance(lineage_id, str) or not lineage_id:
+        errors.append("lineage_id must be a non-empty string")
+    summary["lineage_id"] = lineage_id if isinstance(lineage_id, str) else ""
+
+    subject = record.get("subject")
+    if not isinstance(subject, dict):
+        errors.append("subject must be an object")
+    else:
+        artifacts = subject.get("artifact_refs")
+        if not isinstance(artifacts, list) or not artifacts:
+            errors.append("subject.artifact_refs must be a non-empty array")
+        else:
+            for index, artifact in enumerate(artifacts):
+                if not isinstance(artifact, dict) or not isinstance(artifact.get("id"), str) or not artifact["id"]:
+                    errors.append(f"subject.artifact_refs[{index}].id must be non-empty")
+                if isinstance(artifact, dict) and "path" in artifact:
+                    path = artifact["path"]
+                    if not isinstance(path, str) or not is_safe_relative_path(path):
+                        errors.append(f"subject.artifact_refs[{index}].path must be safe")
+
+    declared_digest = record.get("content_digest")
+    _validate_native_digest(declared_digest, "content_digest", errors)
+    if isinstance(declared_digest, str) and _NATIVE_HEX64.match(declared_digest.removeprefix("sha256:")):
+        reduced = {key: value for key, value in record.items() if key != "content_digest"}
+        expected_digest = "sha256:" + sha256_hex(canonical_bytes(reduced))
+        summary["content_digest_expected"] = expected_digest
+        summary["content_digest_matches"] = declared_digest == expected_digest
+        if declared_digest != expected_digest:
+            errors.append("content_digest does not match canonical content")
+
+    changesets = record.get("changesets")
+    if changesets is None:
+        unresolved.append("changesets: membership is not declared")
+        changesets = []
+    elif not isinstance(changesets, list):
+        errors.append("changesets must be an array")
+        changesets = []
+    changeset_ids: set[str] = set()
+    seen_repositories: set[str] = set()
+    participant_count = 0
+    for index, changeset in enumerate(changesets):
+        label = f"changesets[{index}]"
+        if not isinstance(changeset, dict):
+            errors.append(f"{label} must be an object")
+            continue
+        changeset_id = changeset.get("changeset_id")
+        if not isinstance(changeset_id, str) or not changeset_id:
+            errors.append(f"{label}.changeset_id must be non-empty")
+        elif changeset_id in changeset_ids:
+            errors.append(f"duplicate ChangeSet identity: {changeset_id}")
+        else:
+            changeset_ids.add(changeset_id)
+        if "content_digest" in changeset:
+            _validate_native_digest(changeset["content_digest"], f"{label}.content_digest", errors)
+        bases = changeset.get("base_revisions")
+        if bases is None:
+            unresolved.append(f"{label}.base_revisions: exact participants are not declared")
+            continue
+        if not isinstance(bases, list):
+            errors.append(f"{label}.base_revisions must be an array")
+            continue
+        if not bases:
+            unresolved.append(f"{label}.base_revisions: no participants declared")
+        changeset_repositories: set[str] = set()
+        for participant_index, participant in enumerate(bases):
+            participant_label = f"{label}.base_revisions[{participant_index}]"
+            participant_count += 1
+            if not isinstance(participant, dict):
+                errors.append(f"{participant_label} must be an object")
+                continue
+            repository = participant.get("repository")
+            if not isinstance(repository, str) or not repository or not _REPOSITORY_ID.match(repository):
+                errors.append(f"{participant_label}.repository must be a GitHub repository identity")
+                continue
+            if repository in changeset_repositories:
+                errors.append(f"duplicate ChangeSet participant repository: {repository}")
+            changeset_repositories.add(repository)
+            seen_repositories.add(repository)
+            commit = participant.get("commit")
+            if commit is None:
+                unresolved.append(f"{participant_label}.commit: exact revision is not declared")
+            elif not isinstance(commit, str) or not FULL_SHA_RE.match(commit):
+                errors.append(f"{participant_label}.commit must be a full 40-character SHA")
+            if "tree_digest" in participant:
+                _validate_native_digest(participant["tree_digest"], f"{participant_label}.tree_digest", errors)
+            if isinstance(expected_revisions, dict) and repository in expected_revisions:
+                expected = expected_revisions[repository]
+                if commit != expected:
+                    errors.append(
+                        f"participant revision mismatch for {repository}: expected {expected}, got {commit}"
+                    )
+    summary["changesets"] = sorted(changeset_ids)
+    summary["participant_count"] = participant_count
+    if not changeset_ids:
+        unresolved.append("changesets: no ChangeSet identity is available")
+    if isinstance(expected_revisions, dict):
+        missing_expected = sorted(set(expected_revisions) - seen_repositories)
+        for repository in missing_expected:
+            errors.append(f"expected ChangeSet participant is missing: {repository}")
+
+    contributions = record.get("contributions")
+    if contributions is not None:
+        if not isinstance(contributions, list):
+            errors.append("contributions must be an array")
+        else:
+            contribution_ids: set[str] = set()
+            for index, contribution in enumerate(contributions):
+                label = f"contributions[{index}]"
+                if not isinstance(contribution, dict):
+                    errors.append(f"{label} must be an object")
+                    continue
+                contribution_id = contribution.get("contribution_id")
+                if contribution_id:
+                    if not isinstance(contribution_id, str):
+                        errors.append(f"{label}.contribution_id must be a string")
+                    elif contribution_id in contribution_ids:
+                        errors.append(f"duplicate contribution identity: {contribution_id}")
+                    else:
+                        contribution_ids.add(contribution_id)
+                linked = contribution.get("changeset_id")
+                if linked is not None and linked not in changeset_ids:
+                    errors.append(f"{label}.changeset_id references an unknown ChangeSet")
+
+    derivations = record.get("derivations")
+    if derivations is not None:
+        if not isinstance(derivations, list):
+            errors.append("derivations must be an array")
+        else:
+            for index, edge in enumerate(derivations):
+                label = f"derivations[{index}]"
+                if not isinstance(edge, dict):
+                    errors.append(f"{label} must be an object")
+                    continue
+                for field in ("from", "to"):
+                    if not isinstance(edge.get(field), str) or not edge[field]:
+                        errors.append(f"{label}.{field} must be non-empty")
+                if edge.get("relation") not in _DERIVATION_RELATIONS:
+                    errors.append(f"{label}.relation uses unsupported vocabulary")
+
+    for label, references in _iter_native_evidence_references(record):
+        if not isinstance(references, list):
+            errors.append(f"{label} must be an array")
+            continue
+        for index, reference in enumerate(references):
+            ref_label = f"{label}[{index}]"
+            _validate_native_evidence_reference(reference, ref_label, errors)
+            if not isinstance(reference, dict):
+                continue
+            ref_path = reference.get("path") or reference.get("reference")
+            ref_digest = reference.get("sha256")
+            if evidence_root is not None and isinstance(ref_path, str) and is_safe_relative_path(ref_path) and ref_digest:
+                candidate = (evidence_root / ref_path).resolve()
+                root = evidence_root.resolve()
+                if root != candidate and root not in candidate.parents:
+                    errors.append(f"{ref_label} escapes evidence root")
+                elif not candidate.is_file():
+                    unresolved.append(f"{ref_label}: referenced bytes are unavailable")
+                elif sha256_hex(candidate.read_bytes()) != ref_digest.lower():
+                    errors.append(f"{ref_label}: referenced bytes do not match sha256")
+
+    top_unresolved = record.get("unresolved")
+    if top_unresolved is not None:
+        if not isinstance(top_unresolved, list) or any(not isinstance(item, str) or not item for item in top_unresolved):
+            errors.append("unresolved must be an array of non-empty strings")
+        else:
+            unresolved.extend(top_unresolved)
+    return (None if errors else ("UNKNOWN" if unresolved else "PASS"), unresolved, errors, summary)
 
 
 def load_result_file(path: Path) -> Tuple[Any, Optional[str], List[str]]:

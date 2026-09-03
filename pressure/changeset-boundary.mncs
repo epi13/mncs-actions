@@ -1,0 +1,20 @@
+mncs 0.6;
+
+// Pure projection for the bounded ChangeSet/coordination bridge.
+//
+// The host adapter owns JSON parsing, canonical digest verification,
+// repository/revision syntax, path confinement, and optional local-byte
+// hashing. This module pressures only the policy-free tri-state projection.
+
+module mncs.actions.changeset_boundary.v01;
+
+use mncs.core.status.v1;
+
+enum CoordinationEvidence { Complete, Incomplete }
+
+fn project(evidence: CoordinationEvidence) -> (result: Status) {
+    return match evidence {
+        CoordinationEvidence.Complete => Status.PASS,
+        CoordinationEvidence.Incomplete => Status.UNKNOWN,
+    };
+}

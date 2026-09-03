@@ -89,9 +89,20 @@ def test_pressure_sources_lex_and_parse():
         import pytest
 
         pytest.skip("mncs compiler binary unavailable (set MNCS_BIN)")
-    for name in ("family-boundary.mncs", "rights-projection.mncs"):
+    for name in ("family-boundary.mncs", "rights-projection.mncs", "changeset-boundary.mncs"):
         document, diags = _study_stages(PRESSURE / name)
         assert diags == [], (name, diags)
         assert document.get("lexical"), name
         assert document.get("cst"), name
         assert document.get("ast"), name
+
+
+def test_changeset_projection_arms_match_host():
+    text = (PRESSURE / "changeset-boundary.mncs").read_text(encoding="utf-8")
+    assert "CoordinationEvidence.Complete => Status.PASS" in text
+    assert "CoordinationEvidence.Incomplete => Status.UNKNOWN" in text
+    verdict, _, errors, _ = lib.classify_changeset_lineage(
+        {"schema_version": "unsupported"}
+    )
+    assert verdict is None
+    assert errors

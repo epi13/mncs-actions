@@ -1,0 +1,48 @@
+{
+  "changesets": [
+    {
+      "base_revisions": [
+        {
+          "commit": "256bcad7e6cca9333954c2f2f37b3f6da8f1a8bd",
+          "repository": "github.com/epi13/machine-native-complexity-development-specification"
+        },
+        {
+          "commit": "ead5366fa4700657ef246df88ca17e206dd62845",
+          "repository": "github.com/epi13/MNCS-Commons"
+        }
+      ],
+      "changeset_id": "changeset/canary-001",
+      "source": "MNCDS/Commons coordination canary"
+    }
+  ],
+  "content_digest": "sha256:d887e9c9611724bb9db906865fc38e936b794eb89c1b6a725d2788c7a4ecfaae",
+  "contributions": [
+    {
+      "changeset_id": "changeset/canary-001",
+      "contribution_id": "mncs-actions-canary",
+      "contributor": {
+        "role": "adapter-test",
+        "type": "agent"
+      }
+    }
+  ],
+  "derivations": [
+    {
+      "from": "mncs-actions#canary",
+      "relation": "member-of",
+      "to": "changeset/canary-001"
+    }
+  ],
+  "lineage_id": "mncs-rights://lineage/changeset-canary",
+  "schema_version": "0.3.0",
+  "subject": {
+    "artifact_refs": [
+      {
+        "class": "documentation",
+        "id": "github.com/epi13/mncs-actions#changeset-canary",
+        "role": "subject"
+      }
+    ]
+  },
+  "unresolved": []
+}

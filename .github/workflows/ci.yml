@@ -292,11 +292,12 @@ jobs:
     # same baked action pins (see docs/revision-coherence.md).
     uses: ./.github/workflows/mncs-family-verify.yml
     with:
-      required-checks: mncs-validation,rights-provenance
+      required-checks: mncs-validation,rights-provenance,family-extra
       optional-checks: project-tests
+      additional-checks: .mncs/family-extra.json
       boundary: ci-reusable-smoke
       fail-on-unknown: true
-      mncs-command: mkdir -p .mncs && python3 adapters/validator_adapter.py --input tests/fixtures/validator/valid-pass.json --output .mncs/mncs-check.json --check-id mncs-validation --provider mncs-validator-rs
+      mncs-command: mkdir -p .mncs && python3 adapters/validator_adapter.py --input tests/fixtures/validator/valid-pass.json --output .mncs/mncs-check.json --check-id mncs-validation --provider mncs-validator-rs && cp tests/fixtures/check/pass.json .mncs/family-extra.json && python3 -c "import json; p='.mncs/family-extra.json'; d=json.load(open(p)); d['id']='family-extra'; d['provider']='ci-precomputed-provider'; json.dump(d, open(p,'w'), indent=2, sort_keys=True)"
       rights-command: mkdir -p .mncs && python3 adapters/rights_adapter.py --input tests/fixtures/rights/pass.json --output .mncs/rights-check.json --check-id rights-provenance --provider mncs-rights-provenance
       project-command: ""
       upload-artifacts: false

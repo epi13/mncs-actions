@@ -17,6 +17,10 @@ inputs:
     description: Comma separated list of optional check ids. Optional UNKNOWN stays visible in unresolved without deciding the boundary.
     required: false
     default: ""
+  strict-membership:
+    description: Reject supplied check-results whose ids are not explicitly listed in required or optional.
+    required: false
+    default: "false"
   boundary:
     description: Declared aggregate boundary name (e.g. family-verify, release).
     required: false
@@ -99,9 +103,10 @@ runs:
         MNCS_BOUNDARY: ${{ inputs.boundary }}
         MNCS_IMPLEMENTATION_REVISION: ${{ inputs.implementation-revision }}
         MNCS_CARRIER_REVISION: ${{ inputs.carrier-revision }}
+        MNCS_STRICT_MEMBERSHIP: ${{ inputs.strict-membership }}
       run: |
         set -euo pipefail
-        "$GITHUB_ACTION_PATH/aggregate.sh" --checks "$MNCS_CHECKS" --required "$MNCS_REQUIRED" --optional "$MNCS_OPTIONAL" --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" --working-dir "$MNCS_WORKING_DIRECTORY" --boundary "$MNCS_BOUNDARY" --implementation-revision "$MNCS_IMPLEMENTATION_REVISION" --carrier-revision "$MNCS_CARRIER_REVISION"
+        "$GITHUB_ACTION_PATH/aggregate.sh" --checks "$MNCS_CHECKS" --required "$MNCS_REQUIRED" --optional "$MNCS_OPTIONAL" --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" --working-dir "$MNCS_WORKING_DIRECTORY" --boundary "$MNCS_BOUNDARY" --implementation-revision "$MNCS_IMPLEMENTATION_REVISION" --carrier-revision "$MNCS_CARRIER_REVISION" --strict-membership "$MNCS_STRICT_MEMBERSHIP"
 
     - name: Upload aggregate evidence
       if: ${{ always() && inputs.upload-artifact == 'true' }}
