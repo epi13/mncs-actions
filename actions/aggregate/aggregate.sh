@@ -10,6 +10,8 @@ optional=""
 evidence_dir=""
 working_dir="."
 boundary=""
+implementation_revision=""
+carrier_revision=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -19,6 +21,8 @@ while [[ $# -gt 0 ]]; do
     --evidence-dir) evidence_dir="$2"; shift 2 ;;
     --working-dir) working_dir="$2"; shift 2 ;;
     --boundary) boundary="$2"; shift 2 ;;
+    --implementation-revision) implementation_revision="$2"; shift 2 ;;
+    --carrier-revision) carrier_revision="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 64 ;;
   esac
 done
@@ -37,6 +41,8 @@ MNCS_OPTIONAL="$optional" \
 MNCS_EVIDENCE_DIR="$evidence_dir" \
 MNCS_WORKING_DIR="$working_dir" \
 MNCS_BOUNDARY="$boundary" \
+MNCS_IMPLEMENTATION_REVISION="$implementation_revision" \
+MNCS_CARRIER_REVISION="$carrier_revision" \
 MNCS_LIB_DIR="$LIB_DIR" \
 python3 - <<'PY'
 import json
@@ -47,13 +53,17 @@ from pathlib import Path
 sys.path.insert(0, os.environ.get("MNCS_LIB_DIR", "lib"))
 from mncs_actions import (  # noqa: E402
     AGGREGATE_RESULT_SCHEMA_VERSION,
+    CARRIER_REVISION_KEY,
     CLAIM_ESTABLISHED,
     CLAIM_NOT_ESTABLISHED,
+    IMPLEMENTATION_REVISION_KEY,
     aggregate_verdict,
     build_evidence_manifest,
     build_execution_receipt,
     canonical_bytes,
+    check_revision_token,
     github_provenance,
+    resolve_implementation_revision,
     sha256_hex,
     validate_aggregate_result,
     validate_check_result,
@@ -80,6 +90,39 @@ optional = parse_csv(os.environ.get("MNCS_OPTIONAL", ""))
 evidence_dir = Path(os.environ["MNCS_EVIDENCE_DIR"])
 working_dir = Path(os.environ.get("MNCS_WORKING_DIR", "."))
 boundary = os.environ.get("MNCS_BOUNDARY", "")
+
+# Revision binding: the executing implementation reports its own revision
+# from the checkout's revision-binding.json unless an explicit revision is
+# asserted (explicit and file disagreeing is a hard error); the carrier
+# revision is caller-asserted passthrough and only recorded when valid.
+lib_dir = Path(os.environ.get("MNCS_LIB_DIR", "lib"))
+checkout_root = lib_dir.parent
+implementation_revision, revision_warnings, revision_error = (
+    resolve_implementation_revision(
+        os.environ.get("MNCS_IMPLEMENTATION_REVISION", ""),
+        checkout_root,
+    )
+)
+if revision_error is not None:
+    print(f"::error::{revision_error}", file=sys.stderr)
+    raise SystemExit(2)
+for warning in revision_warnings:
+    print(f"::warning::{warning}", file=sys.stderr)
+carrier_revision = os.environ.get("MNCS_CARRIER_REVISION", "")
+if carrier_revision:
+    token_error = check_revision_token("carrier_revision", carrier_revision)
+    if token_error is not None:
+        print(f"::error::{token_error}", file=sys.stderr)
+        raise SystemExit(2)
+
+
+def revision_inputs() -> dict:
+    fields: dict = {}
+    if implementation_revision:
+        fields[IMPLEMENTATION_REVISION_KEY] = implementation_revision
+    if carrier_revision:
+        fields[CARRIER_REVISION_KEY] = carrier_revision
+    return fields
 
 evidence_dir.mkdir(parents=True, exist_ok=True)
 aggregate_path = evidence_dir / "aggregate-result.json"
@@ -174,6 +217,7 @@ if errors:
             "required": ",".join(required),
             "optional": ",".join(optional),
             "boundary": boundary,
+            **revision_inputs(),
         },
         error_code="AGGREGATE_NOT_ESTABLISHED",
         provenance=provenance,
@@ -251,6 +295,7 @@ receipt = build_execution_receipt(
         "required": ",".join(required),
         "optional": ",".join(optional),
         "boundary": boundary,
+        **revision_inputs(),
     },
     provenance=provenance,
 )
@@ -274,7 +319,12 @@ manifest = build_evidence_manifest(
         for check_id in sorted(loaded)
     ] or None,
     unresolved=unresolved or None,
-    boundary={"name": boundary or "default", "required": required, "optional": optional},
+    boundary={
+        "name": boundary or "default",
+        "required": required,
+        "optional": optional,
+        **revision_inputs(),
+    },
     provenance=provenance,
 )
 write_json(manifest_path, manifest)
@@ -285,6 +335,7 @@ append_output(
         ("claim-status", CLAIM_ESTABLISHED),
         ("evidence-path", str(manifest_path.resolve())),
         ("aggregate-path", str(aggregate_path.resolve())),
+        ("aggregate-digest", aggregate_sha),
         ("execution-receipt-path", str(receipt_path.resolve())),
         ("manifest-digest", digest),
         ("provenance-digest", digest),

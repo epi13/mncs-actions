@@ -129,6 +129,26 @@ on:
         required: false
         default: .mncs/aggregate-evidence
         type: string
+      carrier-revision:
+        description: Caller-asserted SHA/ref of the workflow carrier, recorded as provenance only.
+        required: false
+        default: ""
+        type: string
+      badge-label:
+        description: Label for the deterministic presentation badge.
+        required: false
+        default: MNCS verification
+        type: string
+      badge-file:
+        description: SVG badge path, relative to working-directory.
+        required: false
+        default: .mncs/mncs-badge.svg
+        type: string
+      badge-sidecar-file:
+        description: Machine-readable badge sidecar path, relative to working-directory.
+        required: false
+        default: .mncs/mncs-badge.json
+        type: string
       upload-artifacts:
         required: false
         default: true
@@ -143,6 +163,15 @@ on:
       aggregate-path:
         description: Path to the aggregate-result document.
         value: ${{ jobs.family-verify.outputs.aggregate-path }}
+      aggregate-digest:
+        description: SHA-256 digest of the aggregate-result document.
+        value: ${{ jobs.family-verify.outputs.aggregate-digest }}
+      badge-path:
+        description: Path to the rendered SVG badge.
+        value: ${{ jobs.family-verify.outputs.badge-path }}
+      badge-sidecar-path:
+        description: Path to the machine-readable badge sidecar.
+        value: ${{ jobs.family-verify.outputs.badge-sidecar-path }}
   workflow_dispatch:
     inputs:
       required-checks:
@@ -160,6 +189,9 @@ jobs:
       verdict: ${{ steps.aggregate.outputs.verdict }}
       manifest-digest: ${{ steps.aggregate.outputs.manifest-digest }}
       aggregate-path: ${{ steps.aggregate.outputs.aggregate-path }}
+      aggregate-digest: ${{ steps.aggregate.outputs.aggregate-digest }}
+      badge-path: ${{ steps.badge.outputs.badge-path }}
+      badge-sidecar-path: ${{ steps.badge.outputs.sidecar-path }}
     steps:
       - name: Check out caller repository
         uses: actions/checkout@v4
@@ -225,3 +257,20 @@ jobs:
           fail-on-unknown: ${{ inputs.fail-on-unknown }}
           upload-artifact: ${{ inputs.upload-artifacts }}
           artifact-name: mncs-family-evidence
+
+      - name: Render family badge
+        id: badge
+        if: always()
+        uses: epi13/mncs-actions/actions/render-badge@dceb839c097b328f23785ab40d35016832a79f6d
+        with:
+          verdict: ${{ steps.aggregate.outputs.verdict || 'INVALID' }}
+          label: ${{ inputs.badge-label }}
+          output-file: ${{ inputs.badge-file }}
+          sidecar-file: ${{ inputs.badge-sidecar-file }}
+          working-directory: ${{ inputs.working-directory }}
+          repository: ${{ github.repository }}
+          subject-commit: ${{ github.sha }}
+          boundary: ${{ inputs.boundary }}
+          aggregate-digest: ${{ steps.aggregate.outputs.aggregate-digest }}
+          manifest-digest: ${{ steps.aggregate.outputs.manifest-digest }}
+          carrier-revision: ${{ inputs.carrier-revision }}

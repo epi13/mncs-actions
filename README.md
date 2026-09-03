@@ -17,6 +17,8 @@ Primitives:
   `check-result` plus receipt for later aggregation.
 - `actions/aggregate`: compose validated check-results into one
   aggregate verdict with explicit required/optional policy.
+- `actions/render-badge`: render a deterministic SVG presentation badge and
+  a machine-readable sidecar bound to aggregate evidence.
 - `.github/workflows/mncs-family-verify.yml`: reusable family workflow
   composing the above (`mncs-validation`, `rights-provenance`,
   `project-tests`, optional backends). Internal actions are pinned to a
@@ -112,6 +114,7 @@ never fabricated); `validator_adapter.py` maps `mncs-rs` `valid` +
 actions/verify/       Single-verifier action (receipt + manifest)
 actions/run-check/    One provider check + receipt
 actions/aggregate/    Required/optional composition + receipt + manifest
+actions/render-badge/ Deterministic SVG badge + machine-readable sidecar
 adapters/             Family mappings (own no policy)
 lib/mncs_actions.py   Canonical validation/aggregation implementation
 schemas/              Versioned machine-readable contracts
@@ -133,6 +136,27 @@ docs/                 Architecture and integration notes
 | GitHub execution glue | mncs-actions | Provide reusable Actions and workflows |
 
 The action should not silently invent canonical evidence relationships, rights, or promotion authority. Those belong to the appropriate MNCS-family contract.
+
+## Presentation badge
+
+`actions/render-badge` is deliberately downstream of aggregation. It maps an
+established `PASS`, `FAIL`, or `UNKNOWN` verdict to a deterministic SVG and
+emits `mncs.badge/1` JSON beside it. If no claim was established, callers may
+render `INVALID`; that is a presentation state, never a claim verdict.
+
+The sidecar can carry the aggregate-result and manifest digests, subject
+repository/revision, declared boundary, and revision-binding annotations. It
+contains no timestamp, so identical inputs produce byte-identical output.
+
+```yaml
+- uses: epi13/mncs-actions/actions/render-badge@<pinned-sha>
+  with:
+    verdict: ${{ steps.aggregate.outputs.verdict || 'INVALID' }}
+    aggregate-digest: ${{ steps.aggregate.outputs.aggregate-digest }}
+    manifest-digest: ${{ steps.aggregate.outputs.manifest-digest }}
+    output-file: .mncs/mncs-badge.svg
+    sidecar-file: .mncs/mncs-badge.json
+```
 
 ## Development
 

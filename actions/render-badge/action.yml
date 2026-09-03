@@ -1,0 +1,99 @@
+name: MNCS Render Badge
+description: Render a deterministic presentation badge and machine-readable sidecar for an MNCS verdict.
+author: epi13
+
+branding:
+  color: purple
+  icon: award
+
+inputs:
+  verdict:
+    description: Established verdict (PASS/FAIL/UNKNOWN), or INVALID when no claim was established.
+    required: true
+  label:
+    description: Badge label shown on the left side.
+    required: false
+    default: MNCS verification
+  output-file:
+    description: SVG output path, relative to working-directory.
+    required: false
+    default: .mncs/mncs-badge.svg
+  sidecar-file:
+    description: JSON sidecar output path, relative to working-directory.
+    required: false
+    default: .mncs/mncs-badge.json
+  working-directory:
+    description: Directory in which badge files are written.
+    required: false
+    default: .
+  repository:
+    description: Subject repository name carried verbatim in the sidecar.
+    required: false
+    default: ""
+  subject-commit:
+    description: Subject revision carried verbatim in the sidecar.
+    required: false
+    default: ""
+  boundary:
+    description: Declared verification boundary carried in the sidecar.
+    required: false
+    default: ""
+  aggregate-digest:
+    description: SHA-256 digest of the aggregate-result document bytes.
+    required: false
+    default: ""
+  manifest-digest:
+    description: SHA-256 digest of the aggregate evidence manifest.
+    required: false
+    default: ""
+  carrier-revision:
+    description: Caller-asserted workflow carrier revision carried in the sidecar.
+    required: false
+    default: ""
+  implementation-revision:
+    description: Explicit implementation revision. Empty means self-report from revision-binding.json.
+    required: false
+    default: ""
+
+outputs:
+  state:
+    description: Presentation state (PASS/FAIL/UNKNOWN/INVALID).
+    value: ${{ steps.render.outputs.state }}
+  badge-state:
+    description: Compatibility alias for state.
+    value: ${{ steps.render.outputs.state }}
+  badge-path:
+    description: Absolute path to the rendered SVG badge.
+    value: ${{ steps.render.outputs.badge-path }}
+  sidecar-path:
+    description: Absolute path to the machine-readable badge sidecar.
+    value: ${{ steps.render.outputs.sidecar-path }}
+  badge-digest:
+    description: SHA-256 digest of the rendered SVG bytes.
+    value: ${{ steps.render.outputs.badge-digest }}
+  sidecar-digest:
+    description: SHA-256 digest of the canonical sidecar JSON.
+    value: ${{ steps.render.outputs.sidecar-digest }}
+
+runs:
+  using: composite
+  steps:
+    - name: Render badge
+      id: render
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        MNCS_BADGE_VERDICT: ${{ inputs.verdict }}
+        MNCS_BADGE_LABEL: ${{ inputs.label }}
+        MNCS_BADGE_OUTPUT_FILE: ${{ inputs.output-file }}
+        MNCS_BADGE_SIDECAR_FILE: ${{ inputs.sidecar-file }}
+        MNCS_BADGE_REPOSITORY: ${{ inputs.repository }}
+        MNCS_BADGE_SUBJECT_COMMIT: ${{ inputs.subject-commit }}
+        MNCS_BADGE_BOUNDARY: ${{ inputs.boundary }}
+        MNCS_BADGE_AGGREGATE_DIGEST: ${{ inputs.aggregate-digest }}
+        MNCS_BADGE_MANIFEST_DIGEST: ${{ inputs.manifest-digest }}
+        MNCS_CARRIER_REVISION: ${{ inputs.carrier-revision }}
+        MNCS_IMPLEMENTATION_REVISION: ${{ inputs.implementation-revision }}
+      run: |
+        set -euo pipefail
+        "$GITHUB_ACTION_PATH/render_badge.sh"

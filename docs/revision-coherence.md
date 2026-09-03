@@ -60,6 +60,11 @@ with all pins identical. Rules:
   commit, which is older than HEAD). That state is still reproducible
   and safe: workflow X always executes exactly the implementation baked
   at X -- never newer. It is never floating.
+- `revision-binding.json` records the same baked implementation SHA and the
+  action directories covered by the binding. Runtime evidence carries this
+  annotation in receipt inputs and the manifest boundary block. A caller may
+  additionally pass its carrier revision; that value is caller-asserted
+  provenance, not an independently verified fact.
 
 Callers pin the same way:
 
@@ -72,7 +77,7 @@ uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@<40-hex-sha>
 - No internal `uses:` self-reference floats on a branch or tag.
 - All internal pins are the same immutable SHA.
 - Re-running `scripts/sync-pins.sh` with the baked SHA is a no-op
-  (single source of truth, no hidden pins).
+  (single source of truth, no hidden pins or stale binding file).
 - Examples document SHA pinning and never `@main` for production use.
 
 ## Future evolution

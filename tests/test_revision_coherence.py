@@ -37,6 +37,7 @@ def test_internal_pins_present():
     names = [name for name, _ in refs]
     assert names.count("run-check") == 3, names
     assert names.count("aggregate") == 1, names
+    assert names.count("render-badge") == 1, names
 
 
 def test_no_floating_branch_or_tag_pins():
@@ -64,12 +65,14 @@ def test_sync_script_reproduces_baked_pins(tmp_path):
     baked = refs[0][1]
     assert FULL_SHA.match(baked)
     before = WORKFLOW.read_bytes()
+    binding_before = (REPO / "revision-binding.json").read_bytes()
     proc = subprocess.run(
         ["bash", str(SYNC_SCRIPT), baked],
         capture_output=True, text=True, cwd=str(REPO),
     )
     assert proc.returncode == 0, proc.stderr
     assert WORKFLOW.read_bytes() == before, "sync script is not idempotent for baked pins"
+    assert (REPO / "revision-binding.json").read_bytes() == binding_before
 
 
 def test_sync_script_rejects_floating_input():
@@ -95,3 +98,16 @@ def test_examples_never_float_on_main():
 def test_release_doc_exists():
     assert (REPO / "docs" / "revision-coherence.md").is_file()
     assert SYNC_SCRIPT.is_file()
+
+
+def test_revision_binding_matches_baked_pin():
+    import json
+
+    binding = json.loads((REPO / "revision-binding.json").read_text(encoding="utf-8"))
+    refs = uses_self_refs()
+    assert binding["implementation_revision"] == refs[0][1]
+    assert binding["actions"] == [
+        "actions/aggregate",
+        "actions/render-badge",
+        "actions/run-check",
+    ]

@@ -51,6 +51,36 @@ AGGREGATE_RESULT_SCHEMA_VERSION = "mncs.aggregate-result/1"
 MANIFEST_DIGEST_OUTPUT = "manifest-digest"
 PROVENANCE_DIGEST_OUTPUT_COMPAT = "provenance-digest"
 
+BADGE_SCHEMA_VERSION = "mncs.badge/1"
+BADGE_LABEL_DEFAULT = "MNCS verification"
+BADGE_LABEL_MAX_LEN = 64
+# Presentation states.  PASS/FAIL/UNKNOWN mirror established claim verdicts;
+# INVALID is a projection-only state meaning no valid claim was established
+# (it is never a claim verdict; see the module docstring).
+BADGE_STATES = ("PASS", "FAIL", "UNKNOWN", "INVALID")
+BADGE_INVALID = "INVALID"
+# Conventional Shields-compatible message colors (hex without "#", as
+# published by shields.io for these semantics).  Color is decorative only:
+# the verdict word always carries the meaning.
+BADGE_COLORS = {
+    "PASS": "4c1",
+    "FAIL": "e05d44",
+    "UNKNOWN": "dfb317",
+    "INVALID": "9f9f9f",
+}
+
+# Revision-binding record keys carried in receipt ``inputs`` and manifest
+# ``boundary`` blocks.  These are transport annotations identifying which
+# mncs-actions implementation composed the evidence and (when asserted by
+# the caller) which workflow carrier revision invoked it.  They grant no
+# policy authority and redefine no domain semantics.
+IMPLEMENTATION_REVISION_KEY = "implementation_revision"
+CARRIER_REVISION_KEY = "carrier_revision"
+FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
+# Opaque revision labels (subject commits, caller-asserted carriers) are
+# carried verbatim: non-empty, no whitespace or control characters.
+REVISION_TOKEN_RE = re.compile(r"^[^\s\x00-\x1f\x7f]{1,128}$")
+
 _HEX64 = re.compile(r"^[a-f0-9]{64}$")
 _DIGEST = re.compile(r"^(sha256:)?[a-f0-9]{64}$")
 
@@ -636,6 +666,277 @@ def classify_rights_report(report: Any) -> Tuple[Optional[str], List[str], Optio
         else:
             unresolved.append("manifest identity mismatch")
     return verdict, unresolved, None
+
+
+def check_revision_token(field: str, value: Any) -> Optional[str]:
+    """Validate an opaque revision label carried verbatim (or None if ok).
+
+    Empty/absent values mean "not asserted" and are the caller's cue to
+    omit the field, not an error; callers check presence themselves.
+    """
+    if not isinstance(value, str) or not REVISION_TOKEN_RE.match(value):
+        return (
+            f"{field} must be a non-empty token without whitespace or "
+            "control characters when asserted"
+        )
+    return None
+
+
+def read_binding_file(root: Path) -> Tuple[Optional[str], List[str]]:
+    """Read the implementation revision bound by a mncs-actions checkout.
+
+    Returns (implementation_revision_or_None, warnings).  ``root`` is the
+    checkout root (the scripts pass their own action directory's parent).
+    A missing file means "unbound checkout" (e.g. a partial vendor) and
+    yields no warning; a present-but-unusable file yields a warning and is
+    otherwise ignored so a degraded provenance annotation can never break
+    verdict computation.  Unknown extra fields are ignored (forward
+    compatible).
+    """
+    warnings: List[str] = []
+    candidate = root / "revision-binding.json"
+    if not candidate.is_file():
+        return None, []
+    try:
+        raw = candidate.read_bytes()
+        doc = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        return None, [f"revision binding file unreadable, ignoring: {exc}"]
+    if not isinstance(doc, dict):
+        return None, ["revision binding file is not an object, ignoring"]
+    revision = doc.get("implementation_revision")
+    if not isinstance(revision, str) or not FULL_SHA_RE.match(revision):
+        return None, ["revision binding file has no valid implementation_revision, ignoring"]
+    return revision, warnings
+
+
+def resolve_implementation_revision(
+    explicit: str = "", search_root: Optional[Path] = None
+) -> Tuple[Optional[str], List[str], Optional[str]]:
+    """Resolve which implementation revision to record in evidence.
+
+    Returns (revision_or_None, warnings, error_or_None).
+
+    - An explicit non-empty ``explicit`` value is a caller identity claim
+      and is strict: it must be a full SHA or an error is returned.
+    - Otherwise the checkout's own ``revision-binding.json`` is read
+      best-effort (see :func:`read_binding_file`).
+    - When both sources are present and disagree, an error is returned:
+      two sources disagreeing about implementation identity must never be
+      silently resolved in either direction.
+    """
+    warnings: List[str] = []
+    claimed: Optional[str] = None
+    if explicit:
+        if not FULL_SHA_RE.match(explicit):
+            return None, [], (
+                "implementation_revision must be a full 40-char SHA when asserted"
+            )
+        claimed = explicit
+    bound: Optional[str] = None
+    if search_root is not None:
+        bound, file_warnings = read_binding_file(search_root)
+        warnings.extend(file_warnings)
+    if claimed is not None and bound is not None and claimed != bound:
+        return None, warnings, (
+            "implementation_revision disagrees with the executing checkout's "
+            f"revision-binding.json ({claimed!r} != {bound!r})"
+        )
+    return claimed if claimed is not None else bound, warnings, None
+
+
+def validate_badge_label(label: Any) -> List[str]:
+    """Validate a badge label (display text, never a trust boundary)."""
+    errors: List[str] = []
+    if not isinstance(label, str) or not label:
+        return ["badge label must be a non-empty string"]
+    if len(label) > BADGE_LABEL_MAX_LEN:
+        errors.append(
+            f"badge label must be at most {BADGE_LABEL_MAX_LEN} characters"
+        )
+    for ch in label:
+        if ord(ch) < 0x20 or ord(ch) == 0x7F:
+            errors.append("badge label must not contain control characters")
+            break
+    return errors
+
+
+def project_badge_state(word: Any) -> Optional[str]:
+    """Project a verdict word to its badge presentation state (or None).
+
+    PASS/FAIL/UNKNOWN mirror established claim verdicts; INVALID is the
+    projection of "no valid claim established" (missing, malformed, or
+    binding-mismatched evidence).  Anything else establishes nothing and
+    yields None so callers fail the input contract instead of guessing.
+    The pure mapping mirrors ``pressure/badge-projection.mncs``.
+    """
+    if isinstance(word, str) and word in BADGE_STATES:
+        return word
+    return None
+
+
+def badge_message(state: str) -> str:
+    """Visible badge message text for a presentation state."""
+    return state
+
+
+def badge_color(state: str) -> str:
+    """Conventional message color (hex, no "#") for a presentation state."""
+    return BADGE_COLORS[state]
+
+
+def _svg_text_width(text: str) -> int:
+    """Deterministic integer advance: fixed 6px per character plus padding."""
+    return 6 * len(text) + 10
+
+
+def render_badge_svg(label: str, state: str) -> str:
+    """Render a deterministic flat-style SVG badge (pure function).
+
+    ``label`` and ``state`` must already be validated.  All text is
+    XML-escaped; geometry is a pure integer function of the inputs so the
+    same inputs always yield byte-identical output.  Widths are a fixed
+    advance approximation, not font metrics.
+    """
+    from xml.sax.saxutils import escape as _escape
+
+    def text_escaped(value: str) -> str:
+        return _escape(value, {'"': "&quot;"})
+
+    message = badge_message(state)
+    color = badge_color(state)
+    label_width = _svg_text_width(label)
+    message_width = _svg_text_width(message)
+    total_width = label_width + message_width
+    aria = f"{label}: {message}"
+    return (
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{total_width}" height="20"'
+        f' role="img" aria-label="{text_escaped(aria)}">'
+        f"<title>{text_escaped(aria)}</title>"
+        '<linearGradient id="s" x2="0" y2="100%">'
+        '<stop offset="0" stop-color="#bbb" stop-opacity=".1"/>'
+        '<stop offset="1" stop-opacity=".1"/>'
+        "</linearGradient>"
+        '<clipPath id="r">'
+        f'<rect width="{total_width}" height="20" rx="3" fill="#fff"/>'
+        "</clipPath>"
+        '<g clip-path="url(#r)">'
+        f'<rect width="{label_width}" height="20" fill="#555"/>'
+        f'<rect x="{label_width}" width="{message_width}" height="20" fill="#{color}"/>'
+        f'<rect width="{total_width}" height="20" fill="url(#s)"/>'
+        "</g>"
+        '<g fill="#fff" text-anchor="middle"'
+        ' font-family="Verdana,Geneva,DejaVu Sans,sans-serif" font-size="11">'
+        f'<text x="{label_width // 2}" y="15" fill="#010101" fill-opacity=".3">'
+        f"{text_escaped(label)}</text>"
+        f'<text x="{label_width // 2}" y="14">{text_escaped(label)}</text>'
+        f'<text x="{label_width + message_width // 2}" y="15" fill="#010101" fill-opacity=".3">'
+        f"{text_escaped(message)}</text>"
+        f'<text x="{label_width + message_width // 2}" y="14">{text_escaped(message)}</text>'
+        "</g></svg>\n"
+    )
+
+
+def build_badge_doc(
+    *,
+    label: str,
+    verdict: str,
+    repository: str = "",
+    subject_commit: str = "",
+    boundary: str = "",
+    aggregate_digest: str = "",
+    manifest_digest: str = "",
+    carrier_revision: str = "",
+    implementation_revision: str = "",
+) -> Dict[str, Any]:
+    """Build a deterministic ``mncs.badge/1`` sidecar document.
+
+    The document is a pure function of its inputs: no timestamps, no
+    environment capture.  Provenance of the run lives in the evidence
+    manifest and receipts; the badge only binds to them by digest and
+    revision identifiers.  Empty optional fields are omitted.
+    """
+    doc: Dict[str, Any] = {
+        "schema_version": BADGE_SCHEMA_VERSION,
+        "label": label,
+        "verdict": verdict,
+    }
+    subject: Dict[str, str] = {}
+    if repository:
+        subject["repository"] = repository
+    if subject_commit:
+        subject["commit"] = subject_commit
+    if subject:
+        doc["subject"] = subject
+    evidence: Dict[str, str] = {}
+    if boundary:
+        evidence["boundary"] = boundary
+    if aggregate_digest:
+        evidence["aggregate_digest"] = aggregate_digest
+    if manifest_digest:
+        evidence["manifest_digest"] = manifest_digest
+    if evidence:
+        doc["evidence"] = evidence
+    revisions: Dict[str, str] = {}
+    if carrier_revision:
+        revisions[CARRIER_REVISION_KEY] = carrier_revision
+    if implementation_revision:
+        revisions[IMPLEMENTATION_REVISION_KEY] = implementation_revision
+    if revisions:
+        doc["revisions"] = revisions
+    return doc
+
+
+def validate_badge(obj: Any) -> List[str]:
+    """Validate an ``mncs.badge/1`` sidecar document.
+
+    Extra/unknown fields are permitted and ignored (forward compatible);
+    the verdict vocabulary is closed: only PASS/FAIL/UNKNOWN/INVALID.
+    """
+    errors: List[str] = []
+    if not isinstance(obj, dict):
+        return ["badge must be a JSON object"]
+    if obj.get("schema_version") != BADGE_SCHEMA_VERSION:
+        errors.append(f"schema_version must be {BADGE_SCHEMA_VERSION}")
+    errors.extend(validate_badge_label(obj.get("label")))
+    if obj.get("verdict") not in BADGE_STATES:
+        errors.append("verdict must be PASS, FAIL, UNKNOWN, or INVALID")
+    subject = obj.get("subject")
+    if subject is not None:
+        if not isinstance(subject, dict):
+            errors.append("subject must be an object when present")
+        else:
+            for field in ("repository", "commit"):
+                if subject.get(field) is not None and not isinstance(subject[field], str):
+                    errors.append(f"subject.{field} must be a string when present")
+    evidence = obj.get("evidence")
+    if evidence is not None:
+        if not isinstance(evidence, dict):
+            errors.append("evidence must be an object when present")
+        else:
+            if evidence.get("boundary") is not None and not isinstance(
+                evidence["boundary"], str
+            ):
+                errors.append("evidence.boundary must be a string when present")
+            for field in ("aggregate_digest", "manifest_digest"):
+                digest = evidence.get(field)
+                if digest is not None and (
+                    not isinstance(digest, str) or not _DIGEST.match(digest)
+                ):
+                    errors.append(
+                        f"evidence.{field} must be hex64 or sha256:hex64 when present"
+                    )
+    revisions = obj.get("revisions")
+    if revisions is not None:
+        if not isinstance(revisions, dict):
+            errors.append("revisions must be an object when present")
+        else:
+            for field in (CARRIER_REVISION_KEY, IMPLEMENTATION_REVISION_KEY):
+                if revisions.get(field) is not None and not isinstance(
+                    revisions[field], str
+                ):
+                    errors.append(f"revisions.{field} must be a string when present")
+    return errors
 
 
 def map_validator_computed_status(
