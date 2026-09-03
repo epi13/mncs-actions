@@ -167,7 +167,7 @@ jobs:
       - name: MNCS validation check
         id: mncs
         if: ${{ inputs.mncs-command != '' }}
-        uses: epi13/mncs-actions/actions/run-check@2a0df3c751e98bcab3d301d1624e66cc0d6cd264
+        uses: epi13/mncs-actions/actions/run-check@dceb839c097b328f23785ab40d35016832a79f6d
         with:
           command: ${{ inputs.mncs-command }}
           check-id: ${{ inputs.mncs-check-id }}
@@ -180,7 +180,7 @@ jobs:
       - name: Rights and provenance check
         id: rights
         if: ${{ inputs.rights-command != '' }}
-        uses: epi13/mncs-actions/actions/run-check@2a0df3c751e98bcab3d301d1624e66cc0d6cd264
+        uses: epi13/mncs-actions/actions/run-check@dceb839c097b328f23785ab40d35016832a79f6d
         with:
           command: ${{ inputs.rights-command }}
           check-id: ${{ inputs.rights-check-id }}
@@ -193,7 +193,7 @@ jobs:
       - name: Project verification check
         id: project
         if: ${{ inputs.project-command != '' }}
-        uses: epi13/mncs-actions/actions/run-check@2a0df3c751e98bcab3d301d1624e66cc0d6cd264
+        uses: epi13/mncs-actions/actions/run-check@dceb839c097b328f23785ab40d35016832a79f6d
         with:
           command: ${{ inputs.project-command }}
           check-id: ${{ inputs.project-check-id }}
@@ -211,7 +211,7 @@ jobs:
       # generic aggregate action is strict about its explicit inputs.
       - name: Aggregate family verdict
         id: aggregate
-        uses: epi13/mncs-actions/actions/aggregate@2a0df3c751e98bcab3d301d1624e66cc0d6cd264
+        uses: epi13/mncs-actions/actions/aggregate@dceb839c097b328f23785ab40d35016832a79f6d
         with:
           checks: >-
             ${{ inputs.mncs-command != '' && inputs.mncs-result-file || '' }}
