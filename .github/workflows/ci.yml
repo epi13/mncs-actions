@@ -196,7 +196,7 @@ jobs:
           export GITHUB_OUTPUT="$work/out" GITHUB_STEP_SUMMARY="$work/sum"
           export GITHUB_REPOSITORY="epi13/mncs-actions" GITHUB_REF="refs/heads/test" GITHUB_SHA="x" GITHUB_WORKFLOW="ci" GITHUB_RUN_ID="1" GITHUB_ACTOR="x" GITHUB_EVENT_NAME="push" RUNNER_NAME="github-hosted"
           touch "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
-          actions/aggregate/aggregate.sh --checks "mncs.json rights.json" --required "mncs-validation,rights-provenance" --optional "project-tests" --evidence-dir "$work/agg" --working-dir "." --boundary "omitted-optional"
+          actions/aggregate/aggregate.sh --checks "mncs.json rights.json" --required "mncs-validation,rights-provenance" --optional "project-tests" --evidence-dir "$work/agg" --working-dir "$work" --boundary "omitted-optional"
           grep -q '^verdict=PASS$' "$work/out"
 
       - name: Absent required provider becomes UNKNOWN
@@ -208,7 +208,7 @@ jobs:
           export GITHUB_OUTPUT="$work/out" GITHUB_STEP_SUMMARY="$work/sum"
           export GITHUB_REPOSITORY="epi13/mncs-actions" GITHUB_REF="refs/heads/test" GITHUB_SHA="x" GITHUB_WORKFLOW="ci" GITHUB_RUN_ID="1" GITHUB_ACTOR="x" GITHUB_EVENT_NAME="push" RUNNER_NAME="github-hosted"
           touch "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
-          actions/aggregate/aggregate.sh --checks "mncs.json" --required "mncs-validation,rights-provenance" --evidence-dir "$work/agg" --working-dir "." --boundary "absent-required"
+          actions/aggregate/aggregate.sh --checks "mncs.json" --required "mncs-validation,rights-provenance" --evidence-dir "$work/agg" --working-dir "$work" --boundary "absent-required"
           grep -q '^verdict=UNKNOWN$' "$work/out"
           grep -q '^claim-status=ESTABLISHED$' "$work/out"
 
@@ -222,7 +222,7 @@ jobs:
           export GITHUB_OUTPUT="$work/out" GITHUB_STEP_SUMMARY="$work/sum"
           export GITHUB_REPOSITORY="epi13/mncs-actions" GITHUB_REF="refs/heads/test" GITHUB_SHA="x" GITHUB_WORKFLOW="ci" GITHUB_RUN_ID="1" GITHUB_ACTOR="x" GITHUB_EVENT_NAME="push" RUNNER_NAME="github-hosted"
           touch "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
-          actions/aggregate/aggregate.sh --checks "fail.json unk.json" --required "project-tests,ebpf-backend" --evidence-dir "$work/agg" --working-dir "." --boundary "fail-dominance"
+          actions/aggregate/aggregate.sh --checks "fail.json unk.json" --required "project-tests,ebpf-backend" --evidence-dir "$work/agg" --working-dir "$work" --boundary "fail-dominance"
           grep -q '^verdict=FAIL$' "$work/out"
 
       - name: Explicit missing file stays INVALID
@@ -234,7 +234,7 @@ jobs:
           export GITHUB_OUTPUT="$work/out" GITHUB_STEP_SUMMARY="$work/sum"
           export GITHUB_REPOSITORY="epi13/mncs-actions" GITHUB_REF="refs/heads/test" GITHUB_SHA="x" GITHUB_WORKFLOW="ci" GITHUB_RUN_ID="1" GITHUB_ACTOR="x" GITHUB_EVENT_NAME="push" RUNNER_NAME="github-hosted"
           touch "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
-          if actions/aggregate/aggregate.sh --checks "real.json no-such.json" --required "mncs-validation" --evidence-dir "$work/agg" --working-dir "." --boundary "explicit-missing"; then
+          if actions/aggregate/aggregate.sh --checks "real.json no-such.json" --required "mncs-validation" --evidence-dir "$work/agg" --working-dir "$work" --boundary "explicit-missing"; then
             echo "::error::expected INVALID for explicitly listed missing file"; exit 1
           fi
           grep -q '^verdict=INVALID$' "$work/out"
@@ -277,7 +277,7 @@ jobs:
       optional-checks: project-tests
       boundary: ci-reusable-smoke
       fail-on-unknown: true
-      mncs-command: python3 adapters/validator_adapter.py --input tests/fixtures/validator/valid-pass.json --output .mncs/mncs-check.json --check-id mncs-validation --provider mncs-validator-rs
-      rights-command: python3 adapters/rights_adapter.py --input tests/fixtures/rights/pass.json --output .mncs/rights-check.json --check-id rights-provenance --provider mncs-rights-provenance
+      mncs-command: mkdir -p .mncs && python3 adapters/validator_adapter.py --input tests/fixtures/validator/valid-pass.json --output .mncs/mncs-check.json --check-id mncs-validation --provider mncs-validator-rs
+      rights-command: mkdir -p .mncs && python3 adapters/rights_adapter.py --input tests/fixtures/rights/pass.json --output .mncs/rights-check.json --check-id rights-provenance --provider mncs-rights-provenance
       project-command: ""
       upload-artifacts: false

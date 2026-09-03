@@ -98,7 +98,9 @@ def main() -> int:
         for err in errors:
             print(f"error: {err}", file=sys.stderr)
         return 2
-    Path(args.output).write_text(
+    out_path = Path(args.output)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(
         json.dumps(check, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
