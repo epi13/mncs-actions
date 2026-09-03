@@ -19,9 +19,17 @@ name: MNCS family verify
 # boundary.  Unavailable required coverage becomes UNKNOWN/FAIL, never PASS.
 #
 # Trust domains: this workflow runs on the caller's runner (expected
-# GitHub-hosted for public PRs).  It never dispatches to privileged
+# GitHub-hosted for public PRs). It never dispatches to privileged
 # self-hosted MNCS workers; hardware-gated checks must report UNKNOWN
 # when their runner is unavailable.
+#
+# Portability: internal actions are referenced as
+# epi13/mncs-actions/actions/...@<revision> so they resolve to the pinned
+# mncs-actions revision when a caller pins this workflow. Do NOT use
+# ./actions/... here: inside a reusable workflow that form resolves to
+# the CALLER repository, which breaks every real family caller.
+# Keep the internal pins in sync with the workflow revision on release
+# (callers pin the workflow; the workflow pins its own actions).
 
 on:
   workflow_call:
@@ -155,7 +163,7 @@ jobs:
       - name: MNCS validation check
         id: mncs
         if: ${{ inputs.mncs-command != '' }}
-        uses: ./actions/run-check
+        uses: epi13/mncs-actions/actions/run-check@main
         with:
           command: ${{ inputs.mncs-command }}
           check-id: ${{ inputs.mncs-check-id }}
@@ -168,7 +176,7 @@ jobs:
       - name: Rights and provenance check
         id: rights
         if: ${{ inputs.rights-command != '' }}
-        uses: ./actions/run-check
+        uses: epi13/mncs-actions/actions/run-check@main
         with:
           command: ${{ inputs.rights-command }}
           check-id: ${{ inputs.rights-check-id }}
@@ -181,7 +189,7 @@ jobs:
       - name: Project verification check
         id: project
         if: ${{ inputs.project-command != '' }}
-        uses: ./actions/run-check
+        uses: epi13/mncs-actions/actions/run-check@main
         with:
           command: ${{ inputs.project-command }}
           check-id: ${{ inputs.project-check-id }}
@@ -191,14 +199,20 @@ jobs:
           evidence-directory: ${{ inputs.project-evidence-dir }}
           upload-artifact: "false"
 
+      # Intentional absence vs broken execution:
+      # only list result files for providers that actually ran. An omitted
+      # optional provider stays absent (no boundary effect); an omitted
+      # required provider becomes UNKNOWN via missing-required semantics.
+      # A listed-but-missing file stays INVALID/NOT_ESTABLISHED because the
+      # generic aggregate action is strict about its explicit inputs.
       - name: Aggregate family verdict
         id: aggregate
-        uses: ./actions/aggregate
+        uses: epi13/mncs-actions/actions/aggregate@main
         with:
           checks: >-
-            ${{ inputs.mncs-result-file }}
-            ${{ inputs.rights-result-file }}
-            ${{ inputs.project-result-file }}
+            ${{ inputs.mncs-command != '' && inputs.mncs-result-file || '' }}
+            ${{ inputs.rights-command != '' && inputs.rights-result-file || '' }}
+            ${{ inputs.project-command != '' && inputs.project-result-file || '' }}
           required: ${{ inputs.required-checks }}
           optional: ${{ inputs.optional-checks }}
           boundary: ${{ inputs.boundary }}

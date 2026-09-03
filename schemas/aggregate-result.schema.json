@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/epi13/mncs-actions/blob/main/schemas/aggregate-result.schema.json",
   "title": "MNCS Aggregate Result",
-  "description": "Composed verdict over independent check-results. Dominance is FAIL > UNKNOWN > PASS over required checks. Optional UNKNOWN stays visible in unresolved and never silently decides the boundary.",
+  "description": "Composed verdict over independent check-results. Dominance is FAIL > UNKNOWN > PASS over required checks. Optional UNKNOWN stays visible in unresolved and never silently decides the boundary. checks[] may carry optional digest/path for provenance traversal (mncs-actions carries, owners define meaning).",
   "type": "object",
   "required": [
     "schema_version",

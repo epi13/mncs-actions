@@ -80,7 +80,11 @@ runs:
         MNCS_REQUIRED: ${{ inputs.required }}
         MNCS_OPTIONAL: ${{ inputs.optional }}
         MNCS_EVIDENCE_DIRECTORY: ${{ inputs.evidence-directory }}
-        MNCS_WORKING_DIRECTORY: ${{ inputs.working-directory }}
+        # Invariant: the step above already entered inputs.working-directory,
+        # so the implementation root is "." (single resolution). Passing the
+        # raw input through again would resolve src/src/... for non-default
+        # directories. Keep traversal protection inside aggregate.sh.
+        MNCS_WORKING_DIRECTORY: .
         MNCS_BOUNDARY: ${{ inputs.boundary }}
       run: |
         set -euo pipefail

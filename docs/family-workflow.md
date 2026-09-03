@@ -13,8 +13,15 @@ jobs:
 
 - Each provider (`mncs-command`, `rights-command`, `project-command`)
   runs via `actions/run-check` and emits an independent check plus receipt.
+  Internal actions use `epi13/mncs-actions/actions/...@<revision>` so a
+  caller pinning the workflow gets the same pinned actions (never
+  `./actions/...`, which would resolve inside the caller repo).
 - `actions/aggregate` composes the declared `required-checks` /
-  `optional-checks` boundary into one verdict plus manifest.
+  `optional-checks` boundary into one verdict plus manifest. Only result
+  files for providers that actually ran are listed: empty commands mean
+  intentionally absent (absent optional = no effect; absent required =
+  `UNKNOWN`), while a listed-but-missing file means broken execution
+  (`INVALID`/`NOT_ESTABLISHED`).
 - Leave a command empty to mark that provider not applicable. Absence is
   never recorded as PASS; only the required set decides.
 - Role guidance:

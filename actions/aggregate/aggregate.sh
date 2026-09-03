@@ -118,20 +118,22 @@ def append_summary(lines) -> None:
 check_files = parse_file_list(checks_raw)
 errors: list[str] = []
 loaded: dict[str, dict] = {}
-if not check_files:
-    errors.append("no check files provided")
+loaded_meta: dict[str, dict] = {}
+# Empty file list is NOT an error here: it means "no checks supplied".
+# Missing required coverage then becomes UNKNOWN via aggregate_verdict.
+# An explicitly listed but absent/unreadable file IS an error -> INVALID.
 for rel in check_files:
     candidate = (working_dir / rel) if not Path(rel).is_absolute() else Path(rel)
-    # Constrain to safe relative inputs: reject traversal outside working dir.
+    # Confinement: the composite action already entered working-directory,
+    # so working_dir is "." (single resolution). Reject anything escaping
+    # the confinement root, including absolute paths outside it.
     try:
-        resolved = candidate.resolve()
         work_resolved = working_dir.resolve()
-        if work_resolved not in resolved.parents and resolved != work_resolved:
-            # Allow absolute evidence paths only when inside working dir.
-            # Anything escaping is rejected as untrusted input.
-            if ".." in Path(rel).parts or Path(rel).is_absolute() and work_resolved not in resolved.parents:
-                errors.append(f"check path escapes working directory: {rel}")
-                continue
+        # Resolve without requiring existence first for traversal check.
+        candidate_resolved = (work_resolved / rel).resolve() if not Path(rel).is_absolute() else Path(rel).resolve()
+        if candidate_resolved != work_resolved and work_resolved not in candidate_resolved.parents:
+            errors.append(f"check path escapes working directory: {rel}")
+            continue
     except OSError as exc:
         errors.append(f"check path not resolvable {rel}: {exc}")
         continue
@@ -154,6 +156,7 @@ for rel in check_files:
         errors.append(f"duplicate check id: {check_id} ({rel})")
         continue
     loaded[check_id] = parsed
+    loaded_meta[check_id] = {"rel": rel, "sha256": sha256_hex(raw)}
 
 if errors:
     for error in errors:
@@ -196,10 +199,13 @@ if errors:
 verdicts = {check_id: doc["verdict"] for check_id, doc in loaded.items()}
 verdict, unresolved = aggregate_verdict(verdicts, required, optional)
 
-# Surface unknown provider revisions / missing optional as info, keep boundary honest.
+# Component summary preserves provider identity and content digest so later
+# provenance traversal can bind the aggregate to exact check bytes without
+# interpreting domain semantics (mncs-actions carries, owners define).
 checks_out: list[dict] = []
 for check_id in sorted(loaded):
     doc = loaded[check_id]
+    meta = loaded_meta.get(check_id, {})
     checks_out.append(
         {
             "id": check_id,
@@ -207,6 +213,8 @@ for check_id in sorted(loaded):
             "required": check_id in required,
             "provider": doc.get("provider", ""),
             "scope": doc.get("scope", doc.get("claim", "")),
+            "digest": meta.get("sha256", ""),
+            "path": meta.get("rel", ""),
         }
     )
 for missing in sorted(set(required) - set(loaded)):
@@ -256,6 +264,15 @@ manifest = build_evidence_manifest(
     command_exit_code=0,
     kind="aggregation",
     receipt_ref={"path": receipt_path.name, "sha256": receipt_sha},
+    references=[
+        {
+            "kind": "check-result",
+            "producer": loaded[check_id].get("provider", ""),
+            "path": loaded_meta[check_id].get("rel", ""),
+            "digest": loaded_meta[check_id].get("sha256", ""),
+        }
+        for check_id in sorted(loaded)
+    ] or None,
     unresolved=unresolved or None,
     boundary={"name": boundary or "default", "required": required, "optional": optional},
     provenance=provenance,

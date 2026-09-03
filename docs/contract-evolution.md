@@ -31,6 +31,24 @@ The contracts in this repository are deliberately experimental. Their purpose is
   with the identical value (it always hashed the whole canonical
   manifest).
 
+## Change log (portability fix)
+
+- Reusable workflow: `./actions/...` replaced with
+  `epi13/mncs-actions/actions/...@<revision>` (portable across callers;
+  keep internal pins in sync with the workflow revision on release).
+- Family workflow aggregate inputs are now conditional on providers that
+  actually ran: intentional absence follows missing-required semantics
+  (`UNKNOWN` for required, no effect for optional); explicitly listed but
+  missing files stay `INVALID`/`NOT_ESTABLISHED`. Generic aggregate
+  validation unchanged and strict.
+- Aggregate composite invariant: implementation root is `.` after entering
+  `working-directory` (fixes `src/src/...` double resolution).
+- Aggregate evidence now carries component bindings: `checks[].digest` /
+  `path` plus manifest `references[]` (`kind: check-result`) for later
+  traversal. Additive only; schemas already permit extra fields.
+- New `pressure/family-boundary.mncs`: pure dominance expressed in MNCS
+  via `mncs.core.status.v1`; IO/hash/GitHub remain documented host escape.
+
 ## Pressure loop
 
 ~~~text

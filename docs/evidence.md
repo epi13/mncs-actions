@@ -25,6 +25,11 @@ producer revision
   `execution-receipt.json`, `observed-*.json`).
 - Downloaded artifacts and external check results are untrusted until
   validated with the canonical `lib/mncs_actions.py` validators.
+- Aggregate evidence preserves component bindings: each consumed
+  check-result contributes its SHA-256 and path to `aggregate-result.json`
+  (`checks[].digest`/`path`) and to the manifest `references[]`
+  (`kind: check-result`). This is generic plumbing for future ChangeSet
+  evidence graphs, not Commons/rights semantics.
 
 ## Naming correction
 
