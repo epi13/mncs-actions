@@ -28,6 +28,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from mncs_actions import (  # noqa: E402
     CHECK_RESULT_SCHEMA_VERSION,
     map_validator_computed_status,
+    subject_stamp,
     validate_check_result,
 )
 
@@ -42,7 +43,14 @@ def main() -> int:
     parser.add_argument("--claim", default="")
     parser.add_argument("--contract-revision", default="")
     parser.add_argument("--producer-revision", default="")
+    parser.add_argument("--subject-repository", default="")
+    parser.add_argument("--subject-commit", default="")
     args = parser.parse_args()
+
+    stamp, stamp_error = subject_stamp(args.subject_repository, args.subject_commit)
+    if stamp_error:
+        print(f"error: {stamp_error}", file=sys.stderr)
+        return 2
 
     try:
         report = json.loads(Path(args.input).read_text(encoding="utf-8"))
@@ -92,6 +100,8 @@ def main() -> int:
         # For FAIL, issues are the established negative evidence; for
         # UNKNOWN they are the reason PASS could not be established.
         check["unresolved"] = [str(item) for item in unresolved]
+    if stamp:
+        check["subject"] = stamp
 
     errors = validate_check_result(check)
     if errors:

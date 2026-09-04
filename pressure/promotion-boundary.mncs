@@ -1,0 +1,70 @@
+mncs 0.6;
+
+// mncs-actions pressure: promotion-boundary decision core in MNCS.
+//
+// This module expresses the pure deterministic core of the MNCS
+// promotion-boundary evaluator
+// (machine-native-complexity-standard/scripts/mncs_promotion_evaluate.py)
+// using the authoritative lattice from mncs.core.status.v1
+// (FAIL > UNKNOWN > PASS):
+//
+//   required FAIL                       -> FAIL (valid negative blocks)
+//   required UNKNOWN / missing          -> UNKNOWN (never PASS)
+//   open required obligation            -> UNKNOWN (named blocker)
+//   rejected obligation                 -> FAIL (negative finding)
+//   optional UNKNOWN / FAIL             -> visible, never deciding
+//   missing optional                    -> no effect
+//
+// Deliberately NOT in MNCS (explicit host escape, no safe surface yet):
+// - reading boundary/check/obligation JSON (filesystem + JSON parsing);
+// - SHA-256 digest computation and digest-format checks over unbounded
+//   text (needs bounded text/byte abstractions; see pressure README);
+// - exact-revision (40-hex) verification over unbounded strings;
+// - subject-stamp comparison across documents;
+// - emitting vs withholding the promotion check-result (filesystem);
+// - GitHub environment capture and artifact upload.
+//
+// There is intentionally no arm mapping UNKNOWN to PASS, and no arm
+// deleting FAIL. Missing required evidence is UNKNOWN by construction:
+// the host represents "missing" as Status.UNKNOWN at the call site, so
+// absence can only weaken the boundary, never satisfy it.
+
+module mncs.actions.promotion_boundary.v01;
+
+use mncs.core.status.v1;
+
+enum Truth { No, Yes }
+
+record RequiredPair { first: Status, second: Status }
+
+// Required evidence combination. Mirrors the evaluator's required fold:
+// FAIL dominates; else UNKNOWN dominates; else PASS.
+fn required_boundary(pair: RequiredPair) -> (result: Status) {
+    return dominate(pair.first, pair.second);
+}
+
+record ObligationState { open: Truth, required: Truth, boundary: Status }
+
+// Obligation gate. An open required obligation forces UNKNOWN no matter
+// what the evidence boundary says; otherwise the boundary stands.
+// Mirrors the evaluator: open+required untolerated -> UNKNOWN blocker;
+// rejected obligations arrive here as Status.FAIL evidence, never as
+// obligations, so rejection blocks through required_boundary instead.
+fn gate_obligation(state: ObligationState) -> (result: Status) {
+    return match state.open {
+        Truth.No => state.boundary,
+        Truth.Yes => match state.required {
+            Truth.No => state.boundary,
+            Truth.Yes => Status.UNKNOWN,
+        },
+    };
+}
+
+record ScopedObservation { boundary: Status, optional: Status }
+
+// Optional evidence never decides the boundary. It is carried without
+// deciding; the host surfaces it in unresolved. Missing optional evidence
+// never reaches this function at all (no effect).
+fn observe_optional(state: ScopedObservation) -> (result: Status) {
+    return state.boundary;
+}

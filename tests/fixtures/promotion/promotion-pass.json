@@ -1,0 +1,40 @@
+{
+  "schema_version": "mncs.check-result/1",
+  "id": "promotion-boundary",
+  "provider": "mncs-promotion-boundary",
+  "verdict": "PASS",
+  "scope": "promotion boundary family-promotion",
+  "claim": "candidate revision carries sufficient authoritative evidence to cross the declared boundary",
+  "summary": "boundary family-promotion over 3 required (3 PASS) -> PASS; no blockers",
+  "contract_revision": "mncs-promotion-boundary/0.1",
+  "subject": {
+    "repository": "epi13/mncs-actions",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "promotion": {
+    "boundary_id": "family-promotion",
+    "boundary_revision": "mncs-promotion-boundary/0.1",
+    "subject": {
+      "repository": "epi13/mncs-actions",
+      "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "required_total": 3,
+    "required_passed": 3,
+    "blockers": []
+  },
+  "references": [
+    {
+      "kind": "check-result",
+      "check_id": "mncs-validation",
+      "producer": "mncs-validator-rs",
+      "verdict": "PASS",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "kind": "promotion-boundary",
+      "boundary_id": "family-promotion",
+      "contract_revision": "mncs-promotion-boundary/0.1",
+      "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    }
+  ]
+}

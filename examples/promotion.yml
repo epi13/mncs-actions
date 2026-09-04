@@ -1,0 +1,36 @@
+name: MNCS family verification with promotion boundary
+
+# A repository declares its family verification boundary including
+# mncs-validation, mncds-development-record, and promotion-boundary.
+# mncs-actions executes the owner-native checks, binds all evidence to
+# the candidate revision, and produces a deterministic aggregate verdict.
+#
+# Pin an immutable reviewed commit SHA in production (see
+# docs/revision-coherence.md); never @main or another floating ref.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  mncs:
+    # Pin an immutable reviewed commit SHA in production; never @main.
+    uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@<pinned-sha>
+    with:
+      required-checks: mncs-validation,mncds-development-record,mncds-obligations,promotion-boundary
+      optional-checks: forge-cell-contract
+      boundary: family-promotion
+      fail-on-unknown: true
+      mncs-command: python3 scripts/mncs-check.py --output .mncs/mncs-check.json --subject-repository ${{ github.repository }} --subject-commit ${{ github.sha }}
+      mncs-check-id: mncs-validation
+      mncs-provider: mncs-validator-rs
+      mncds-command: mncds validate docs/development-record.json --json > /tmp/mncds-report.json; python3 ./adapters/mncds_adapter.py --input /tmp/mncds-report.json --output .mncs/mncds-check.json --contract-revision 0.2-alpha.1 --subject-repository ${{ github.repository }} --subject-commit ${{ github.sha }}
+      mncds-check-id: mncds-development-record
+      mncds-provider: mncds
+      promotion-command: python3 family/mncs-standard/scripts/mncs_promotion_evaluate.py --boundary promotion-boundary.json --checks .mncs/mncs-check.json .mncs/mncds-check.json --subject-repository ${{ github.repository }} --subject-commit ${{ github.sha }} --output .mncs/promotion-check.json
+      promotion-boundary: family-promotion
+      promotion-check-id: promotion-boundary
+      promotion-provider: mncs-promotion-boundary

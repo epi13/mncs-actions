@@ -1,0 +1,11 @@
+{
+  "target": "docs/development-record.json",
+  "valid": true,
+  "supported": true,
+  "computed_status": "PASS",
+  "profile": "MNCDS-D1",
+  "record_id": "record.ci-self-test-1",
+  "issues": [],
+  "warnings": [],
+  "category": "PASS"
+}

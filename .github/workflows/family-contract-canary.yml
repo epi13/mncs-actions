@@ -57,7 +57,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/machine-native-complexity-standard
-          ref: 8dcab5f64816cd1994eff39e78f628a6a02bf8a6
+          ref: 5f5cafcbfe26a72cc327ba4837c21a99fed273ec
           path: family/mncs-standard
           persist-credentials: false
           fetch-depth: 1
@@ -66,7 +66,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/machine-native-complexity-development-specification
-          ref: 256bcad7e6cca9333954c2f2f37b3f6da8f1a8bd
+          ref: 98006cc273025d218236bc3b7a47c2cd8adc572b
           path: family/mncds
           persist-credentials: false
           fetch-depth: 1
@@ -203,6 +203,47 @@ jobs:
           --descriptors family-producer-descriptors.json
           --producer-root .mncs/producers
           --output-dir .mncs/fixed-family
+      - name: Resolve pinned MNCS evaluator revision
+        id: mncs-rev
+        run: >-
+          python3 -c "import json; contracts=json.load(open('family-contracts.json'));
+          print('revision=' + next(r['revision'] for r in contracts['repositories'] if r['name'] == 'mncs-standard'))" >> "$GITHUB_OUTPUT"
+      - name: Check out fixed MNCS promotion evaluator
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/machine-native-complexity-standard
+          ref: ${{ steps.mncs-rev.outputs.revision }}
+          path: family/mncs-standard
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Evaluate fixed family promotion boundary (owner-native)
+        run: |
+          set -euo pipefail
+          checks="$(find .mncs/fixed-family/checks -maxdepth 1 -type f -name '*.json' | sort | tr '\n' ' ')"
+          python3 family/mncs-standard/scripts/mncs_promotion_evaluate.py \
+            --boundary tests/fixtures/promotion/canary-boundary.json \
+            --checks $checks \
+            --subject-repository epi13/mncs-actions \
+            --subject-commit "$GITHUB_SHA" \
+            --output .mncs/fixed-family/checks/promotion-boundary.json
+          python3 - "$GITHUB_SHA" <<'PY'
+          import json, sys
+          sys.path.insert(0, 'lib')
+          import mncs_actions as lib
+          doc = json.load(open('.mncs/fixed-family/checks/promotion-boundary.json'))
+          errors = lib.validate_promotion_claim(
+              doc,
+              boundary_id='family-fixed-promotion',
+              subject_repository='epi13/mncs-actions',
+              subject_commit=sys.argv[1],
+          )
+          assert not errors, errors
+          print(f"promotion transport validation: {doc['verdict']}")
+          PY
+          echo "## Fixed family promotion" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Promotion verdict: $(python3 -c "import json; print(json.load(open('.mncs/fixed-family/checks/promotion-boundary.json'))['verdict'])")" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Evaluator: owner-native MNCS (pinned family-contracts revision); transport validated the claim shape only." >> "$GITHUB_STEP_SUMMARY"
       - name: Aggregate fixed family verdict
         id: fixed-aggregate
         run: |
@@ -210,7 +251,8 @@ jobs:
           checks="$(find .mncs/fixed-family/checks -maxdepth 1 -type f -name '*.json' | sort | tr '\n' ' ')"
           actions/aggregate/aggregate.sh \
             --checks "$checks" \
-            --required "mncs-validation,rights-provenance,mncds-development-record,commons-family-compatibility,mncs-language-family-boundary,mncs-language-rights-projection,mncs-language-changeset-boundary,mncs-language-artifact-envelope,forge-cell-contract" \
+            --required "mncs-validation,rights-provenance,mncds-development-record,commons-family-compatibility,mncs-language-family-boundary,mncs-language-rights-projection,mncs-language-changeset-boundary,mncs-language-artifact-envelope,mncs-language-promotion-boundary,forge-cell-contract" \
+            --optional "promotion-boundary" \
             --boundary "family-fixed-revision-compatibility" \
             --working-dir . \
             --evidence-dir .mncs/fixed-family/aggregate-evidence \

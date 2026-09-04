@@ -35,3 +35,6 @@ jobs:
       project-command: ./scripts/project-verify.sh
       project-check-id: project-tests
       project-provider: project-verifier
+      mncds-command: mncds validate docs/development-record.json --json > /tmp/mncds-report.json; python3 ./adapters/mncds_adapter.py --input /tmp/mncds-report.json --output .mncs/mncds-check.json --contract-revision 0.2-alpha.1
+      mncds-check-id: mncds-development-record
+      mncds-provider: mncds
