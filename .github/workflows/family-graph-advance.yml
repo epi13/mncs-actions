@@ -2,12 +2,19 @@ name: MNCS family graph advancement
 
 # Machine-driven family revision advancement lifecycle (proposal only).
 #
-# moving-head observation -> candidate graph proposal -> member checkouts
-# at exact revisions -> owner-native stamped evidence -> coherence
-# analysis -> MNCS graph promotion -> Commons relation -> mechanically
-# verified advancement proposal. Merging remains the human governance
-# boundary: this workflow never opens PRs and never mutates trust state.
-# It proves the next accepted state; a maintainer PRs the artifacts.
+# moving-head observation -> recorded-candidate nomination -> member
+# checkouts at exact revisions -> owner-native stamped evidence ->
+# coherence analysis -> MNCS graph promotion -> Commons relation ->
+# mechanically verified advancement proposal. Merging remains the human
+# governance boundary: this workflow never opens PRs and never mutates
+# trust state. It proves the next accepted state; a maintainer PRs the
+# artifacts.
+#
+# Nomination matters: a member's obligation set describes its recorded
+# promotion candidate, never its moving head, so the family evaluates
+# the recorded revision (checkouts, stamps, and obligation subjects
+# converge on it exactly). Members without a recorded candidate keep
+# their branch head.
 #
 # States: moving (observation) -> candidate -> validated -> promoted ->
 # related, then the advance tool proposes accepted. Any refusal fails
@@ -77,7 +84,7 @@ jobs:
           ref: ${{ steps.candidate.outputs.mncs_standard }}
           path: family/mncs-standard
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Check out candidate MNCDS
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -86,7 +93,7 @@ jobs:
           ref: ${{ steps.candidate.outputs.mncds }}
           path: family/mncds
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Check out candidate Commons
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -95,7 +102,7 @@ jobs:
           ref: ${{ steps.candidate.outputs.commons }}
           path: family/commons
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Check out candidate rights
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -104,7 +111,7 @@ jobs:
           ref: ${{ steps.candidate.outputs.rights_provenance }}
           path: family/rights-provenance
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Check out candidate language
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -113,7 +120,7 @@ jobs:
           ref: ${{ steps.candidate.outputs.mncs_language }}
           path: family/mncs-language
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Check out candidate Forge
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -122,7 +129,41 @@ jobs:
           ref: ${{ steps.candidate.outputs.forge }}
           path: family/forge
           persist-credentials: false
-          fetch-depth: 1
+          fetch-depth: 0
+
+      - name: Nominate recorded promotion candidates
+        run: |
+          set -euo pipefail
+          mkdir -p .mncs/graph/obligations
+          python3 scripts/family_contracts.py resolve \
+            --candidate .mncs/graph/candidate.json \
+            --fixed family-contracts.json \
+            --family-root . \
+            --obligations-dir .mncs/graph/obligations \
+            --output .mncs/graph/candidate.json
+          echo "obligation snapshot:"
+          ls .mncs/graph/obligations/
+
+      - name: Check out nominated member revisions
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          import subprocess
+          candidate = json.load(open('.mncs/graph/candidate.json'))
+          for entry in candidate['repositories']:
+              checkout = entry['checkout_path']
+              revision = entry['candidate_revision']
+              subprocess.run(
+                  ['git', '-C', checkout, 'checkout', '-q', revision], check=True
+              )
+              actual = subprocess.run(
+                  ['git', '-C', checkout, 'rev-parse', 'HEAD'],
+                  check=True, capture_output=True, text=True,
+              ).stdout.strip()
+              assert actual == revision, (checkout, actual, revision)
+              print(f"{entry['name']}: {revision[:12]}")
+          PY
 
       - name: Build candidate language compiler
         run: cargo build --locked --manifest-path family/mncs-language/Cargo.toml --bin mncs
@@ -164,19 +205,6 @@ jobs:
               --subject-commit "$2" \
               $([ "$producer" = "mncs-language" ] && echo "--language-binary family/mncs-language/target/debug/mncs")
           done
-
-      - name: Collect member obligations
-        run: |
-          set -euo pipefail
-          mkdir -p .mncs/graph/obligations
-          for member in mncds mncs-standard; do
-            if [ -d "family/$member/promotion/obligations" ]; then
-              cp family/$member/promotion/obligations/*.json .mncs/graph/obligations/
-            else
-              echo "::warning::member $member carries no obligations directory"
-            fi
-          done
-          ls .mncs/graph/obligations/
 
       - name: Derive graph authority map
         run: |
@@ -251,7 +279,11 @@ jobs:
         id: promotion
         run: |
           set -euo pipefail
-          MNCS_REV="${{ steps.candidate.outputs.rev_mncs_standard }}"
+          MNCS_REV="$(python3 -c "
+          import json
+          doc = json.load(open('.mncs/graph/candidate.json'))
+          print(next(r['candidate_revision'] for r in doc['repositories'] if r['name'] == 'mncs-standard'))
+          ")"
           python3 family/mncs-standard/scripts/mncs_promotion_evaluate.py \
             --boundary .mncs/graph/boundary.json \
             --authority-map .mncs/graph/authority-map.json \

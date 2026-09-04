@@ -65,6 +65,33 @@ accepted file that predates acceptance records: the bundle copy gains
 the recomputed acceptance record while the repository file waits for
 human review; replay then checks the enriched copy both directions.
 
+## Nomination: recorded candidates, not moving heads
+
+A member's obligation set describes its recorded promotion candidate
+(`promotion/candidate.json` in the member tree), never its moving head
+— owner doctrine in both MNCS (`docs/promotion.md`) and MNCDS, and the
+only reading under which the evaluator's exact-binding rule converges
+(a head can never ship obligations bound to itself). So the family
+evaluates the recorded revision:
+
+1. `propose` observes moving heads into `candidate.json`.
+2. `family_contracts.py resolve` nominates, per member: the recorded
+   candidate where the head tree declares one (repository match,
+   40-hex commit present in the checkout, owner-declared obligation
+   set snapshotted verbatim from the head tree as
+   `<member>--<basename>`), else the branch head. A member shipping
+   obligation files without a recorded candidate refuses — no revision
+   speaks for them.
+3. Member checkouts move to the nominated revisions; producers,
+   coherence, the evaluator, and the Commons validator all run at the
+   nominated trees, so checkouts, stamps, and obligation subjects
+   converge exactly.
+
+When no member speaks (recorded candidates equal the accepted base),
+`advance` refuses the no-op constellation and the scheduled run stays
+quiet. When a member rebinds its candidate, the next run nominates the
+new revision and the family can advance.
+
 ## Acceptance tiers
 
 The boundary's required evidence decides; optional observations never
