@@ -83,6 +83,21 @@ dependencies. It still runs on `ubuntu-latest`, whose image and toolchain are
 not immutable, and its evidence is therefore bounded rather than absolute.
 Moving sibling heads are not silently substituted for the recorded revisions.
 
+The fixed canary now has a bounded three-stage topology:
+
+1. one matrix job checks out and runs exactly one owner-native producer;
+2. the job uploads only its own `family-producer-output/1` envelope, with
+   SHA-256 bindings for every native and check-result file;
+3. a fresh assembler job downloads those envelopes, validates membership and
+   revisions, and runs only Actions-side adapters before aggregation.
+
+The aggregator does not check out or import family repositories. A candidate
+producer can falsify its own report, but it cannot overwrite a sibling's
+artifact or the final aggregate through the workflow. This is still a hosted
+runner boundary rather than a kernel sandbox: code in a producer job can
+tamper with that job's workspace and its own claimed output, so the result is
+evidence requiring owner semantics and independent review, not attestation.
+
 ## Moving-head drift observation
 
 `moving-head-family-drift.yml` is a separate evidence class. On a schedule or
@@ -93,11 +108,22 @@ tied to the SHA-256 digest of the fixed contract it was compared against. It
 never edits `family-contracts.json`, and drift `UNKNOWN` is not promoted to
 `PASS`.
 
-The runner covers the standard validator, rights/provenance, MNCDS, Commons'
-compatibility validator, three `mncs-language` source studies, and Forge Cell
-validation/assurance. Native reports remain in the evidence artifact; adapters
-only project their result into `mncs.check-result/1`. Unresolved compiler
-obligations and unmet Forge isolation therefore remain visible as `UNKNOWN`.
+The descriptor-driven runner covers the standard validator, rights/provenance,
+MNCDS, Commons' compatibility validator, three `mncs-language` source studies,
+and Forge Cell validation/assurance. Native reports remain in the producer
+artifact; adapters project their result into `mncs.check-result/1`. Unresolved
+compiler obligations and unmet Forge isolation therefore remain visible as
+`UNKNOWN`.
+
+`family-integration-evidence/1` binds the mode, exact contract and descriptor
+digests, every family revision, every check's producer/revision/digest/path,
+authority mapping, promotion prohibition, and execution topology. The
+corresponding `development-pressure-evidence/1` bundle gives each UNKNOWN an
+obligation key, pressure identity, owner, category, claim, limitation,
+reproducer, references, affected surfaces, and history fields. It follows the
+MNCDS `DevelopmentPressure` vocabulary; Actions transports and correlates the
+observation but does not define rights, language, assurance, or promotion
+semantics.
 
 ## Explicit advancement path
 
@@ -115,3 +141,18 @@ workflow. The advancement sequence is:
 No workflow step silently performs steps 3 or 4. The fixed canary remains the
 authoritative compatibility boundary after review; drift evidence is input to
 that review, not a replacement for it.
+
+## Descriptor and trust boundary rules
+
+`family-producer-descriptors.json` is deliberately constrained to known
+operation names, known adapter IDs, safe input/artifact paths, expected check
+membership, and required capabilities. An unknown operation or executable
+request fails closed. The descriptor registry is currently the compatibility
+carrier while family owners converge on native declarations; the next
+coordination increment can move the same schema into each owner repository
+without changing the artifact protocol.
+
+The moving-head workflow uses the same split topology. Candidate resolution,
+promotion, and evidence assembly are separate concerns. All workflow jobs use
+read-only contents permissions and `persist-credentials: false`; no candidate
+job can update `family-contracts.json` or promotion state.

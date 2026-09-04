@@ -43,3 +43,21 @@ In particular:
 - record the runner boundary in provenance when hardware-dependent execution is introduced.
 
 The verification action is evidence plumbing. It does not make an unsafe runner safe.
+
+## Family producer boundary
+
+The fixed and moving-head family canaries run one owner-native producer per
+hosted matrix job. Each job has read-only repository permissions,
+`persist-credentials: false`, one family checkout, and one producer artifact.
+The later assembler job has no family checkout: it verifies the recorded
+SHA-256 bytes, descriptor-selected membership, repository identity, and
+expected exact revision before it runs Actions adapters and aggregation.
+
+This prevents a producer from silently overwriting sibling evidence, changing
+the aggregator's code, or mutating promotion state across jobs. It does not
+make the producer job a kernel-level sandbox: owner code can still alter its
+own job workspace, lie about domain facts, or exploit a runner vulnerability.
+The independent revision binding and artifact validation detect substitution
+and malformed transport, but they do not establish semantic truth or
+attestation. Moving-head results therefore remain observations and never gain
+fixed-contract or promotion authority.

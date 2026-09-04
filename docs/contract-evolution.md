@@ -92,6 +92,28 @@ workflow consumes contract
 
 A capability gap is evidence about the current language, standard, or integration surface. It is not permission to weaken the contract silently. Future actions may emit canonical capability-gap records once the owning MNCS-family contract is available.
 
+## Family protocol increment
+
+- `mncs-actions.family-producer-descriptors/1` is a data-only descriptor
+  registry. It selects an allowlisted operation/adapter, safe input paths,
+  expected output identities, and required capabilities. It cannot request
+  arbitrary shell execution.
+- `mncs-actions.family-producer-output/1` is a per-owner content-addressed
+  artifact envelope. It binds the independently expected family revision,
+  descriptor digest, native reports, and check-result paths/digests.
+- `mncs-actions.family-integration-evidence/1` is schema-covered and
+  mechanically validated. It records fixed versus moving-head mode, exact
+  contract/descriptor digests, all producer identities and revisions, strict
+  check membership, authority, promotion semantics, and the producer-job /
+  artifact-only aggregation boundary.
+- `mncs-actions.development-pressure-evidence/1` carries unresolved family
+  obligations using the current MNCDS `DevelopmentPressure` vocabulary.
+  Actions correlates observations and preserves owner references; absence in
+  a later observation is explicitly not treated as proof of resolution.
+- The required-family JUnit guard counts nested testcase elements rather than
+  trusting a root counter, and rejects malformed, empty, skipped, or failed
+  reports.
+
 ## Family revision advancement
 
 `family-contracts.json` is the fixed family contract. It is never rewritten by

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-actions/blob/main/schemas/development-pressure-evidence.schema.json",
+  "title": "MNCS Actions DevelopmentPressure evidence",
+  "description": "Transport of MNCDS-shaped unresolved family obligations. It is an observation and correlation record; it does not define owner semantics or authorize a change.",
+  "type": "object",
+  "required": ["schema_version", "protocol", "mode", "source_revision", "contract_document", "contract_digest", "descriptor_document", "descriptor_digest", "obligations", "not_reproduced", "authority", "promotion"],
+  "properties": {
+    "schema_version": { "const": "mncs-actions.development-pressure-evidence/1" },
+    "protocol": { "const": "MNCDS DevelopmentPressure transport; observation only" },
+    "mode": { "enum": ["fixed", "moving-head"] },
+    "source_revision": { "type": "string", "minLength": 1 },
+    "contract_document": { "$ref": "#/$defs/safePath" },
+    "contract_digest": { "$ref": "#/$defs/digest" },
+    "descriptor_document": { "$ref": "#/$defs/safePath" },
+    "descriptor_digest": { "$ref": "#/$defs/digest" },
+    "obligations": { "type": "array", "items": { "$ref": "#/$defs/obligation" } },
+    "not_reproduced": { "type": "array", "items": { "$ref": "#/$defs/notReproduced" } },
+    "authority": {
+      "type": "object",
+      "required": ["pressure_semantics", "rights_semantics", "coordination_exchange", "language_capability", "assurance_semantics", "transport"],
+      "properties": {
+        "pressure_semantics": { "const": "MNCDS" },
+        "rights_semantics": { "const": "mncs-rights-provenance" },
+        "coordination_exchange": { "const": "MNCS-Commons" },
+        "language_capability": { "const": "mncs-language" },
+        "assurance_semantics": { "const": "mncs-forge-mcp" },
+        "transport": { "const": "mncs-actions" }
+      },
+      "additionalProperties": false
+    },
+    "promotion": { "const": "observation only; no pressure observation authorizes a change" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!^[A-Za-z]:)(?!.*(^|/)(?:\\.|\\.\\.)(/|$))(?!.*//)(?!.*\\/$)(?!.*\\\\)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "reference": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": { "kind": { "type": "string", "minLength": 1 } },
+      "additionalProperties": true
+    },
+    "obligation": {
+      "type": "object",
+      "required": ["pressure_id", "obligation_key", "producer", "owner", "originating_project", "source_revision", "contract_revision", "requested_capability", "current_limitation", "affected_surfaces", "protected_properties", "evidence_requirements", "reproducer", "references", "upstream_downstream_contracts", "status", "unresolved", "history"],
+      "properties": {
+        "pressure_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "obligation_key": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "producer": { "const": "mncs-actions" },
+        "owner": { "type": "string", "minLength": 1 },
+        "originating_project": { "type": "string", "minLength": 1 },
+        "source_revision": { "type": "string", "minLength": 1 },
+        "contract_revision": { "type": "string" },
+        "requested_capability": { "type": "string", "minLength": 1 },
+        "current_limitation": { "type": "string", "minLength": 1 },
+        "affected_surfaces": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "protected_properties": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "evidence_requirements": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "reproducer": { "type": "object", "required": ["kind", "mode", "contract_document", "contract_digest", "descriptor_document", "descriptor_digest", "source"], "properties": { "kind": { "const": "family-contract-check" }, "mode": { "enum": ["fixed", "moving-head"] }, "contract_document": { "$ref": "#/$defs/safePath" }, "contract_digest": { "$ref": "#/$defs/digest" }, "descriptor_document": { "$ref": "#/$defs/safePath" }, "descriptor_digest": { "$ref": "#/$defs/digest" }, "source": { "type": "object", "required": ["check_id", "path", "digest", "producer", "producer_revision"], "properties": { "check_id": { "type": "string", "minLength": 1 }, "path": { "$ref": "#/$defs/safePath" }, "digest": { "$ref": "#/$defs/digest" }, "producer": { "type": "string", "minLength": 1 }, "producer_revision": { "$ref": "#/$defs/sha" } }, "additionalProperties": false } }, "additionalProperties": false },
+        "references": { "type": "array", "items": { "$ref": "#/$defs/reference" } },
+        "upstream_downstream_contracts": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "status": { "const": "UNKNOWN" },
+        "unresolved": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+        "history": { "type": "object", "required": ["same_obligation_appeared_previously", "prior_pressure_id", "resolved_by_revision"], "properties": { "same_obligation_appeared_previously": { "enum": ["YES", "NOT_OBSERVED"] }, "prior_pressure_id": { "type": ["string", "null"] }, "resolved_by_revision": { "type": ["string", "null"] } }, "additionalProperties": false }
+      },
+      "additionalProperties": false
+    },
+    "notReproduced": {
+      "type": "object",
+      "required": ["obligation_key", "prior_pressure_id", "current_status", "resolved_by_revision", "note"],
+      "properties": { "obligation_key": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }, "prior_pressure_id": { "type": ["string", "null"] }, "current_status": { "const": "NOT_REPRODUCED" }, "resolved_by_revision": { "type": ["string", "null"] }, "note": { "type": "string", "minLength": 1 } },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

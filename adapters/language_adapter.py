@@ -110,6 +110,7 @@ def build_check(
         "provider": "mncs-language",
         "verdict": status,
         "scope": "source-study/compiler-pipeline",
+        "contract_revision": CONTRACT_ID,
         "claim": "language study stages were observed; no conformance or assurance claim",
         "summary": (
             f"mncs-language source study {study['compilation_status']} with "

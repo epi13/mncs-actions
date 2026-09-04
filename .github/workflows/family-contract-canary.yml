@@ -1,9 +1,9 @@
 name: MNCS family contract canary
 
-# This is deterministic compatibility evidence, not a moving-head family
-# health claim. Every sibling checkout is bound by family-contracts.json.
-# It runs only on GitHub-hosted infrastructure with read-only permissions;
-# no public PR code is sent to privileged/self-hosted MNCS workers.
+# Fixed compatibility evidence. Each owner-native producer runs in a
+# separate hosted job and can only contribute its own artifact envelope. The
+# aggregator job receives those envelopes and never checks out or executes a
+# family repository.
 on:
   pull_request:
   workflow_dispatch:
@@ -12,28 +12,38 @@ permissions:
   contents: read
 
 jobs:
-  deterministic-family-canary:
-    # ubuntu-latest is a hosted runner class, not an immutable machine image.
-    # The runner identity remains recorded in any generated evidence.
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Check out mncs-actions
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        # actions/setup-python v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Install locked protocol dependencies
+        run: python3 -m pip install --require-hashes -r requirements-dev.lock
+      - name: Build producer matrix from fixed contract
+        id: matrix
+        run: python3 scripts/family_contract_matrix.py --contracts family-contracts.json
+
+  required-canary-tests:
+    # These are metadata/adapter regressions. They do not run owner-native
+    # family integrations; those are isolated in the producer matrix below.
     runs-on: ubuntu-latest
     steps:
-      - name: Check out mncs-actions PR
+      - name: Check out mncs-actions
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-
-      - name: Check out MNCS standard
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: epi13/machine-native-complexity-standard
-          ref: 8dcab5f64816cd1994eff39e78f628a6a02bf8a6
-          path: family/mncs-standard
-          persist-credentials: false
-          fetch-depth: 1
-
-      - name: Check out rights and provenance
+      - name: Check out required ChangeSet producer
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -42,8 +52,16 @@ jobs:
           path: family/rights-provenance
           persist-credentials: false
           fetch-depth: 1
-
-      - name: Check out MNCDS
+      - name: Check out fixed family metadata
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/machine-native-complexity-standard
+          ref: 8dcab5f64816cd1994eff39e78f628a6a02bf8a6
+          path: family/mncs-standard
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Check out fixed MNCDS metadata
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -52,8 +70,7 @@ jobs:
           path: family/mncds
           persist-credentials: false
           fetch-depth: 1
-
-      - name: Check out Commons
+      - name: Check out fixed Commons metadata
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -62,8 +79,7 @@ jobs:
           path: family/commons
           persist-credentials: false
           fetch-depth: 1
-
-      - name: Check out mncs-language
+      - name: Check out fixed language metadata
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -72,8 +88,7 @@ jobs:
           path: family/mncs-language
           persist-credentials: false
           fetch-depth: 1
-
-      - name: Check out Forge
+      - name: Check out fixed Forge metadata
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -82,20 +97,14 @@ jobs:
           path: family/forge
           persist-credentials: false
           fetch-depth: 1
-
       - name: Set up Python
         # actions/setup-python v7.0.0
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.12"
-
-      - name: Install fully locked canary dependencies
+      - name: Install locked canary dependencies
         run: python3 -m pip install --require-hashes -r requirements-dev.lock
-
-      - name: Build fixed mncs-language compiler
-        run: cargo build --locked --manifest-path family/mncs-language/Cargo.toml --bin mncs
-
-      - name: Run fixed-revision family canaries
+      - name: Run required fixed-family metadata canaries
         env:
           MNCS_ACTIONS_FAMILY_ROOT: ${{ github.workspace }}
           MNCS_ACTIONS_REQUIRE_FAMILY: "1"
@@ -106,35 +115,99 @@ jobs:
           python3 -m pytest -q tests/test_changeset_adapter.py
           tests/test_family_contracts.py
           --junitxml "$RUNNER_TEMP/mncs-family-canary.xml"
+      - name: Fail closed if required family canary skipped or empty
+        run: python3 scripts/check_junit.py "$RUNNER_TEMP/mncs-family-canary.xml"
 
-      - name: Fail if a required family canary skipped
-        env:
-          JUNIT_XML: ${{ runner.temp }}/mncs-family-canary.xml
-        run: |
-          python3 - <<'PY'
-          import os
-          import xml.etree.ElementTree as ET
+  producers:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out mncs-actions
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Check out one fixed family producer
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: ${{ matrix.repository }}
+          ref: ${{ matrix.revision }}
+          path: ${{ matrix.checkout_path }}
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Set up Python
+        # actions/setup-python v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Install locked producer dependencies
+        run: python3 -m pip install --require-hashes -r requirements-dev.lock
+      - name: Build fixed language compiler
+        if: ${{ matrix.producer == 'mncs-language' }}
+        run: cargo build --locked --manifest-path family/mncs-language/Cargo.toml --bin mncs
+      - name: Execute bounded owner-native producer
+        run: >-
+          python3 scripts/family_producer.py
+          --producer "${{ matrix.producer }}"
+          --family-root .
+          --actions-root .
+          --contracts family-contracts.json
+          --descriptors family-producer-descriptors.json
+          --output-dir .mncs/producer-output
+          ${{ matrix.producer == 'mncs-language' && '--language-binary family/mncs-language/target/debug/mncs' || '' }}
+      - name: Upload producer-only evidence
+        if: ${{ always() }}
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: family-producer-${{ matrix.producer }}
+          path: .mncs/producer-output
+          if-no-files-found: error
 
-          root = ET.parse(os.environ["JUNIT_XML"]).getroot()
-          skipped = int(root.attrib.get("skipped", "0"))
-          if skipped:
-              raise SystemExit(f"{skipped} required family canary test(s) skipped")
-          print(f"executed {root.attrib.get('tests', '0')} family canary tests")
-          PY
-
-      - name: Execute owner-native family contracts
-        run: |
-          python3 scripts/run_family_contracts.py \
-            --family-root . \
-            --actions-root . \
-            --contracts family-contracts.json \
-            --output-dir .mncs/fixed-family \
-            --language-binary family/mncs-language/target/debug/mncs
-
-      - name: Aggregate fixed family compatibility evidence
+  assemble-and-aggregate:
+    needs: [producers, required-canary-tests]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out mncs-actions
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Download producer evidence envelopes
+        # actions/download-artifact v6.0.0
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: family-producer-*
+          path: .mncs/producers
+          merge-multiple: false
+      - name: Set up Python
+        # actions/setup-python v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Install locked aggregation dependencies
+        run: python3 -m pip install --require-hashes -r requirements-dev.lock
+      - name: Assemble fixed family evidence from artifacts only
+        run: >-
+          python3 scripts/assemble_family_evidence.py
+          --contracts family-contracts.json
+          --descriptors family-producer-descriptors.json
+          --producer-root .mncs/producers
+          --output-dir .mncs/fixed-family
+      - name: Aggregate fixed family verdict
         id: fixed-aggregate
         run: |
-          checks="$(find .mncs/fixed-family -maxdepth 1 -type f -name '*.json' ! -name 'family-contract-evidence.json' | sort | tr '\n' ' ')"
+          set -euo pipefail
+          checks="$(find .mncs/fixed-family/checks -maxdepth 1 -type f -name '*.json' | sort | tr '\n' ' ')"
           actions/aggregate/aggregate.sh \
             --checks "$checks" \
             --required "mncs-validation,rights-provenance,mncds-development-record,commons-family-compatibility,mncs-language-family-boundary,mncs-language-rights-projection,mncs-language-changeset-boundary,forge-cell-contract" \
@@ -143,9 +216,12 @@ jobs:
             --evidence-dir .mncs/fixed-family/aggregate-evidence \
             --carrier-revision "$GITHUB_SHA" \
             --strict-membership true
-          echo "Fixed family boundary verdict: $(grep '^verdict=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)"
-
-      - name: Upload fixed family evidence
+          verdict="$(grep '^verdict=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)"
+          echo "## Fixed family canary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Workflow execution: SUCCESS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- MNCS evidence verdict: $verdict" >> "$GITHUB_STEP_SUMMARY"
+          echo "- UNKNOWN remains a valid evidence verdict and is not converted to workflow failure." >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload fixed family evidence and pressure
         if: ${{ always() }}
         # actions/upload-artifact v7.0.1
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a

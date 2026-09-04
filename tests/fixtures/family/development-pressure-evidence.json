@@ -1,0 +1,21 @@
+{
+  "schema_version": "mncs-actions.development-pressure-evidence/1",
+  "protocol": "MNCDS DevelopmentPressure transport; observation only",
+  "mode": "fixed",
+  "source_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "contract_document": "family-contracts.json",
+  "contract_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "descriptor_document": "family-producer-descriptors.json",
+  "descriptor_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "obligations": [],
+  "not_reproduced": [],
+  "authority": {
+    "pressure_semantics": "MNCDS",
+    "rights_semantics": "mncs-rights-provenance",
+    "coordination_exchange": "MNCS-Commons",
+    "language_capability": "mncs-language",
+    "assurance_semantics": "mncs-forge-mcp",
+    "transport": "mncs-actions"
+  },
+  "promotion": "observation only; no pressure observation authorizes a change"
+}

@@ -38,6 +38,11 @@ jobs:
           python3 -m json.tool schemas/aggregate-result.schema.json >/dev/null
           python3 -m json.tool schemas/badge.schema.json >/dev/null
           python3 -m json.tool schemas/family-contract-candidate.schema.json >/dev/null
+          python3 -m json.tool schemas/family-producer-descriptor.schema.json >/dev/null
+          python3 -m json.tool schemas/family-producer-output.schema.json >/dev/null
+          python3 -m json.tool schemas/family-integration-evidence.schema.json >/dev/null
+          python3 -m json.tool schemas/development-pressure-evidence.schema.json >/dev/null
+          python3 -m json.tool family-producer-descriptors.json >/dev/null
           python3 scripts/family_contracts.py validate family-contracts.json
           for fixture in tests/fixtures/verify/pass.json tests/fixtures/verify/fail.json tests/fixtures/verify/unknown.json tests/fixtures/check/pass.json; do
             python3 -m json.tool "$fixture" >/dev/null
@@ -48,6 +53,10 @@ jobs:
           pip install --require-hashes -r requirements-dev.lock
           check-jsonschema --schemafile schemas/verification-result.schema.json tests/fixtures/verify/pass.json tests/fixtures/verify/fail.json tests/fixtures/verify/unknown.json tests/fixtures/verify/extra-fields.json
           check-jsonschema --schemafile schemas/check-result.schema.json tests/fixtures/check/pass.json tests/fixtures/check/fail.json tests/fixtures/check/unknown.json
+          check-jsonschema --schemafile schemas/family-producer-descriptor.schema.json family-producer-descriptors.json
+          check-jsonschema --schemafile schemas/family-producer-output.schema.json tests/fixtures/family/producer-output.json
+          check-jsonschema --schemafile schemas/family-integration-evidence.schema.json tests/fixtures/family/integration-evidence.json
+          check-jsonschema --schemafile schemas/development-pressure-evidence.schema.json tests/fixtures/family/development-pressure-evidence.json
           # Negative fixtures must fail schema or canonical validation; assert the canonical lib rejects them.
           python3 -c "import sys; sys.path.insert(0,'lib'); import mncs_actions, json; assert mncs_actions.validate_verification_result(json.load(open('tests/fixtures/verify/contradictory-pass-with-fail.json')))"
 

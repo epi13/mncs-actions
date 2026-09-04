@@ -63,6 +63,7 @@ def build_check(
     validator_stdout: str,
     validator_stderr: str,
     producer_revision: str = "",
+    contract_revision: str = "0.1",
 ) -> dict[str, Any]:
     registry_digest = sha256_hex(
         json.dumps(registry, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
@@ -80,6 +81,7 @@ def build_check(
         "verdict": verdict,
         "scope": "producer-registry-and-owner-compatibility-validator",
         "claim": "Commons registry and compatibility fixtures were checked by Commons-owned code",
+        "contract_revision": contract_revision,
         "summary": (
             f"Commons owner compatibility validator exit={validator_returncode}; "
             f"registry producers={len(registry['contracts'])}"
@@ -111,6 +113,7 @@ def main() -> int:
     parser.add_argument("--commons-root", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--producer-revision", default="")
+    parser.add_argument("--contract-revision", default="0.1")
     args = parser.parse_args()
     registry_path = args.commons_root / "compat/family-record-producers.json"
     try:
@@ -129,6 +132,7 @@ def main() -> int:
             validator_stdout=process.stdout,
             validator_stderr=process.stderr,
             producer_revision=args.producer_revision,
+            contract_revision=args.contract_revision,
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(check, indent=2, sort_keys=True) + "\n", encoding="utf-8")
