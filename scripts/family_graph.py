@@ -19,9 +19,12 @@ Usage:
   family_graph.py verify --graph GRAPH.json --fixed FIXED
       [--promotion-result PROM.json --lib-dir LIB]
       [--coherence COH.json] [--commons-record CS.json --commons-root DIR]
+      [--boundary B.json [--boundary-template T.json] [--authority-map AM.json]]
   family_graph.py advance --graph GRAPH.json --fixed FIXED
       --promotion-result PROM.json --lib-dir LIB --coherence COH.json
-      --commons-record CS.json --commons-root DIR
+      --commons-record CS.json --commons-root DIR --boundary B.json
+      [--boundary-template T.json] [--authority-map AM.json]
+      --checks-dir DIR --obligations-dir DIR
       --output-contracts PROPOSED.json --output-graph ACCEPTED.json
 """
 
@@ -218,15 +221,16 @@ def cmd_build(args: argparse.Namespace) -> int:
             )
 
     promotion = None
-    promotion_path = ""
     if args.promotion_result:
-        promotion_path = args.promotion_result
-        raw = Path(promotion_path).read_bytes()
+        raw = Path(args.promotion_result).read_bytes()
         claim = json.loads(raw.decode("utf-8"))
+        # Durable reference only: bundle-relative conventional name plus the
+        # content digest. No absolute or machine-local path may survive into
+        # accepted state (see schemas/family-acceptance-proof.schema.json).
         promotion = {
             "verdict": claim.get("verdict", "UNKNOWN"),
-            "path": promotion_path,
             "digest": hashlib.sha256(raw).hexdigest(),
+            "ref": "promotion-check.json",
         }
 
     commons_record = ""
@@ -282,6 +286,277 @@ def _check_digest(doc: dict, label: str) -> None:
         )
 
 
+BOUNDARY_SCHEMA = "mncs-promotion-boundary/0.1"
+AUTHORITY_MAP_SCHEMA = "mncs-authority-map/0.1"
+
+
+def _read_json_no_dupes(path: Path, label: str) -> dict:
+    """Read a JSON object, refusing duplicate keys (fail closed).
+
+    Duplicate object keys collapse silently under a plain parse, so a map
+    carrying two bindings for one check id would verify against only the
+    survivor. Transport must see the contradiction.
+    """
+
+    def _no_dupes(pairs: list[tuple[str, object]]) -> dict:
+        seen: dict = {}
+        for key, value in pairs:
+            if key in seen:
+                raise GraphError(f"{label} {path}: duplicate key {key!r}")
+            seen[key] = value
+        return seen
+
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=_no_dupes)
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise GraphError(f"{label} {path}: cannot read: {exc}") from exc
+    if not isinstance(doc, dict):
+        raise GraphError(f"{label} {path}: must be a JSON object")
+    return doc
+
+
+def acceptance_tier(
+    *,
+    verdict: str,
+    required_total: int,
+    required_passed: int,
+    optional_verdicts: dict[str, str],
+    optional_expected: list[str],
+    open_required_obligations: list[str],
+) -> str:
+    """Project the acceptance tier. Pure decision logic.
+
+    Mirrored in ``pressure/family-acceptance.mncs`` (``project_tier``);
+    the host computes the input booleans, MNCS projects the tier, and
+    agreement tests pin the two together. ``core`` means the graph
+    crossed the current core advancement boundary (required evidence
+    decides); ``full`` additionally means every boundary-listed optional
+    authority returned PASS with no open required obligations.
+    ``refused`` is never accepted.
+    """
+    if verdict != "PASS" or required_total < 1 or required_passed != required_total:
+        return "refused"
+    if open_required_obligations:
+        return "core"
+    for check_id in optional_expected:
+        if optional_verdicts.get(check_id) != "PASS":
+            return "core"
+    return "full"
+
+
+def acceptance_record(
+    *,
+    claim: dict,
+    boundary: dict,
+    checks: dict[str, dict],
+    obligations: list[dict],
+) -> dict:
+    """Build the machine-readable acceptance record for a promotion claim."""
+    optional_expected = [
+        e.get("check_id", "") for e in boundary.get("optional_evidence", [])
+    ]
+    optional = [
+        {
+            "check_id": check_id,
+            "verdict": checks.get(check_id, {}).get("verdict", "missing"),
+        }
+        for check_id in optional_expected
+    ]
+    open_required = sorted(
+        str(o.get("obligation_key", ""))
+        for o in obligations
+        if o.get("status") == "open" and o.get("required") is True
+    )
+    promotion = claim.get("promotion", {}) if isinstance(claim, dict) else {}
+    tier = acceptance_tier(
+        verdict=str(claim.get("verdict", "")),
+        required_total=int(promotion.get("required_total", 0) or 0),
+        required_passed=int(promotion.get("required_passed", 0) or 0),
+        optional_verdicts={
+            c: v for c, v in ((o["check_id"], o["verdict"]) for o in optional)
+        },
+        optional_expected=optional_expected,
+        open_required_obligations=open_required,
+    )
+    return {
+        "tier": tier,
+        "policy": (
+            "family-advancement core boundary: required owner evidence decides; "
+            "optional observations never decide. 'core' crossed the required "
+            "boundary; 'full' additionally has every boundary-listed optional "
+            "authority at PASS with no open required obligations."
+        ),
+        "required": {
+            "total": promotion.get("required_total", 0),
+            "passed": promotion.get("required_passed", 0),
+        },
+        "optional": optional,
+        "obligations_open_required": open_required,
+    }
+
+
+def _expected_boundary_id(args: argparse.Namespace) -> str:
+    """Boundary id from the externally provided boundary, never the claim."""
+    boundary_path = getattr(args, "boundary", "")
+    if not boundary_path:
+        raise GraphError(
+            "promotion verification needs --boundary "
+            "(materialized advancement boundary, not the claim's own word)"
+        )
+    return str(_read(Path(boundary_path), "boundary").get("boundary_id", ""))
+
+
+def _verify_claim_against_boundary(
+    args: argparse.Namespace, graph: dict, claim: dict, digest: str
+) -> None:
+    """Bind a promotion claim to an externally established boundary.
+
+    The claim may not declare its own expected boundary: every binding
+    below is anchored in the materialized boundary file (and, when given,
+    the boundary template). A genuine PASS evaluated under a weaker or
+    different boundary fails here, as does any digest or member mismatch.
+    Verdict semantics stay in the owner-native MNCS evaluator; this only
+    proves the claim was produced under the exact declared boundary and
+    is correctly bound to this graph.
+    """
+    boundary_path = getattr(args, "boundary", "")
+    if not boundary_path:
+        raise GraphError(
+            "promotion verification needs --boundary "
+            "(materialized advancement boundary)"
+        )
+    boundary_raw = Path(boundary_path).read_bytes()
+    try:
+        boundary = json.loads(boundary_raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise GraphError(f"boundary {boundary_path}: cannot read: {exc}") from exc
+    if not isinstance(boundary, dict):
+        raise GraphError(f"boundary {boundary_path}: must be a JSON object")
+    if boundary.get("schema_version") != BOUNDARY_SCHEMA:
+        raise GraphError(
+            f"boundary schema_version must be {BOUNDARY_SCHEMA}, "
+            f"got {boundary.get('schema_version')!r}"
+        )
+    if boundary.get("subject_repository") != GRAPH_SUBJECT_REPOSITORY:
+        raise GraphError(
+            "boundary is not a family graph boundary: "
+            f"subject_repository is {boundary.get('subject_repository')!r}"
+        )
+    declared = boundary.get("graph")
+    if not isinstance(declared, dict):
+        raise GraphError("boundary declares no graph")
+    if declared.get("digest") != digest:
+        raise GraphError("boundary declares a different graph digest")
+    member_pairs = {(m.get("repository"), m.get("commit")) for m in graph["members"]}
+    declared_pairs = {
+        (m.get("repository"), m.get("commit"))
+        for m in declared.get("members", [])
+        if isinstance(m, dict)
+    }
+    if declared_pairs != member_pairs:
+        raise GraphError("boundary graph members do not match the graph members")
+
+    refs = {}
+    for ref in claim.get("references", []):
+        if isinstance(ref, dict) and isinstance(ref.get("kind"), str):
+            refs[ref["kind"]] = ref.get("digest", "")
+    boundary_digest = "sha256:" + hashlib.sha256(boundary_raw).hexdigest()
+    if refs.get("promotion-boundary") != boundary_digest:
+        raise GraphError(
+            "promotion claim was not evaluated under the provided boundary "
+            "(boundary digest mismatch)"
+        )
+    promotion = claim.get("promotion", {})
+    if not isinstance(promotion, dict):
+        raise GraphError("promotion claim carries no promotion extension")
+    if promotion.get("boundary_id") != boundary.get("boundary_id"):
+        raise GraphError(
+            "promotion claim boundary_id "
+            f"{promotion.get('boundary_id')!r} does not match boundary "
+            f"{boundary.get('boundary_id')!r}"
+        )
+    required_ids = [
+        e.get("check_id")
+        for e in boundary.get("required_evidence", [])
+        if isinstance(e, dict) and e.get("check_id") != claim.get("id")
+    ]
+    if promotion.get("required_total") != len(required_ids):
+        raise GraphError(
+            "promotion claim required_total "
+            f"{promotion.get('required_total')!r} does not match the boundary "
+            f"({len(required_ids)} required checks)"
+        )
+
+    template_path = getattr(args, "boundary_template", "")
+    if template_path:
+        template = _read(Path(template_path), "boundary template")
+        stripped = {k: v for k, v in boundary.items() if k != "graph"}
+        template_core = {k: v for k, v in template.items() if k != "graph"}
+        if stripped != template_core:
+            raise GraphError(
+                "materialized boundary is not the template plus the graph "
+                "declaration (template mismatch)"
+            )
+
+    if refs.get("authority-map"):
+        map_path = getattr(args, "authority_map", "")
+        if not map_path:
+            raise GraphError(
+                "promotion claim binds an authority map that was not provided"
+            )
+        map_raw = Path(map_path).read_bytes()
+        if "sha256:" + hashlib.sha256(map_raw).hexdigest() != refs["authority-map"]:
+            raise GraphError("authority map bytes do not match the claim reference")
+        authority_map = _read_json_no_dupes(Path(map_path), "authority map")
+        if authority_map.get("schema_version") != AUTHORITY_MAP_SCHEMA:
+            raise GraphError(
+                f"authority map schema_version must be {AUTHORITY_MAP_SCHEMA}"
+            )
+        bindings = authority_map.get("authorities")
+        if not isinstance(bindings, dict) or not bindings:
+            raise GraphError("authority map carries no bindings")
+        known = {
+            e.get("check_id")
+            for group in ("required_evidence", "optional_evidence")
+            for e in boundary.get(group, [])
+            if isinstance(e, dict)
+        }
+        for check_id, binding in bindings.items():
+            if check_id not in known:
+                raise GraphError(
+                    f"authority map binds unexpected check id {check_id!r}"
+                )
+            if not isinstance(binding, dict):
+                raise GraphError(
+                    f"authority map binding for {check_id!r} must be an object"
+                )
+            for field in ("provider", "authority"):
+                if not binding.get(field) or not isinstance(binding[field], str):
+                    raise GraphError(
+                        f"authority map binding for {check_id!r} needs {field}"
+                    )
+        for group in ("required_evidence", "optional_evidence"):
+            for entry in boundary.get(group, []):
+                if not isinstance(entry, dict):
+                    continue
+                check_id = entry.get("check_id")
+                binding = bindings.get(check_id)
+                if binding is None:
+                    raise GraphError(
+                        f"authority map is missing a binding for {check_id!r}"
+                    )
+                if binding.get("authority") != entry.get("authority"):
+                    raise GraphError(
+                        f"authority map binds {check_id!r} to "
+                        f"{binding.get('authority')!r}, boundary requires "
+                        f"{entry.get('authority')!r}"
+                    )
+    print(
+        f"boundary {boundary.get('boundary_id')} verified for graph {digest[:12]} "
+        f"({len(required_ids)} required checks)"
+    )
+
+
 def cmd_verify(args: argparse.Namespace) -> int:
     """Recompute identity and check every bound artifact. Exit 2 refuses."""
     graph = _read(Path(args.graph), "graph")
@@ -319,9 +594,10 @@ def cmd_verify(args: argparse.Namespace) -> int:
         import mncs_actions as lib
 
         digest = graph["digest"]
+        _verify_claim_against_boundary(args, graph, claim, digest)
         errors = lib.validate_promotion_claim(
             claim,
-            boundary_id=claim.get("promotion", {}).get("boundary_id", ""),
+            boundary_id=_expected_boundary_id(args),
             subject_repository=GRAPH_SUBJECT_REPOSITORY,
             subject_commit=f"graph:{digest}",
         )
@@ -379,6 +655,41 @@ def cmd_verify(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_checks(checks_dir: Path) -> dict[str, dict]:
+    """Load check-result documents keyed by check id (filename stem)."""
+    checks: dict[str, dict] = {}
+    if not checks_dir.is_dir():
+        raise GraphError(f"checks directory not found: {checks_dir}")
+    for path in sorted(checks_dir.glob("*.json")):
+        try:
+            doc = json.loads(path.read_bytes().decode("utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise GraphError(f"check {path}: cannot read: {exc}") from exc
+        if not isinstance(doc, dict):
+            raise GraphError(f"check {path}: must be a JSON object")
+        check_id = str(doc.get("id", path.stem))
+        if check_id in checks:
+            raise GraphError(f"duplicate check id: {check_id}")
+        checks[check_id] = doc
+    return checks
+
+
+def _load_obligations(obligations_dir: Path) -> list[dict]:
+    """Load obligation records (structural read; semantics stay owner-side)."""
+    if not obligations_dir.is_dir():
+        raise GraphError(f"obligations directory not found: {obligations_dir}")
+    records: list[dict] = []
+    for path in sorted(obligations_dir.glob("*.json")):
+        try:
+            doc = json.loads(path.read_bytes().decode("utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise GraphError(f"obligation {path}: cannot read: {exc}") from exc
+        if not isinstance(doc, dict):
+            raise GraphError(f"obligation {path}: must be a JSON object")
+        records.append(doc)
+    return records
+
+
 def cmd_advance(args: argparse.Namespace) -> int:
     """Emit the proposed accepted state. Refuses unless the proof holds."""
     graph = _read(Path(args.graph), "graph")
@@ -424,11 +735,31 @@ def cmd_advance(args: argparse.Namespace) -> int:
         coherence=args.coherence,
         commons_record=args.commons_record,
         commons_root=args.commons_root,
+        boundary=args.boundary,
+        boundary_template=args.boundary_template,
+        authority_map=args.authority_map,
     )
     try:
         cmd_verify(verify_args)
     except GraphError as exc:
         refusals.append(str(exc))
+
+    try:
+        boundary = _read(Path(args.boundary), "boundary")
+        claim_doc = json.loads(Path(args.promotion_result).read_bytes().decode())
+        checks = _load_checks(Path(args.checks_dir))
+        obligations = _load_obligations(Path(args.obligations_dir))
+        acceptance = acceptance_record(
+            claim=claim_doc,
+            boundary=boundary,
+            checks=checks,
+            obligations=obligations,
+        )
+    except (GraphError, OSError, ValueError) as exc:
+        refusals.append(f"cannot project acceptance tier: {exc}")
+        acceptance = {"tier": "refused"}
+    if acceptance.get("tier") == "refused":
+        refusals.append("acceptance tier projects refused for a PASS claim")
 
     if refusals:
         print("advancement REFUSED:")
@@ -440,6 +771,16 @@ def cmd_advance(args: argparse.Namespace) -> int:
     proposed = json.loads(json.dumps(fixed))
     for entry in proposed["repositories"]:
         entry["revision"] = member_commit[entry["name"]]
+    if sha256_hex(canonical_bytes(proposed)) == sha256_hex(canonical_bytes(fixed)):
+        refusals.append(
+            "no member revision changes: the accepted contracts already "
+            "reflect this constellation; nothing to advance"
+        )
+    if refusals:
+        print("advancement REFUSED:")
+        for refusal in refusals:
+            print(f"  - {refusal}")
+        return 2
     out_contracts = Path(args.output_contracts)
     out_contracts.parent.mkdir(parents=True, exist_ok=True)
     before = json.dumps(fixed, indent=2, sort_keys=True).splitlines()
@@ -448,6 +789,7 @@ def cmd_advance(args: argparse.Namespace) -> int:
 
     accepted = json.loads(json.dumps(graph))
     accepted["status"] = "accepted"
+    accepted["acceptance"] = acceptance
     out_graph = Path(args.output_graph)
     out_graph.write_text(
         json.dumps(accepted, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -493,6 +835,9 @@ def main(argv: list[str] | None = None) -> int:
     verify_parser.add_argument("--coherence", default="")
     verify_parser.add_argument("--commons-record", default="")
     verify_parser.add_argument("--commons-root", default="")
+    verify_parser.add_argument("--boundary", default="")
+    verify_parser.add_argument("--boundary-template", default="")
+    verify_parser.add_argument("--authority-map", default="")
 
     advance_parser = subparsers.add_parser("advance", help="propose the accepted state")
     advance_parser.add_argument("--graph", required=True)
@@ -502,6 +847,11 @@ def main(argv: list[str] | None = None) -> int:
     advance_parser.add_argument("--coherence", required=True)
     advance_parser.add_argument("--commons-record", required=True)
     advance_parser.add_argument("--commons-root", required=True)
+    advance_parser.add_argument("--boundary", required=True)
+    advance_parser.add_argument("--boundary-template", default="")
+    advance_parser.add_argument("--authority-map", default="")
+    advance_parser.add_argument("--checks-dir", required=True)
+    advance_parser.add_argument("--obligations-dir", required=True)
     advance_parser.add_argument("--output-contracts", required=True)
     advance_parser.add_argument("--output-graph", required=True)
 

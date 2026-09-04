@@ -134,13 +134,52 @@
     "promotion": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["verdict", "path", "digest"],
+      "required": ["verdict", "digest", "ref"],
       "properties": {
         "verdict": {"type": "string", "enum": ["PASS", "FAIL", "UNKNOWN"]},
-        "path": {"type": "string", "minLength": 1},
-        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Bundle-relative reference to the promotion claim bytes. Never an absolute or machine-local filesystem path."
+        }
       },
-      "description": "Graph promotion result reference. Added after owner-native evaluation."
+      "description": "Graph promotion result reference. Added after owner-native evaluation. Durable: content digest plus bundle-relative ref."
+    },
+    "acceptance": {
+      "type": "object",
+      "description": "Machine-readable acceptance record written by advance. 'core' crossed the required boundary; 'full' additionally has every boundary-listed optional authority at PASS with no open required obligations. Never silently PASS: tier refused blocks advancement.",
+      "additionalProperties": false,
+      "required": ["tier", "policy", "required", "optional", "obligations_open_required"],
+      "properties": {
+        "tier": {"type": "string", "enum": ["core", "full"]},
+        "policy": {"type": "string", "minLength": 1},
+        "required": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["total", "passed"],
+          "properties": {
+            "total": {"type": "integer", "minimum": 1},
+            "passed": {"type": "integer", "minimum": 0}
+          }
+        },
+        "optional": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["check_id", "verdict"],
+            "properties": {
+              "check_id": {"type": "string", "minLength": 1},
+              "verdict": {"type": "string"}
+            }
+          }
+        },
+        "obligations_open_required": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
     },
     "blockers": {
       "type": "array",

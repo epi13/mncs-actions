@@ -56,6 +56,11 @@
       "contract_revision": "mncs:language:compilation-study-result:0.1"
     },
     {
+      "check_id": "mncs-language-acceptance",
+      "authority": "mncs-language",
+      "contract_revision": "mncs:language:compilation-study-result:0.1"
+    },
+    {
       "check_id": "forge-cell-contract",
       "authority": "mncs-forge-mcp",
       "contract_revision": "0.1"

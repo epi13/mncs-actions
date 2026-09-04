@@ -196,6 +196,11 @@
             "name": "graph-coherence",
             "source_path": "pressure/family-graph-coherence.mncs",
             "check_id": "mncs-language-graph-coherence"
+          },
+          {
+            "name": "acceptance",
+            "source_path": "pressure/family-acceptance.mncs",
+            "check_id": "mncs-language-acceptance"
           }
         ]
       },
@@ -262,6 +267,18 @@
         },
         {
           "check_id": "mncs-language-graph-coherence",
+          "provider": "mncs-language",
+          "contract_revision": "mncs:language:compilation-study-result:0.1",
+          "roles": {
+            "evidence_provider": "mncs-language",
+            "semantic_authority": "mncs-language",
+            "remediation_owner": "epi13/mncs-language",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        },
+        {
+          "check_id": "mncs-language-acceptance",
           "provider": "mncs-language",
           "contract_revision": "mncs:language:compilation-study-result:0.1",
           "roles": {

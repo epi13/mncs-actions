@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-actions/schemas/family-acceptance-proof.schema.json",
+  "title": "MNCS family acceptance proof",
+  "description": "Durable, content-addressed acceptance proof for one accepted family graph. The graph identity (constellation digest) is separate: proof_digest covers this closure only, so evidence accumulation never mutates graph identity. Every artifact is bound by content digest and retrieved by bundle-relative ref; no absolute or machine-local path, CI URL, timestamp, or floating Git reference may appear in trust-bearing fields. Timestamps, when present, are provenance only and excluded from digest closures.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "graph_id",
+    "graph_digest",
+    "predecessor",
+    "acceptance",
+    "subject_members",
+    "generators",
+    "boundary",
+    "authority_map_digest",
+    "contracts",
+    "commons",
+    "promotion",
+    "coherence",
+    "accepted_graph_digest",
+    "artifacts",
+    "proof_digest"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "mncs-actions.family-acceptance-proof/1"
+    },
+    "graph_id": {"type": "string", "minLength": 1},
+    "graph_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "predecessor": {
+      "description": "Previous accepted graph link. proof_digest is null only for the genesis proof whose predecessor predates the proof model.",
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["graph_id", "graph_digest", "proof_digest"],
+      "properties": {
+        "graph_id": {"type": "string", "minLength": 1},
+        "graph_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "proof_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tier",
+        "policy",
+        "required",
+        "optional",
+        "obligations_open_required"
+      ],
+      "properties": {
+        "tier": {"type": "string", "enum": ["core", "full"]},
+        "policy": {"type": "string", "minLength": 1},
+        "required": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["total", "passed"],
+          "properties": {
+            "total": {"type": "integer", "minimum": 1},
+            "passed": {"type": "integer", "minimum": 0}
+          }
+        },
+        "optional": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["check_id", "verdict"],
+            "properties": {
+              "check_id": {"type": "string", "minLength": 1},
+              "verdict": {
+                "type": "string",
+                "enum": ["PASS", "FAIL", "UNKNOWN", "missing"]
+              }
+            }
+          }
+        },
+        "obligations_open_required": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "subject_members": {
+      "description": "Exact family member revisions evaluated. The constellation under test; never the tooling that produced the proof.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "repository", "commit"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "repository": {"type": "string", "minLength": 1},
+          "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+        }
+      }
+    },
+    "generators": {
+      "description": "Exact revisions of the tools that produced, transformed, related, or verified the evidence. Distinct from subject_members: a later transport fix changes these, never what graph was evaluated.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["orchestrator", "evaluator", "commons_validator", "tool_digests"],
+      "properties": {
+        "orchestrator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "commit"],
+          "properties": {
+            "repository": {"type": "string", "minLength": 1},
+            "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+          }
+        },
+        "evaluator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "commit", "contract_revision"],
+          "properties": {
+            "repository": {"type": "string", "minLength": 1},
+            "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+            "contract_revision": {"type": "string", "minLength": 1}
+          }
+        },
+        "commons_validator": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["repository", "commit"],
+          "properties": {
+            "repository": {"type": "string", "minLength": 1},
+            "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+          }
+        },
+        "tool_digests": {
+          "description": "Content digests of the exact tool files invoked, keyed by tool. Replay digest-checks every tool it executes.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mncs_actions_lib",
+            "family_graph",
+            "family_coherence",
+            "promotion_evaluator",
+            "commons_validation",
+            "commons_family"
+          ],
+          "properties": {
+            "mncs_actions_lib": {"$ref": "#/$defs/contentDigest"},
+            "family_graph": {"$ref": "#/$defs/contentDigest"},
+            "family_coherence": {"$ref": "#/$defs/contentDigest"},
+            "promotion_evaluator": {"$ref": "#/$defs/contentDigest"},
+            "commons_validation": {"$ref": "#/$defs/contentDigest"},
+            "commons_family": {"$ref": "#/$defs/contentDigest"}
+          }
+        }
+      }
+    },
+    "boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["boundary_id", "contract_revision", "digest", "template_digest"],
+      "properties": {
+        "boundary_id": {"type": "string", "minLength": 1},
+        "contract_revision": {"type": "string", "minLength": 1},
+        "digest": {"$ref": "#/$defs/contentDigest"},
+        "template_digest": {"$ref": "#/$defs/contentDigest"}
+      }
+    },
+    "authority_map_digest": {"$ref": "#/$defs/contentDigest"},
+    "contracts": {
+      "description": "Exact accepted family-contract transition, by canonical content digest.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["before_digest", "after_digest"],
+      "properties": {
+        "before_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "after_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "commons": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["changeset_id", "content_digest"],
+      "properties": {
+        "changeset_id": {"type": "string", "minLength": 1},
+        "content_digest": {"$ref": "#/$defs/contentDigest"}
+      }
+    },
+    "promotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict", "digest"],
+      "properties": {
+        "verdict": {"type": "string", "const": "PASS"},
+        "digest": {"$ref": "#/$defs/contentDigest"}
+      }
+    },
+    "coherence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blockers", "movements", "digest"],
+      "properties": {
+        "blockers": {"type": "integer", "minimum": 0, "maximum": 0},
+        "movements": {"type": "integer", "minimum": 0},
+        "digest": {"$ref": "#/$defs/contentDigest"}
+      }
+    },
+    "accepted_graph_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Canonical digest of the accepted graph bytes minus the proof block (two-way binding without circularity; the accepted file then carries proof_digest)."
+    },
+    "artifacts": {
+      "description": "Closed content inventory: every bundle file except proof.json itself and accepted-graph.json (bound separately via accepted_graph_digest), by bundle-relative ref. Extra unlisted files refuse replay.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "ref", "digest"],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "graph-related",
+              "graph-accepted",
+              "materialized-boundary",
+              "boundary-template",
+              "authority-map",
+              "coherence-report",
+              "coherence-capability",
+              "producer-descriptors",
+              "check-result",
+              "obligation",
+              "promotion-claim",
+              "commons-changeset",
+              "contracts-before",
+              "contracts-after"
+            ]
+          },
+          "ref": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Bundle-relative path. Must be relative, must not escape the bundle."
+          },
+          "digest": {"$ref": "#/$defs/contentDigest"}
+        }
+      }
+    },
+    "proof_digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "sha256 over canonical bytes of this manifest minus proof_digest itself."
+    }
+  },
+  "$defs": {
+    "contentDigest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}
