@@ -1,6 +1,6 @@
 [
   {
-    "schema_version": "mncds-obligation-record/0.1",
+    "schema_version": "mncds-obligation-record/0.2",
     "obligation_key": "pressure.ci-self-test.resolved-gap",
     "status": "resolved",
     "required": true,
@@ -17,7 +17,9 @@
       "resolution": "fixed",
       "evidence_refs": [
         "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-      ]
+      ],
+      "resolved_by": "epi13/mncs-actions",
+      "resolved_at": "2026-09-04T00:00:00Z"
     },
     "evidence": [],
     "supersedes": null,

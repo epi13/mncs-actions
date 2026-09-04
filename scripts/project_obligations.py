@@ -4,7 +4,7 @@
 Owns no obligation semantics.  The mapping is verbatim from
 ``docs/mncds-check-catalog.md`` and ``docs/obligation-projection.md`` in
 machine-native-complexity-development-specification
-(``mncds-obligation-record/0.1``):
+(``mncds-obligation-record/0.2``):
 
   all resolved, or none required            -> PASS
   a required obligation still open          -> UNKNOWN (keys named)
@@ -36,8 +36,8 @@ from mncs_actions import (  # noqa: E402
     validate_check_result,
 )
 
-OBLIGATION_SCHEMA_VERSION = "mncds-obligation-record/0.1"
-OBLIGATION_CONTRACT_REVISION = "mncds-obligation-record/0.1"
+OBLIGATION_SCHEMA_VERSION = "mncds-obligation-record/0.2"
+OBLIGATION_CONTRACT_REVISION = "mncds-obligation-record/0.2"
 
 
 def _fail(message: str) -> int:

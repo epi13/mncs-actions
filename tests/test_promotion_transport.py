@@ -210,7 +210,7 @@ def test_mncds_adapter_moving_subject_is_rejected(tmp_path: Path):
 
 def _obligation(key: str, status: str, required: bool = True, commit: str = COMMIT) -> dict:
     doc = {
-        "schema_version": "mncds-obligation-record/0.1",
+        "schema_version": "mncds-obligation-record/0.2",
         "obligation_key": key,
         "status": status,
         "required": required,
@@ -224,6 +224,8 @@ def _obligation(key: str, status: str, required: bool = True, commit: str = COMM
         doc["resolution"] = {
             "resolution": "fixed" if status == "resolved" else "rejected",
             "evidence_refs": ["sha256:" + "c" * 64],
+            "resolved_by": "epi13/mncs-actions",
+            "resolved_at": "2026-09-04T00:00:00Z",
         }
     return doc
 
@@ -260,6 +262,32 @@ def test_resolved_obligations_promote_to_pass(tmp_path: Path):
     )
     assert code == 0
     assert result is not None and result["verdict"] == "PASS"
+
+
+def test_derived_authority_map_matches_owner_contract(tmp_path: Path):
+    out = str(tmp_path / "authority-map.json")
+    proc = subprocess.run(
+        [
+            sys.executable, str(SCRIPTS / "authority_map.py"),
+            "--descriptors", str(REPO / "family-producer-descriptors.json"),
+            "--output", out,
+        ],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr
+    doc = json.loads(Path(out).read_text(encoding="utf-8"))
+    assert doc["schema_version"] == "mncs-authority-map/0.1"
+    assert doc["authorities"]["mncds-development-record"] == {
+        "provider": "mncds",
+        "authority": "machine-native-complexity-development-specification",
+        "repository": "epi13/machine-native-complexity-development-specification",
+    }
+    assert doc["authorities"]["mncs-validation"]["authority"] == (
+        "machine-native-complexity-standard"
+    )
+    assert doc["authorities"]["rights-provenance"]["provider"] == (
+        "mncs-rights-provenance"
+    )
 
 
 def test_fixture_open_obligation_is_unknown_with_key(tmp_path: Path):
@@ -486,6 +514,80 @@ def test_full_promotion_path_aggregates_to_pass(tmp_path):
     agg = json.loads((ev / "aggregate-result.json").read_text(encoding="utf-8"))
     assert agg["verdict"] == "PASS"
     assert lib.validate_aggregate_result(agg) == []
+
+
+def test_promotion_with_impossible_counts_is_rejected():
+    doc = _fixture("promotion-pass.json")
+    doc["promotion"]["required_passed"] = 4
+    assert lib.validate_promotion_claim(doc, **_promotion_kwargs())
+
+
+def test_promotion_pass_with_partial_counts_is_rejected():
+    doc = _fixture("promotion-pass.json")
+    doc["promotion"]["required_passed"] = 2
+    assert lib.validate_promotion_claim(doc, **_promotion_kwargs())
+
+
+def test_promotion_with_wrong_boundary_revision_is_rejected():
+    doc = _fixture("promotion-pass.json")
+    doc["promotion"]["boundary_revision"] = "mncs-promotion-boundary/9.9"
+    assert lib.validate_promotion_claim(doc, **_promotion_kwargs())
+
+
+def test_promotion_with_disagreeing_subject_is_rejected():
+    doc = _fixture("promotion-pass.json")
+    doc["subject"] = {"repository": SUBJECT_REPO, "commit": OTHER_COMMIT}
+    assert lib.validate_promotion_claim(doc, **_promotion_kwargs())
+
+
+def test_promotion_with_duplicate_references_is_rejected():
+    doc = _fixture("promotion-pass.json")
+    doc["references"].append(copy.deepcopy(doc["references"][0]))
+    assert lib.validate_promotion_claim(doc, **_promotion_kwargs())
+
+
+def test_promotion_with_malformed_authority_is_rejected():
+    doc = _fixture("promotion-pass.json")
+    doc["references"][0]["authority"] = ""
+    assert lib.validate_promotion_claim(doc, **_promotion_kwargs())
+
+
+def test_summary_renderer_projects_claim(tmp_path: Path):
+    out = str(tmp_path / "summary.md")
+    proc = subprocess.run(
+        [
+            sys.executable, str(SCRIPTS / "render_promotion_summary.py"),
+            "--input", str(FIX / "promotion-pass.json"),
+            "--output", out,
+        ],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert proc.returncode == 0, proc.stderr
+    text = Path(out).read_text(encoding="utf-8")
+    assert "Verdict: PASS" in text
+    assert "family-promotion" in text
+    assert COMMIT in text
+    assert "Blockers (0)" in text
+
+
+def test_summary_renderer_rejects_non_claim(tmp_path: Path):
+    src = _write(tmp_path, "bad.json", {"nope": True})
+    proc = subprocess.run(
+        [
+            sys.executable, str(SCRIPTS / "render_promotion_summary.py"),
+            "--input", src,
+        ],
+        capture_output=True, text=True, timeout=60,
+    )
+    assert proc.returncode == 2
+
+
+def test_promotion_with_unnamed_reference_is_rejected():
+    doc = _fixture("promotion-pass.json")
+    doc["references"].append(
+        {"kind": "check-result", "digest": "sha256:" + "e" * 64}
+    )
+    assert lib.validate_promotion_claim(doc, **_promotion_kwargs())
 
 
 def test_valid_negative_is_not_invalid():

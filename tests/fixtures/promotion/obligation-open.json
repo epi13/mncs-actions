@@ -1,5 +1,5 @@
 {
-  "schema_version": "mncds-obligation-record/0.1",
+  "schema_version": "mncds-obligation-record/0.2",
   "obligation_key": "pressure.fixture.open-required",
   "status": "open",
   "required": true,

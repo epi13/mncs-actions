@@ -16,7 +16,7 @@
     {
       "check_id": "mncds-obligations",
       "authority": "machine-native-complexity-development-specification",
-      "contract_revision": "mncds-obligation-record/0.1"
+      "contract_revision": "mncds-obligation-record/0.2"
     }
   ],
   "optional_evidence": [

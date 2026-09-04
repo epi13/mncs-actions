@@ -89,7 +89,7 @@
         "id": "mncds-development-record",
         "revision": "0.2-alpha.1"
       },
-      "adapter_id": "validator-json-v1",
+      "adapter_id": "mncds-json-v1",
       "required_capabilities": ["python", "owner-python-package"],
       "execution": {
         "mode": "owner-native",
