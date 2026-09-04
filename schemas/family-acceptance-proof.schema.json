@@ -38,7 +38,12 @@
       "properties": {
         "graph_id": {"type": "string", "minLength": 1},
         "graph_digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "proof_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"}
+        "proof_digest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Required human-readable reason whenever proof_digest is null: why no prior bundle exists to chain."
+        }
       }
     },
     "acceptance": {

@@ -369,6 +369,16 @@ jobs:
           test -f .mncs/proof/proof.json
           test -f .mncs/proof/accepted-graph.json
 
+      - name: Replay the fresh proof bundle (warm self-check)
+        if: ${{ steps.proposal.outputs.eligible == 'true' }}
+        run: |
+          set -euo pipefail
+          python3 scripts/family_proof.py verify-accepted \
+            --proof .mncs/proof \
+            --boundary-template promotion/family-advancement.boundary.json \
+            --evaluator family/mncs-standard/scripts/mncs_promotion_evaluate.py \
+            --commons-root family/commons
+
       - name: Write advancement summary
         if: ${{ always() }}
         run: |

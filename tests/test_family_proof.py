@@ -39,7 +39,7 @@ from family_graph import (
     cmd_build,
     cmd_verify,
 )
-from family_proof import cmd_build_proof, cmd_verify_accepted
+from family_proof import cmd_build_proof, cmd_publish_commons, cmd_verify_accepted
 
 A = "a" * 40
 B = "b" * 40
@@ -1150,3 +1150,97 @@ def test_verify_refuses_missing_authority_binding(tmp_path: Path):
     missing.write_text(json.dumps(authority_map))
     with pytest.raises(GraphError):
         cmd_verify(_verify_ns(universe, authority_map=str(missing)))
+
+
+# --- Predecessor genesis link ---------------------------------------------
+
+
+def test_genesis_predecessor_carries_documented_reason(tmp_path: Path):
+    universe, proof_dir = _fresh_bundle(tmp_path)
+    manifest = json.loads((proof_dir / "proof.json").read_text())
+    predecessor = manifest["predecessor"]
+    assert predecessor["graph_id"] == "family-graph-8"
+    assert predecessor["proof_digest"] is None
+    assert predecessor["note"].strip()
+    assert universe.replay(proof_dir) == 0
+
+
+def test_replay_refuses_undocumented_null_predecessor(tmp_path: Path):
+    universe, proof_dir = _fresh_bundle(tmp_path)
+    _edit_json(proof_dir / "proof.json", lambda m: m["predecessor"].pop("note"))
+    _reclose(proof_dir)
+    assert universe.replay(proof_dir) == 2
+
+
+# --- Commons publication --------------------------------------------------
+
+
+def _publish_checkout(tmp_path: Path) -> Path:
+    checkout = tmp_path / "commons-checkout"
+    shutil.copytree(FIXTURES / "src", checkout / "src")
+    return checkout
+
+
+def _publish_ns(proof_dir: Path, checkout: Path):
+    return _ns(proof=str(proof_dir), commons_checkout=str(checkout))
+
+
+def test_publish_stages_changeset_and_is_idempotent(tmp_path: Path):
+    _universe, proof_dir = _fresh_bundle(tmp_path)
+    checkout = _publish_checkout(tmp_path)
+    assert cmd_publish_commons(_publish_ns(proof_dir, checkout)) == 0
+    dest = checkout / "family" / "changesets" / "changeset.family-graph-9.json"
+    assert dest.read_bytes() == (proof_dir / "commons-record.json").read_bytes()
+    # Identical bytes restage as a no-op, never a rewrite.
+    assert cmd_publish_commons(_publish_ns(proof_dir, checkout)) == 0
+    assert dest.read_bytes() == (proof_dir / "commons-record.json").read_bytes()
+
+
+def test_publish_refuses_overwrite_of_published_record(tmp_path: Path):
+    _universe, proof_dir = _fresh_bundle(tmp_path)
+    checkout = _publish_checkout(tmp_path)
+    assert cmd_publish_commons(_publish_ns(proof_dir, checkout)) == 0
+    dest = checkout / "family" / "changesets" / "changeset.family-graph-9.json"
+    dest.write_bytes(dest.read_bytes() + b" ")
+    with pytest.raises(GraphError):
+        cmd_publish_commons(_publish_ns(proof_dir, checkout))
+
+
+def test_publish_refuses_record_id_mismatch(tmp_path: Path):
+    _universe, proof_dir = _fresh_bundle(tmp_path)
+    checkout = _publish_checkout(tmp_path)
+    _edit_json(
+        proof_dir / "commons-record.json",
+        lambda r: r["details"].update({"changesetId": "changeset.other"}),
+    )
+    _reclose(proof_dir)
+    with pytest.raises(GraphError):
+        cmd_publish_commons(_publish_ns(proof_dir, checkout))
+
+
+def test_publish_refuses_wrong_checkout_revision(tmp_path: Path):
+    _universe, proof_dir = _fresh_bundle(tmp_path)
+    checkout = _publish_checkout(tmp_path)
+    subprocess.run(["git", "init", "-q", str(checkout)], check=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(checkout),
+            "-c",
+            "user.email=t@t",
+            "-c",
+            "user.name=t",
+            "commit",
+            "-q",
+            "--allow-empty",
+            "-m",
+            "init",
+        ],
+        check=True,
+    )
+    # The fresh commit cannot equal the recorded validator revision,
+    # so staging into this checkout must refuse.
+    with pytest.raises(GraphError):
+        cmd_publish_commons(_publish_ns(proof_dir, checkout))
+    assert not (checkout / "family").exists()

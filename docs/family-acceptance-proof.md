@@ -132,6 +132,27 @@ bundle). Each Commons record chains `predecessorGraph`. Tampering
 with a prior accepted graph breaks the next replay. This is a boring
 content-addressed chain, not a ledger: no consensus, no voting.
 
+## Commons publication
+
+The bundle's `commons-record.json` is staging, not publication. The
+durable home of a family ChangeSet is the Commons repository itself:
+
+```bash
+python scripts/family_proof.py publish-commons \
+  --proof proof/family-graph-N \
+  --commons-checkout <checkout at the recorded Commons revision>
+```
+
+`publish-commons` re-derives the owner content digest with the
+owner-native Commons code from that checkout, checks the manifest
+binding, and writes the bundle bytes verbatim to
+`family/changesets/changeset.family-graph-N.json`. It is append-only:
+an existing different record refuses; identical bytes restage as a
+no-op. The checkout must be at the recorded validator revision, and
+merging the staged file is human governance reviewed in Commons. A
+Commons-side test revalidates every file under `family/changesets/`
+with the owner validator, so publication stays self-checking.
+
 ## What stays a host escape (and why)
 
 Digest comparison, JSON canonicalization, Git revision resolution,
