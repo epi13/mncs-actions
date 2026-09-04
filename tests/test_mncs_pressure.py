@@ -89,7 +89,7 @@ def test_pressure_sources_lex_and_parse():
         import pytest
 
         pytest.skip("mncs compiler binary unavailable (set MNCS_BIN)")
-    for name in ("family-boundary.mncs", "rights-projection.mncs", "changeset-boundary.mncs", "promotion-boundary.mncs"):
+    for name in ("family-boundary.mncs", "rights-projection.mncs", "changeset-boundary.mncs", "promotion-boundary.mncs", "family-graph-coherence.mncs"):
         document, diags = _study_stages(PRESSURE / name)
         assert diags == [], (name, diags)
         assert document.get("lexical"), name
@@ -119,6 +119,36 @@ def test_promotion_boundary_arms_match_evaluator():
     assert "RevisionStanding.Missing => Status.UNKNOWN" in text
     assert "RevisionStanding.Mismatched => Status.UNKNOWN" in text
     assert "fn eligible" in text
+
+
+def test_graph_coherence_arms_match_host():
+    text = (PRESSURE / "family-graph-coherence.mncs").read_text(encoding="utf-8")
+    capability = json.loads((REPO / "family-capability.json").read_text(encoding="utf-8"))
+    lattice = capability["impacts"]
+    # Every host impact class has exactly the MNCS arm the lattice demands.
+    for impact, arm_name, advancement in (
+        ("Executable", "Required", "REQUIRED"), ("Contract", "Required", "REQUIRED"),
+        ("Evidence", "Optional", "OPTIONAL"), ("Docs", "NotRequired", "NOT_REQUIRED"),
+    ):
+        arm = re.search(rf"Impact\.{impact}\s*=>\s*Advancement\.{arm_name}\b", text)
+        assert arm, f"MNCS classification missing {impact} => {arm_name}"
+        assert lattice[impact.lower()] == advancement, impact
+    assert "Impact.NoImpact => Advancement.NotRequired" in text
+    assert "Impact.Unmapped => Advancement.Unknown" in text
+    # Satisfaction: only Current/Optional/NotRequired satisfy; Required and
+    # Unknown block. No arm may map Unknown to satisfied.
+    for satisfied in ("Current", "Optional", "NotRequired"):
+        assert re.search(rf"Advancement\.{satisfied}\s*=>\s*Truth\.Yes", text), satisfied
+    for blocking in ("Required", "Unknown"):
+        assert re.search(rf"Advancement\.{blocking}\s*=>\s*Truth\.No", text), blocking
+    assert "Unknown => Truth.Yes" not in text
+    # Acceptance: only Related + PASS accepts; every other state refuses.
+    assert "GraphState.Related => match gate.promotion" in text
+    assert "Status.PASS => Truth.Yes" in text
+    assert text.count("Truth.No") >= 8
+    # Cycle classification: sole self-authority is unsafe, anything else safe.
+    assert "Truth.Yes => match cycle.independent_present" in text
+    assert "Truth.No => Truth.Yes" in text
 
 
 def test_changeset_projection_arms_match_host():

@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-actions/schemas/family-candidate-graph.schema.json",
+  "title": "MNCS family candidate graph",
+  "description": "An untrusted-but-exact proposal for the next accepted family state. Carries exact member revisions, dependency edges, evidence requirements, and (once evaluated) evidence references plus the promotion result. Identity is the sha256 of the canonical bytes of {schema_version, base, members, dependencies} (see scripts/family_graph.py); only that core is digested so evidence accumulation never mutates identity. This document never promotes anything by existing: promotion requires the owner-native MNCS graph evaluation, and acceptance requires human merge.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "graph_id",
+    "base",
+    "members",
+    "dependencies",
+    "evidence_requirements",
+    "status"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "mncs-actions.family-candidate-graph/1"
+    },
+    "graph_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-stable graph label (e.g. family-graph-N). The cryptographic identity is digest."
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Identity over the canonical core. Absent until computed by family_graph.py build; verify recomputes it."
+    },
+    "base": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["graph_id", "digest", "contract_digest"],
+      "properties": {
+        "graph_id": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "contract_digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Digest of the accepted family-contracts.json bytes this candidate advances from."
+        }
+      },
+      "description": "Accepted predecessor. The first graph after bootstrapping names the current fixed contracts with graph_id family-graph-0 and its own digest."
+    },
+    "members": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 128,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "repository", "commit", "changed", "contracts"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "repository": {"type": "string", "minLength": 1},
+          "commit": {"type": "string", "pattern": "^[0-9a-f]{40}$", "description": "Exact member revision. Same pair shape as the MNCS graph-subject contract ({repository, commit}) so the graph document feeds promotion evaluation directly."},
+          "changed": {
+            "type": "boolean",
+            "description": "True when the candidate revision differs from the accepted graph member revision."
+          },
+          "contracts": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Member contract revisions relevant to interpretation (descriptor contract ids, schema versions)."
+          }
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "edge", "target"],
+        "properties": {
+          "from": {"type": "string", "minLength": 1},
+          "to": {"type": "string", "minLength": 1},
+          "edge": {
+            "type": "string",
+            "enum": ["transport", "evaluator", "contract", "compat", "attribution"],
+            "description": "transport: trust-bearing execution revision. evaluator: promotion evaluator revision. contract: required contract/package revision. compat: accepted-graph reference (informational). attribution: provenance only."
+          },
+          "target": {"type": "string", "minLength": 1},
+          "description": "Exact pinned revision the edge points at."
+        }
+      },
+      "description": "Identity-bearing compat edges: each member's accepted-graph reference. Part of the digested core."
+    },
+    "pin_edges": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["from", "to", "edge", "target"],
+        "properties": {
+          "from": {"type": "string", "minLength": 1},
+          "to": {"type": "string", "minLength": 1},
+          "edge": {
+            "type": "string",
+            "enum": ["transport", "evaluator", "contract", "compat", "attribution"],
+            "description": "transport: trust-bearing execution revision. evaluator: promotion evaluator revision. contract: required contract/package revision. compat: accepted-graph reference (informational). attribution: provenance only."
+          },
+          "target": {"type": "string", "minLength": 1},
+          "description": "Exact pinned revision the edge points at."
+        }
+      },
+      "description": "Coherence-analysis pin edges (analysis evidence, excluded from the identity digest so rebuilds never mutate identity). Advancement classification lives in the coherence report."
+    },
+    "evidence_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "optional"],
+      "properties": {
+        "required": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "optional": {"type": "array", "items": {"type": "string", "minLength": 1}}
+      },
+      "description": "Check ids the advancement boundary requires vs observes. Optional evidence never decides."
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["check_id", "path", "digest"],
+        "properties": {
+          "check_id": {"type": "string", "minLength": 1},
+          "path": {"type": "string", "minLength": 1},
+          "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+        }
+      },
+      "description": "Accumulated evidence references (digest-bound paths). Added after production; never part of identity."
+    },
+    "promotion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verdict", "path", "digest"],
+      "properties": {
+        "verdict": {"type": "string", "enum": ["PASS", "FAIL", "UNKNOWN"]},
+        "path": {"type": "string", "minLength": 1},
+        "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "description": "Graph promotion result reference. Added after owner-native evaluation."
+    },
+    "blockers": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "description": "Exact reasons the candidate cannot advance. Empty means no known blocker (not proof of coherence)."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["moving", "candidate", "validated", "promoted", "related", "accepted"],
+      "description": "Lifecycle state. moving: observation only. candidate: exact proposal. validated: evidence produced. promoted: owner promotion decided. related: Commons recorded. accepted: stored as family-graph-accepted.json by the reviewed advancement merge."
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["generator", "generated_at"],
+      "properties": {
+        "generator": {"type": "string", "minLength": 1},
+        "generated_at": {"type": "string", "minLength": 1},
+        "detail": {"type": "string"}
+      }
+    }
+  }
+}

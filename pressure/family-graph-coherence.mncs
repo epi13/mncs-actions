@@ -1,0 +1,102 @@
+mncs 0.6;
+
+// mncs-actions pressure: family-graph advancement core in MNCS.
+//
+// This module expresses the pure deterministic core of family graph
+// advancement (scripts/family_coherence.py + scripts/family_graph.py):
+// pin-advancement classification, movement satisfaction, graph lifecycle
+// standing, and authority-cycle classification. It mirrors the host
+// exactly so the two cannot drift apart (see tests/test_family_graph.py).
+//
+// Deliberately NOT in MNCS (explicit host escape, no safe surface yet):
+// - reading member checkouts and pin declarations (filesystem);
+// - git diff over member histories (process execution);
+// - SHA-256 digest computation and canonical JSON (hashing over
+//   unbounded text; needs bounded text/byte abstractions);
+// - exact-revision verification over unbounded strings;
+// - evaluating owner evidence and emitting the promotion claim;
+// - GitHub environment capture and artifact upload.
+//
+// There is intentionally no arm mapping Unknown advancement to
+// satisfied, and no arm letting a sole self-authority pass. Unmapped
+// change surfaces classify Unknown by construction: the host represents
+// "unrecognized" as Impact.Unmapped at the call site, so novelty can
+// only block automatic advancement, never authorize it.
+
+module mncs.actions.graph_coherence.v01;
+
+use mncs.core.status.v1;
+
+enum Truth { No, Yes }
+
+enum Impact { Executable, Contract, Evidence, Docs, NoImpact, Unmapped }
+
+enum Advancement { Current, Required, Optional, NotRequired, Unknown }
+
+// Pin-advancement classification. Mirrors the host impact lattice:
+// executable/contract changes REQUIRE consumer advancement; new evidence
+// coverage makes advancement OPTIONAL; docs and non-behavioral changes
+// never require it; unmapped surfaces are UNKNOWN (fail closed).
+fn classify_advancement(impact: Impact) -> (result: Advancement) {
+    return match impact {
+        Impact.Executable => Advancement.Required,
+        Impact.Contract => Advancement.Required,
+        Impact.Evidence => Advancement.Optional,
+        Impact.Docs => Advancement.NotRequired,
+        Impact.NoImpact => Advancement.NotRequired,
+        Impact.Unmapped => Advancement.Unknown,
+    };
+}
+
+// Movement satisfaction. Only Current, Optional, and NotRequired
+// movements are satisfied; Required and Unknown movements block
+// automatic advancement. There is no arm mapping Unknown to satisfied.
+fn movement_satisfied(class: Advancement) -> (result: Truth) {
+    return match class {
+        Advancement.Current => Truth.Yes,
+        Advancement.Optional => Truth.Yes,
+        Advancement.NotRequired => Truth.Yes,
+        Advancement.Required => Truth.No,
+        Advancement.Unknown => Truth.No,
+    };
+}
+
+enum GraphState { Moving, Candidate, Validated, Promoted, Related, Accepted }
+
+record AcceptanceGate { state: GraphState, promotion: Status }
+
+// Advancement acceptance. Only a related graph whose owner promotion
+// passed may become accepted; every other state refuses. Rejected or
+// incomplete promotion never reaches this function as PASS: the host
+// represents any non-PASS verdict as Status.UNKNOWN or Status.FAIL at
+// the call site, so weakness can only refuse, never accept.
+fn may_accept(gate: AcceptanceGate) -> (result: Truth) {
+    return match gate.state {
+        GraphState.Moving => Truth.No,
+        GraphState.Candidate => Truth.No,
+        GraphState.Validated => Truth.No,
+        GraphState.Promoted => Truth.No,
+        GraphState.Related => match gate.promotion {
+            Status.PASS => Truth.Yes,
+            Status.FAIL => Truth.No,
+            Status.UNKNOWN => Truth.No,
+        },
+        GraphState.Accepted => Truth.No,
+    };
+}
+
+record AuthorityCycle { self_required: Truth, independent_present: Truth }
+
+// Authority-cycle classification. A boundary that requires its own
+// output as the SOLE evidence (no independent check decides) is an
+// unsafe self-approval loop. Transport execution never appears here:
+// execution grants no authority, so it cannot form an authority cycle.
+fn cycle_unsafe(cycle: AuthorityCycle) -> (result: Truth) {
+    return match cycle.self_required {
+        Truth.No => Truth.No,
+        Truth.Yes => match cycle.independent_present {
+            Truth.No => Truth.Yes,
+            Truth.Yes => Truth.No,
+        },
+    };
+}

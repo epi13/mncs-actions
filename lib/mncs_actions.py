@@ -85,6 +85,21 @@ REVISION_TOKEN_RE = re.compile(r"^[^\s\x00-\x1f\x7f]{1,128}$")
 _HEX64 = re.compile(r"^[a-f0-9]{64}$")
 _DIGEST = re.compile(r"^(sha256:)?[a-f0-9]{64}$")
 _SUBJECT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
+GRAPH_SUBJECT_REPOSITORY = "mncs-family/graph"
+_GRAPH_COMMIT = re.compile(r"^graph:[0-9a-f]{64}$")
+
+
+def parse_graph_subject(repository: str, commit: str) -> str | None:
+    """Return the graph digest for a well-formed graph subject, else None.
+
+    Shape validation only (transport duty): repository must be the graph
+    subject namespace and the commit must bind a 64-hex graph identity.
+    """
+    if repository != GRAPH_SUBJECT_REPOSITORY:
+        return None
+    if not isinstance(commit, str) or not _GRAPH_COMMIT.match(commit):
+        return None
+    return commit[len("graph:"):]
 _NATIVE_HEX64 = re.compile(r"^[A-Fa-f0-9]{64}$")
 _REPOSITORY_ID = re.compile(
     r"^(?:https://)?github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?$"
@@ -441,6 +456,10 @@ def validate_promotion_claim(
             errors.append("promotion.subject.repository must match the candidate")
         if subject.get("commit") != subject_commit:
             errors.append("promotion.subject.commit must match the candidate")
+        if subject_repository == GRAPH_SUBJECT_REPOSITORY and parse_graph_subject(
+            subject.get("repository"), subject.get("commit")
+        ) is None:
+            errors.append("graph promotion subject must bind a graph identity")
     top_subject = obj.get("subject")
     if top_subject is not None:
         if not isinstance(top_subject, dict) or top_subject != subject:

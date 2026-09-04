@@ -173,7 +173,7 @@ jobs:
           checks="$(find .mncs/moving-head/checks -maxdepth 1 -type f -name '*.json' | sort | tr '\n' ' ')"
           actions/aggregate/aggregate.sh \
             --checks "$checks" \
-            --required "mncs-validation,rights-provenance,mncds-development-record,commons-family-compatibility,mncs-language-family-boundary,mncs-language-rights-projection,mncs-language-changeset-boundary,mncs-language-artifact-envelope,mncs-language-promotion-boundary,forge-cell-contract" \
+            --required "mncs-validation,rights-provenance,mncds-development-record,commons-family-compatibility,mncs-language-family-boundary,mncs-language-rights-projection,mncs-language-changeset-boundary,mncs-language-artifact-envelope,mncs-language-promotion-boundary,mncs-language-graph-coherence,forge-cell-contract" \
             --boundary "family-moving-head-drift" \
             --working-dir . \
             --evidence-dir .mncs/moving-head/aggregate-evidence \

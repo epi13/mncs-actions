@@ -1,0 +1,376 @@
+name: MNCS family graph advancement
+
+# Machine-driven family revision advancement lifecycle (proposal only).
+#
+# moving-head observation -> candidate graph proposal -> member checkouts
+# at exact revisions -> owner-native stamped evidence -> coherence
+# analysis -> MNCS graph promotion -> Commons relation -> mechanically
+# verified advancement proposal. Merging remains the human governance
+# boundary: this workflow never opens PRs and never mutates trust state.
+# It proves the next accepted state; a maintainer PRs the artifacts.
+#
+# States: moving (observation) -> candidate -> validated -> promoted ->
+# related, then the advance tool proposes accepted. Any refusal fails
+# closed with exact blockers and leaves family-contracts.json untouched.
+
+on:
+  schedule:
+    # Weekly observation; dispatch for on-demand proposals.
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  advance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out mncs-actions
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        # actions/setup-python v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+
+      - name: Install locked dependencies
+        run: python3 -m pip install --require-hashes -r requirements-dev.lock
+
+      - name: Propose candidate from moving heads
+        id: candidate
+        # propose resolves each member main head and records
+        # <member-name-with-_-for--->=<candidate-revision> outputs itself.
+        run: |
+          set -euo pipefail
+          python3 scripts/family_contracts.py propose \
+            --contracts family-contracts.json \
+            --branch main \
+            --output .mncs/graph/candidate.json
+          echo "graph-base=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve next graph id
+        id: graph-id
+        run: |
+          python3 - >> "$GITHUB_OUTPUT" <<'PY'
+          import json
+          from pathlib import Path
+          accepted = Path("family-graph-accepted.json")
+          if accepted.is_file():
+              graph_id = json.loads(accepted.read_text())["graph_id"]
+              stem = graph_id.rsplit("-", 1)[0]
+              number = int(graph_id.rsplit("-", 1)[1]) + 1
+          else:
+              stem, number = "family-graph", 1
+          print(f"graph_id={stem}-{number}")
+          PY
+
+      - name: Check out candidate members
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/machine-native-complexity-standard
+          ref: ${{ steps.candidate.outputs.mncs_standard }}
+          path: family/mncs-standard
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out candidate MNCDS
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/machine-native-complexity-development-specification
+          ref: ${{ steps.candidate.outputs.mncds }}
+          path: family/mncds
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out candidate Commons
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/MNCS-Commons
+          ref: ${{ steps.candidate.outputs.commons }}
+          path: family/commons
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out candidate rights
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-rights-provenance
+          ref: ${{ steps.candidate.outputs.rights_provenance }}
+          path: family/rights-provenance
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out candidate language
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-language
+          ref: ${{ steps.candidate.outputs.mncs_language }}
+          path: family/mncs-language
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out candidate Forge
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-forge-mcp
+          ref: ${{ steps.candidate.outputs.forge }}
+          path: family/forge
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Build candidate language compiler
+        run: cargo build --locked --manifest-path family/mncs-language/Cargo.toml --bin mncs
+
+      - name: Build skeleton candidate graph
+        id: skeleton
+        run: |
+          set -euo pipefail
+          python3 scripts/family_graph.py build \
+            --candidate .mncs/graph/candidate.json \
+            --fixed family-contracts.json \
+            --descriptors family-producer-descriptors.json \
+            --boundary promotion/family-advancement.boundary.json \
+            --graph-id "${{ steps.graph-id.outputs.graph_id }}" \
+            --actions-revision "${{ github.sha }}" \
+            --output .mncs/graph/graph-candidate.json
+          echo "digest=$(python3 -c "import json; print(json.load(open('.mncs/graph/graph-candidate.json'))['digest'])")" >> "$GITHUB_OUTPUT"
+
+      - name: Produce stamped member evidence
+        run: |
+          set -euo pipefail
+          for producer in mncs-standard rights-provenance mncds commons mncs-language forge; do
+            entry="$(python3 -c "
+          import json, sys
+          doc = json.load(open('.mncs/graph/candidate.json'))
+          item = next(r for r in doc['repositories'] if r['name'] == '$producer')
+          print(item['repository'] + ' ' + item['candidate_revision'])
+          ")"
+            set -- $entry
+            python3 scripts/family_producer.py \
+              --producer "$producer" \
+              --family-root . \
+              --actions-root . \
+              --contracts .mncs/graph/candidate.json \
+              --fixed-contracts family-contracts.json \
+              --descriptors family-producer-descriptors.json \
+              --output-dir ".mncs/graph/evidence/$producer" \
+              --subject-repository "$1" \
+              --subject-commit "$2" \
+              $([ "$producer" = "mncs-language" ] && echo "--language-binary family/mncs-language/target/debug/mncs")
+          done
+
+      - name: Collect member obligations
+        run: |
+          set -euo pipefail
+          mkdir -p .mncs/graph/obligations
+          for member in mncds mncs-standard; do
+            if [ -d "family/$member/promotion/obligations" ]; then
+              cp family/$member/promotion/obligations/*.json .mncs/graph/obligations/
+            else
+              echo "::warning::member $member carries no obligations directory"
+            fi
+          done
+          ls .mncs/graph/obligations/
+
+      - name: Derive graph authority map
+        run: |
+          set -euo pipefail
+          python3 scripts/authority_map.py \
+            --descriptors family-producer-descriptors.json \
+            --output .mncs/graph/authority-map.json
+
+      - name: Materialize run boundary
+        run: |
+          set -euo pipefail
+          python3 - .mncs/graph/graph-candidate.json promotion/family-advancement.boundary.json .mncs/graph/boundary.json <<'PY'
+          import json, sys
+          graph = json.load(open(sys.argv[1]))
+          boundary = json.load(open(sys.argv[2]))
+          # The boundary declares the full constellation including the
+          # orchestrator member: the digest binds all of them, and the
+          # evaluator requires boundary members to equal subject members.
+          # No check is ever stamped for mncs-actions, so the orchestrator
+          # cannot admit its own evidence; it only scopes stamp admissibility.
+          boundary["graph"] = {
+              "digest": graph["digest"],
+              "members": [
+                  {"repository": m["repository"], "commit": m["commit"]}
+                  for m in graph["members"]
+              ],
+          }
+          json.dump(boundary, open(sys.argv[3], "w"), indent=2, sort_keys=True)
+          print("boundary bound to graph", graph["digest"][:12])
+          PY
+
+      - name: Analyze dependency coherence
+        run: |
+          set -euo pipefail
+          python3 scripts/family_coherence.py \
+            --graph .mncs/graph/graph-candidate.json \
+            --checkout mncs-actions=. \
+            --checkout mncs-standard=family/mncs-standard \
+            --checkout mncds=family/mncds \
+            --checkout commons=family/commons \
+            --checkout rights-provenance=family/rights-provenance \
+            --checkout mncs-language=family/mncs-language \
+            --checkout forge=family/forge \
+            --capability family-capability.json \
+            --descriptors family-producer-descriptors.json \
+            --authority-map .mncs/graph/authority-map.json \
+            --boundary .mncs/graph/boundary.json \
+            --check-id promotion-boundary \
+            --output .mncs/graph/coherence.json
+
+      - name: Rebuild validated graph (identity must hold)
+        run: |
+          set -euo pipefail
+          mkdir -p .mncs/graph/checks
+          for producer in mncs-standard rights-provenance mncds commons mncs-language forge; do
+            cp ".mncs/graph/evidence/$producer/checks/"*.json .mncs/graph/checks/
+          done
+          python3 scripts/family_graph.py build \
+            --candidate .mncs/graph/candidate.json \
+            --fixed family-contracts.json \
+            --descriptors family-producer-descriptors.json \
+            --boundary promotion/family-advancement.boundary.json \
+            --graph-id "${{ steps.graph-id.outputs.graph_id }}" \
+            --actions-revision "${{ github.sha }}" \
+            --coherence .mncs/graph/coherence.json \
+            --evidence-dir .mncs/graph/checks \
+            --output .mncs/graph/graph-validated.json
+          test "$(python3 -c "import json; print(json.load(open('.mncs/graph/graph-validated.json'))['digest'])")" = "${{ steps.skeleton.outputs.digest }}" \
+            || { echo "graph identity drifted during validation"; exit 1; }
+
+      - name: Evaluate graph promotion (owner-native MNCS)
+        id: promotion
+        run: |
+          set -euo pipefail
+          MNCS_REV="${{ steps.candidate.outputs.rev_mncs_standard }}"
+          python3 family/mncs-standard/scripts/mncs_promotion_evaluate.py \
+            --boundary .mncs/graph/boundary.json \
+            --authority-map .mncs/graph/authority-map.json \
+            --checks .mncs/graph/checks/*.json \
+            --obligations .mncs/graph/obligations/*.json \
+            --subject-graph .mncs/graph/graph-validated.json \
+            --check-id promotion-boundary \
+            --provider mncs-promotion-boundary \
+            --contract-revision 0.1 \
+            --producer-revision "$MNCS_REV" \
+            --output .mncs/graph/promotion-check.json
+          VERDICT="$(python3 -c "import json; print(json.load(open('.mncs/graph/promotion-check.json'))['verdict'])")"
+          echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
+          PYTHONPATH=lib python3 - <<'PY'
+          import json
+          import mncs_actions as lib
+          doc = json.load(open('.mncs/graph/promotion-check.json'))
+          digest = json.load(open('.mncs/graph/graph-validated.json'))['digest']
+          errors = lib.validate_promotion_claim(
+              doc, boundary_id='family-advancement',
+              subject_repository='mncs-family/graph', subject_commit=f'graph:{digest}')
+          assert not errors, errors
+          print(f"graph promotion transport validation: {doc['verdict']}")
+          PY
+
+      - name: Rebuild promoted graph (identity must hold)
+        run: |
+          set -euo pipefail
+          python3 scripts/family_graph.py build \
+            --candidate .mncs/graph/candidate.json \
+            --fixed family-contracts.json \
+            --descriptors family-producer-descriptors.json \
+            --boundary promotion/family-advancement.boundary.json \
+            --graph-id "${{ steps.graph-id.outputs.graph_id }}" \
+            --actions-revision "${{ github.sha }}" \
+            --coherence .mncs/graph/coherence.json \
+            --evidence-dir .mncs/graph/checks \
+            --promotion-result .mncs/graph/promotion-check.json \
+            --output .mncs/graph/graph-promoted.json
+          test "$(python3 -c "import json; print(json.load(open('.mncs/graph/graph-promoted.json'))['digest'])")" = "${{ steps.skeleton.outputs.digest }}" \
+            || { echo "graph identity drifted during promotion"; exit 1; }
+
+      - name: Relate graph in Commons
+        run: |
+          set -euo pipefail
+          python3 scripts/family_commons_record.py \
+            --graph .mncs/graph/graph-promoted.json \
+            --checks-dir .mncs/graph/checks \
+            --promotion-result .mncs/graph/promotion-check.json \
+            --obligations-dir .mncs/graph/obligations \
+            --commons-root family/commons \
+            --output .mncs/graph/commons-record.json
+
+      - name: Rebuild related graph and propose advancement
+        id: proposal
+        run: |
+          set -euo pipefail
+          python3 scripts/family_graph.py build \
+            --candidate .mncs/graph/candidate.json \
+            --fixed family-contracts.json \
+            --descriptors family-producer-descriptors.json \
+            --boundary promotion/family-advancement.boundary.json \
+            --graph-id "${{ steps.graph-id.outputs.graph_id }}" \
+            --actions-revision "${{ github.sha }}" \
+            --coherence .mncs/graph/coherence.json \
+            --evidence-dir .mncs/graph/checks \
+            --promotion-result .mncs/graph/promotion-check.json \
+            --commons-record .mncs/graph/commons-record.json \
+            --output .mncs/graph/graph-related.json
+          test "$(python3 -c "import json; print(json.load(open('.mncs/graph/graph-related.json'))['digest'])")" = "${{ steps.skeleton.outputs.digest }}" \
+            || { echo "graph identity drifted during relating"; exit 1; }
+          if python3 scripts/family_graph.py advance \
+            --graph .mncs/graph/graph-related.json \
+            --fixed family-contracts.json \
+            --promotion-result .mncs/graph/promotion-check.json \
+            --lib-dir lib \
+            --coherence .mncs/graph/coherence.json \
+            --commons-record .mncs/graph/commons-record.json \
+            --commons-root family/commons \
+            --output-contracts .mncs/graph/proposed-family-contracts.json \
+            --output-graph .mncs/graph/accepted-graph.json; then
+            echo "eligible=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "eligible=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Write advancement summary
+        if: ${{ always() }}
+        run: |
+          python3 - .mncs/graph/graph-related.json .mncs/graph/coherence.json "${{ steps.promotion.outputs.verdict }}" "${{ steps.proposal.outputs.eligible }}" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json
+          import os
+          import sys
+          graph_path, coherence_path, verdict, eligible = sys.argv[1:5]
+          graph = json.load(open(graph_path)) if os.path.exists(graph_path) else {}
+          coherence = json.load(open(coherence_path)) if os.path.exists(coherence_path) else {}
+          print("## Family graph advancement")
+          if not graph:
+              print("- Run failed before graph construction; see logs.")
+              raise SystemExit
+          print(f"- Accepted graph: {graph['base']['graph_id']} ({graph['base']['digest'][:12]})")
+          print(f"- Candidate graph: {graph['graph_id']} ({graph['digest'][:12]})")
+          changed = [m['name'] for m in graph['members'] if m['changed']]
+          unchanged = [m['name'] for m in graph['members'] if not m['changed']]
+          print(f"- Changed members: {', '.join(changed) or 'none'}")
+          print(f"- Unchanged members: {', '.join(unchanged) or 'none'}")
+          for movement in coherence.get('movements', []):
+              print(f"- Pin {movement['from']}->{movement['to']} [{movement['edge']}]: {movement['classification']}")
+          print(f"- Graph promotion verdict: {verdict or 'not evaluated'}")
+          print(f"- Blockers: {'; '.join(graph.get('blockers', [])) or 'none'}")
+          print(f"- Advancement eligible: {eligible}")
+          print("- Merging remains human governance: PR the proposal artifacts after review.")
+          PY
+
+      - name: Upload advancement proposal
+        if: ${{ always() }}
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: family-graph-advancement
+          path: .mncs/graph
+          if-no-files-found: warn

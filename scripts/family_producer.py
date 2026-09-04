@@ -5,6 +5,11 @@ The producer job is intentionally one-owner-at-a-time.  It writes only its
 own native reports and check-results; aggregation happens later from an
 artifact-only transport.  Descriptor fields select an operation but never
 contain shell or Python source.
+
+Optional --subject-repository/--subject-commit stamps every produced
+check for the executed producer revision. The stamp must equal the
+producer's own repository at the exact checked-out revision; anything
+else is refused, so stamped evidence can never describe another subject.
 """
 
 from __future__ import annotations
@@ -147,6 +152,7 @@ def _run_operation(
     producer_revision: str,
     language_binary: Path | None,
     provenance_binding: dict[str, Any] | None,
+    subject: tuple[str, str] | None,
 ) -> list[Path]:
     execution = descriptor["execution"]
     operation = execution["operation"]
@@ -154,6 +160,9 @@ def _run_operation(
     adapters = actions_root / "adapters"
     outputs = descriptor_outputs(descriptor)
     generated: list[Path] = []
+    stamp_args: list[str] = []
+    if subject is not None:
+        stamp_args = ["--subject-repository", subject[0], "--subject-commit", subject[1]]
 
     if operation == "mncs-standard-validate":
         report_path = output_dir / "native/mncs-report.json"
@@ -180,7 +189,7 @@ def _run_operation(
                 "--check-id", output["check_id"], "--provider", output["provider"],
                 "--contract-revision", output["contract_revision"],
                 "--producer-revision", producer_revision,
-            ],
+            ] + stamp_args,
             cwd=actions_root,
         )
         generated.append(target)
@@ -212,7 +221,7 @@ def _run_operation(
                 ]
                 if provenance_binding is not None
                 else []
-            ),
+            ) + stamp_args,
             cwd=actions_root,
         )
         generated.append(target)
@@ -242,7 +251,7 @@ def _run_operation(
                 "--check-id", output["check_id"], "--provider", output["provider"],
                 "--contract-revision", output["contract_revision"],
                 "--producer-revision", producer_revision,
-            ],
+            ] + stamp_args,
             cwd=actions_root,
         )
         generated.append(target)
@@ -258,7 +267,7 @@ def _run_operation(
                 "--commons-root", str(checkout), "--output", str(target),
                 "--producer-revision", producer_revision,
                 "--contract-revision", output["contract_revision"],
-            ],
+            ] + stamp_args,
             cwd=actions_root,
         )
         generated.append(target)
@@ -295,7 +304,7 @@ def _run_operation(
                     "--input", str(report_path), "--output", str(target),
                     "--source-path", case["source_path"],
                     "--check-id", output["check_id"], "--producer-revision", producer_revision,
-                ],
+                ] + stamp_args,
                 cwd=actions_root,
             )
             generated.append(target)
@@ -310,7 +319,7 @@ def _run_operation(
                 "--expected-nonce", execution["expected_nonce"],
                 "--producer-revision", producer_revision,
                 "--contract-revision", output["contract_revision"],
-            ],
+            ] + stamp_args,
             cwd=actions_root,
         )
         for key, name in (("policy", "forge-policy.json"), ("bundle", "forge-test-bundle.json"), ("record", "forge-execution-record.json")):
@@ -349,6 +358,19 @@ def run(args: argparse.Namespace) -> int:
     actual_revision = _revision(checkout)
     if actual_revision != expected_revision:
         raise ProducerError(f"{producer} is {actual_revision}, expected {expected_revision}")
+    subject: tuple[str, str] | None = None
+    if args.subject_repository or args.subject_commit:
+        if not args.subject_repository or not args.subject_commit:
+            raise ProducerError("--subject-repository and --subject-commit are required together")
+        if (args.subject_repository, args.subject_commit) != (
+            descriptor.get("repository", entry.get("repository")),
+            actual_revision,
+        ):
+            raise ProducerError(
+                "subject stamp must equal the executed producer revision: "
+                f"{args.subject_repository}@{args.subject_commit}"
+            )
+        subject = (args.subject_repository, args.subject_commit)
     for artifact in entry["artifacts"]:
         artifact_path = _inside(checkout, artifact)
         if not artifact_path.is_file():
@@ -385,6 +407,7 @@ def run(args: argparse.Namespace) -> int:
         producer_revision=actual_revision,
         language_binary=args.language_binary.resolve() if args.language_binary else None,
         provenance_binding=provenance_binding,
+        subject=subject,
     )
     expected_outputs = descriptor_outputs(descriptor)
     check_results = []
@@ -457,6 +480,8 @@ def main() -> int:
     parser.add_argument("--descriptors", type=Path, default=ROOT / "family-producer-descriptors.json")
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--language-binary", type=Path)
+    parser.add_argument("--subject-repository", default="")
+    parser.add_argument("--subject-commit", default="")
     args = parser.parse_args()
     try:
         return run(args)

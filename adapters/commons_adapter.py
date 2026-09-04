@@ -17,7 +17,12 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
-from mncs_actions import CHECK_RESULT_SCHEMA_VERSION, sha256_hex, validate_check_result  # noqa: E402
+from mncs_actions import (  # noqa: E402
+    CHECK_RESULT_SCHEMA_VERSION,
+    sha256_hex,
+    subject_stamp,
+    validate_check_result,
+)
 
 REQUIRED_PRODUCERS = {
     "mncs-language": "CompilationStudyResult",
@@ -64,6 +69,7 @@ def build_check(
     validator_stderr: str,
     producer_revision: str = "",
     contract_revision: str = "0.1",
+    subject: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     registry_digest = sha256_hex(
         json.dumps(registry, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
@@ -98,6 +104,8 @@ def build_check(
         "unresolved": unresolved,
         "digest": registry_digest,
     }
+    if subject:
+        check["subject"] = subject
     if validator_stdout.strip():
         check["validator_output"] = validator_stdout.strip()[:2000]
     if producer_revision:
@@ -115,7 +123,13 @@ def main() -> int:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--producer-revision", default="")
     parser.add_argument("--contract-revision", default="0.1")
+    parser.add_argument("--subject-repository", default="")
+    parser.add_argument("--subject-commit", default="")
     args = parser.parse_args()
+    stamp, stamp_error = subject_stamp(args.subject_repository, args.subject_commit)
+    if stamp_error:
+        print(f"error: {stamp_error}", file=sys.stderr)
+        return 2
     registry_path = args.commons_root / "compat/family-record-producers.json"
     try:
         registry = load_registry(registry_path)
@@ -134,6 +148,7 @@ def main() -> int:
             validator_stderr=process.stderr,
             producer_revision=args.producer_revision,
             contract_revision=args.contract_revision,
+            subject=stamp,
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(check, indent=2, sort_keys=True) + "\n", encoding="utf-8")

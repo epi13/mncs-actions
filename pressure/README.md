@@ -63,3 +63,15 @@ Note the two promotion-adjacent check ids: `promotion-boundary` is the
 actual MNCS promotion evaluation result, while
 `mncs-language-promotion-boundary` is this compilation study of its pure
 decision core. The study is language pressure, never a promotion claim.
+
+`pressure/family-graph-coherence.mncs` expresses the pure advancement
+core of scripts/family_coherence.py + scripts/family_graph.py:
+pin-advancement classification (`classify_advancement`), movement
+satisfaction (`movement_satisfied`), acceptance gating (`may_accept`),
+and authority-cycle classification (`cycle_unsafe`). The arms are pinned
+to family-capability.json and the host lattice in
+tests/test_mncs_pressure.py. Git history inspection, digest
+computation, JSON parsing, evidence evaluation, and result emission
+remain explicit host escape (no safe MNCS surface yet). There is no arm
+mapping Unknown advancement to satisfied and no arm letting a sole
+self-authority pass; novelty can only block automatic advancement.
