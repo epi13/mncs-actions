@@ -624,6 +624,115 @@ def test_rebuild_with_coherence_preserves_identity(tmp_path: Path):
     assert enriched["status"] == "candidate"
 
 
+def test_commons_references_use_owner_schema_fields(tmp_path: Path):
+    """Commons references must stay inside the owner allowlist.
+
+    Regression: the script emitted a ``recordVersion`` field the
+    owner-native Commons ``normalize_producer_reference`` rejects,
+    breaking the relate step of a real lifecycle run.
+    """
+    import sys
+    import types
+
+    captured: dict = {}
+    family_module = types.ModuleType("mncs_commons.family")
+
+    def fake_make_changeset_record(**kwargs):
+        captured.update(kwargs)
+        return {"kind": "changeset", "details": {"changesetId": kwargs["changeset_id"]}}
+
+    family_module.make_changeset_record = fake_make_changeset_record
+    validation_module = types.ModuleType("mncs_commons.validation")
+    validation_module.validate_record = lambda record: types.SimpleNamespace(
+        valid=True, diagnostics=[]
+    )
+    package = types.ModuleType("mncs_commons")
+    sys.modules["mncs_commons"] = package
+    sys.modules["mncs_commons.family"] = family_module
+    sys.modules["mncs_commons.validation"] = validation_module
+    try:
+        sys.path.insert(0, str(SCRIPTS))
+        import family_commons_record
+
+        graph = {
+            "graph_id": "g",
+            "digest": "d" * 64,
+            "base": {"digest": "e" * 64},
+            "members": [
+                {
+                    "name": "m",
+                    "repository": "epi13/m",
+                    "commit": "a" * 40,
+                    "changed": False,
+                    "contracts": {},
+                }
+            ],
+            "evidence": [
+                {"check_id": "probe", "path": "probe.json", "digest": "f" * 64}
+            ],
+            "provenance": {"generated_at": "2026-09-04T00:00:00Z"},
+        }
+        checks_dir = tmp_path / "checks"
+        checks_dir.mkdir()
+        (checks_dir / "probe.json").write_text(
+            json.dumps(
+                {
+                    "provider": "probe-authority",
+                    "contract_revision": "0.1",
+                    "subject": {"repository": "epi13/m", "commit": "a" * 40},
+                }
+            )
+        )
+        obligations_dir = tmp_path / "obligations"
+        obligations_dir.mkdir()
+        (obligations_dir / "o.json").write_text(
+            json.dumps(
+                {
+                    "obligation_key": "pressure.m.test",
+                    "subject": {"repository": "epi13/m", "commit": "a" * 40},
+                }
+            )
+        )
+        promotion = tmp_path / "promotion.json"
+        promotion.write_text(json.dumps({"verdict": "PASS"}))
+        code = family_commons_record.main(
+            [
+                "--graph",
+                str(_write(tmp_path, "graph.json", graph)),
+                "--checks-dir",
+                str(checks_dir),
+                "--promotion-result",
+                str(promotion),
+                "--obligations-dir",
+                str(obligations_dir),
+                "--commons-root",
+                str(tmp_path),
+                "--output",
+                str(tmp_path / "record.json"),
+            ]
+        )
+        assert code == 0
+    finally:
+        sys.modules.pop("mncs_commons", None)
+        sys.modules.pop("mncs_commons.family", None)
+        sys.modules.pop("mncs_commons.validation", None)
+        sys.path.remove(str(SCRIPTS))
+    allowed = {
+        "schema",
+        "producer",
+        "recordKind",
+        "schemaVersion",
+        "stableId",
+        "contentDigest",
+        "artifact",
+        "scope",
+    }
+    references = list(captured["supports"]) + list(captured["promotes"])
+    assert references
+    for reference in references:
+        assert set(reference) <= allowed, set(reference) - allowed
+
+
 def test_capability_covers_tracked_actions_files():
     """Every tracked mncs-actions file must match a capability row.
 

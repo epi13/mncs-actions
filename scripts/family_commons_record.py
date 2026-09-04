@@ -67,7 +67,7 @@ def main(argv: list[str] | None = None) -> int:
         reference: dict = {
             "producer": check.get("provider", ""),
             "recordKind": "check-result",
-            "recordVersion": check.get("contract_revision", "0.1"),
+            "schemaVersion": check.get("contract_revision", "0.1"),
             "stableId": f"mncs://check-result/{entry['check_id']}",
             "contentDigest": _digest_bytes(raw),
         }
@@ -87,7 +87,7 @@ def main(argv: list[str] | None = None) -> int:
                 {
                     "producer": "mncds",
                     "recordKind": "obligation-record",
-                    "recordVersion": "0.2",
+                    "schemaVersion": "0.2",
                     "stableId": f"mncds://obligation/{record.get('obligation_key', path.stem)}",
                     "contentDigest": _digest_bytes(raw),
                     "scope": {
@@ -103,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
         {
             "producer": "mncs-promotion-boundary",
             "recordKind": "check-result",
-            "recordVersion": "0.1",
+            "schemaVersion": "0.1",
             "stableId": "mncs://check-result/family-advancement",
             "contentDigest": _digest_bytes(claim_raw),
         }
