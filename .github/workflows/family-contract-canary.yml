@@ -53,60 +53,35 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      - name: Check out required ChangeSet producer
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: epi13/mncs-rights-provenance
-          ref: 2b43fcf9555a55d4635d343f0d2d9c7191c1dab2
-          path: family/rights-provenance
-          persist-credentials: false
-          fetch-depth: 1
-      - name: Check out fixed family metadata
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: epi13/machine-native-complexity-standard
-          ref: 688445783971db9027dc7fc44224bd63acd7a08a
-          path: family/mncs-standard
-          persist-credentials: false
-          fetch-depth: 1
-      - name: Check out fixed MNCDS metadata
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: epi13/machine-native-complexity-development-specification
-          ref: 2a18b3bf685445ad5b3c66d7f7630a2bca90a395
-          path: family/mncds
-          persist-credentials: false
-          fetch-depth: 1
-      - name: Check out fixed Commons metadata
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: epi13/MNCS-Commons
-          ref: a77c5e07e5641f5950bfd5e402df87c7287ea38a
-          path: family/commons
-          persist-credentials: false
-          fetch-depth: 1
-      - name: Check out fixed language metadata
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: epi13/mncs-language
-          ref: 4f3146a97f92389490d3e8dffdf08266e3390968
-          path: family/mncs-language
-          persist-credentials: false
-          fetch-depth: 1
-      - name: Check out fixed Forge metadata
-        # actions/checkout v7.0.1
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          repository: epi13/mncs-forge-mcp
-          ref: 805f821f4eea457c3940274750b21774c487d9a1
-          path: family/forge
-          persist-credentials: false
-          fetch-depth: 1
+      - name: Check out fixed family members
+        # Revisions come from family-contracts.json (exact SHAs, never
+        # @main). Hardcoding them here staled every advancement by design;
+        # the canary test asserts the checkouts match the contract file.
+        run: |
+          set -euo pipefail
+          python3 - family-contracts.json <<'PY'
+          import json, subprocess, sys
+          doc = json.load(open(sys.argv[1]))
+          for entry in doc["repositories"]:
+              slug = entry["repository"]
+              path = entry["checkout_path"]
+              revision = entry["revision"]
+              subprocess.run(
+                  ["git", "clone", "--quiet", "--depth", "1",
+                   f"https://github.com/{slug}.git", path],
+                  check=True,
+              )
+              subprocess.run(
+                  ["git", "-C", path, "fetch", "--quiet", "--depth", "1",
+                   "origin", revision],
+                  check=True,
+              )
+              subprocess.run(
+                  ["git", "-C", path, "checkout", "--quiet", revision],
+                  check=True,
+              )
+              print(f"{slug} @ {revision[:12]} -> {path}")
+          PY
       - name: Set up Python
         # actions/setup-python v7.0.0
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97

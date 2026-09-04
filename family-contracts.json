@@ -5,7 +5,7 @@
     {
       "name": "mncs-standard",
       "repository": "epi13/machine-native-complexity-standard",
-      "revision": "688445783971db9027dc7fc44224bd63acd7a08a",
+      "revision": "bc45a4d72371d721591d080978a3f242ef319a84",
       "checkout_path": "family/mncs-standard",
       "artifacts": ["examples/minimal/manifest.json"]
     },
@@ -23,7 +23,7 @@
     {
       "name": "mncds",
       "repository": "epi13/machine-native-complexity-development-specification",
-      "revision": "2a18b3bf685445ad5b3c66d7f7630a2bca90a395",
+      "revision": "702013444d9b5d482b3f3df671564efcf6347fb5",
       "checkout_path": "family/mncds",
       "artifacts": [
         "schemas/mncds-development-record-0.2-alpha.schema.json",
@@ -33,7 +33,7 @@
     {
       "name": "commons",
       "repository": "epi13/MNCS-Commons",
-      "revision": "a77c5e07e5641f5950bfd5e402df87c7287ea38a",
+      "revision": "422540a4d50a763be3dbeeb0a88fd2ee4c272ce9",
       "checkout_path": "family/commons",
       "artifacts": ["compat/family-record-producers.json"]
     },
