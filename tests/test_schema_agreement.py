@@ -127,23 +127,24 @@ def test_badge_schema_matches_lib():
 
 def test_family_protocol_schemas_cover_runtime_contracts():
     descriptor = load_schema("family-producer-descriptor.schema.json")
-    assert descriptor["properties"]["schema_version"]["const"] == "mncs-actions.family-producer-descriptors/1"
+    assert descriptor["properties"]["schema_version"]["const"] == "mncs-actions.family-producer-descriptors/2"
     assert descriptor["additionalProperties"] is False
     producer = load_schema("family-producer-output.schema.json")
-    assert producer["properties"]["schema_version"]["const"] == "mncs-actions.family-producer-output/1"
-    assert set(producer["required"]) >= {"producer", "revision", "descriptor_digest", "files", "check_results"}
+    assert producer["properties"]["schema_version"]["const"] == "mncs-actions.family-producer-output/2"
+    assert set(producer["required"]) >= {"producer", "revision", "descriptor_digest", "contract_digest", "files", "check_results"}
     integration = load_schema("family-integration-evidence.schema.json")
-    assert integration["properties"]["schema_version"]["const"] == "mncs-actions.family-integration-evidence/1"
+    assert integration["properties"]["schema_version"]["const"] == "mncs-actions.family-integration-evidence/2"
     assert set(integration["required"]) >= {
         "mode", "contract_document", "contract_digest", "family_revisions",
         "checks", "unresolved_obligations", "authority", "promotion",
-        "execution", "development_pressure",
+        "execution", "development_pressure", "provenance_bindings", "observation",
     }
     pressure = load_schema("development-pressure-evidence.schema.json")
-    assert pressure["properties"]["schema_version"]["const"] == "mncs-actions.development-pressure-evidence/1"
+    assert pressure["properties"]["schema_version"]["const"] == "mncs-actions.development-pressure-evidence/2"
     assert set(pressure["$defs"]["obligation"]["required"]) >= {
-        "pressure_id", "obligation_key", "owner", "current_limitation",
-        "reproducer", "history",
+        "pressure_id", "obligation_key", "owner", "current_limitation", "evidence_provider",
+        "semantic_authority", "remediation_owner", "transport_authority", "originating_project",
+        "category", "reproducer", "history", "lifecycle",
     }
 
 

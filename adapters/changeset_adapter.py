@@ -110,6 +110,7 @@ def main() -> int:
     lineage_reference = {
         "kind": "lineage-record",
         "producer": "mncs-rights-provenance",
+        "authority": "mncs-rights-provenance",
         "contract_revision": args.contract_revision,
         "canonical_profile": LINEAGE_CANONICAL_PROFILE,
         "digest": summary.get("content_digest_expected", "").removeprefix("sha256:"),

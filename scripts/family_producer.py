@@ -21,16 +21,20 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "lib"))
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from family_contracts import ContractError, _read, validate_against_fixed, validate_candidate, validate_fixed  # noqa: E402
+from family_contracts import ContractError, validate_against_fixed, validate_candidate, validate_fixed  # noqa: E402
 from family_protocol import (  # noqa: E402
-    DESCRIPTOR_SCHEMA,
+    MAX_ARTIFACT_BYTES,
+    MAX_OWNER_OPERATION_SECONDS,
     PRODUCER_OUTPUT_SCHEMA,
     ProtocolError,
+    _walk_transport_files,
     descriptor_map,
     descriptor_outputs,
     document_digest,
+    ensure_clean_directory,
     load_json,
-    validate_descriptor_registry,
+    load_json_bytes,
+    validate_transport_tree,
     write_json,
 )
 from mncs_actions import sha256_hex, validate_check_result  # noqa: E402
@@ -51,38 +55,64 @@ def _revision(checkout: Path) -> str:
 
 
 def _inside(root: Path, relative: str) -> Path:
-    candidate = (root / relative).resolve()
+    raw_candidate = root / relative
+    cursor = root
+    for part in Path(relative).parts:
+        cursor = cursor / part
+        if cursor.is_symlink():
+            raise ProducerError(f"symlink is not permitted in bounded input path: {relative}")
+    candidate = raw_candidate.resolve()
     resolved_root = root.resolve()
     if candidate != resolved_root and resolved_root not in candidate.parents:
         raise ProducerError(f"path escapes bounded root: {relative}")
+    if candidate.is_symlink():
+        raise ProducerError(f"symlink is not permitted in bounded input path: {relative}")
     return candidate
+
+
+def _owner_environment(**updates: str) -> dict[str, str]:
+    """Pass only non-secret runner/toolchain context into owner code."""
+    import os
+
+    allowed = {
+        "PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "TEMP", "TMP",
+        "CARGO_HOME", "RUSTUP_HOME", "PYTHONHASHSEED",
+    }
+    environment = {key: value for key, value in os.environ.items() if key in allowed}
+    environment.update(updates)
+    return environment
 
 
 def _run_json(command: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> dict[str, Any]:
     process = subprocess.run(
         command,
         cwd=cwd,
-        env=env,
+        env=env or _owner_environment(),
         capture_output=True,
-        text=True,
-        timeout=240,
+        text=False,
+        timeout=MAX_OWNER_OPERATION_SECONDS,
     )
     if process.returncode:
+        stderr = process.stderr.decode("utf-8", errors="replace").strip()
         raise ProducerError(
             f"owner operation failed ({process.returncode}): {' '.join(command)}\n"
-            f"{process.stderr.strip()}"
+            f"{stderr}"
         )
     try:
-        value = json.loads(process.stdout)
-    except json.JSONDecodeError as exc:
-        raise ProducerError(f"owner operation did not emit JSON: {exc}") from exc
-    if not isinstance(value, dict):
-        raise ProducerError("owner operation emitted a non-object")
-    return value
+        return load_json_bytes(process.stdout, label="owner operation JSON")
+    except ProtocolError as exc:
+        raise ProducerError(str(exc)) from exc
 
 
 def _adapt(command: list[str], *, cwd: Path) -> None:
-    process = subprocess.run(command, cwd=cwd, capture_output=True, text=True, timeout=240)
+    process = subprocess.run(
+        command,
+        cwd=cwd,
+        env=_owner_environment(),
+        capture_output=True,
+        text=True,
+        timeout=MAX_OWNER_OPERATION_SECONDS,
+    )
     if process.returncode:
         raise ProducerError(
             f"bounded adapter failed ({process.returncode}): {' '.join(command)}\n"
@@ -97,6 +127,10 @@ def _output_path(output_dir: Path, check_id: str) -> Path:
 
 
 def _copy_native(source: Path, output_dir: Path, name: str) -> Path:
+    if source.is_symlink() or not source.is_file():
+        raise ProducerError(f"native input must be a regular file: {source}")
+    if source.stat().st_size > MAX_ARTIFACT_BYTES:
+        raise ProducerError(f"native input exceeds {MAX_ARTIFACT_BYTES} bytes: {source}")
     destination = output_dir / "native" / name
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, destination)
@@ -112,6 +146,7 @@ def _run_operation(
     output_dir: Path,
     producer_revision: str,
     language_binary: Path | None,
+    provenance_binding: dict[str, Any] | None,
 ) -> list[Path]:
     execution = descriptor["execution"]
     operation = execution["operation"]
@@ -132,7 +167,7 @@ def _run_operation(
                 "--json",
             ],
             cwd=checkout,
-            env={**__import__("os").environ, "PYTHONPATH": str(checkout / "src")},
+            env=_owner_environment(PYTHONPATH=str(checkout / "src")),
         )
         write_json(report_path, report)
         target = _output_path(output_dir, "mncs-validation")
@@ -158,7 +193,7 @@ def _run_operation(
                 str(_inside(checkout, inputs["manifest"])), "--findings-are-not-failures",
             ],
             cwd=checkout,
-            env={**__import__("os").environ, "PYTHONPATH": str(checkout / "src")},
+            env=_owner_environment(PYTHONPATH=str(checkout / "src")),
         )
         write_json(report_path, report)
         target = _output_path(output_dir, "rights-provenance")
@@ -170,7 +205,14 @@ def _run_operation(
                 "--check-id", output["check_id"], "--provider", output["provider"],
                 "--contract-revision", output["contract_revision"],
                 "--producer-revision", producer_revision,
-            ],
+            ] + (
+                [
+                    "--manifest-path", provenance_binding["path"],
+                    "--manifest-digest", provenance_binding["sha256"],
+                ]
+                if provenance_binding is not None
+                else []
+            ),
             cwd=actions_root,
         )
         generated.append(target)
@@ -188,7 +230,7 @@ def _run_operation(
                 ),
             ],
             cwd=checkout,
-            env={**__import__("os").environ, "PYTHONPATH": str(checkout / "src")},
+            env=_owner_environment(PYTHONPATH=str(checkout / "src")),
         )
         write_json(report_path, report)
         target = _output_path(output_dir, "mncds-development-record")
@@ -230,19 +272,20 @@ def _run_operation(
             process = subprocess.run(
                 [str(language_binary), "source-study", str(source), "--node-id", "family-producer"],
                 cwd=checkout,
-                env={**__import__("os").environ, "MNCS_LIBRARY_PATH": str(checkout / inputs["library"])},
+                env=_owner_environment(MNCS_LIBRARY_PATH=str(checkout / inputs["library"])),
                 capture_output=True,
-                text=True,
-                timeout=240,
+                text=False,
+                timeout=MAX_OWNER_OPERATION_SECONDS,
             )
             if process.returncode:
-                raise ProducerError(f"mncs-language source-study failed: {process.stderr.strip()}")
+                raise ProducerError(
+                    "mncs-language source-study failed: "
+                    + process.stderr.decode("utf-8", errors="replace").strip()
+                )
             try:
-                study = json.loads(process.stdout)
-            except json.JSONDecodeError as exc:
-                raise ProducerError(f"mncs-language source-study was not JSON: {exc}") from exc
-            if not isinstance(study, dict):
-                raise ProducerError("mncs-language source-study did not emit an object")
+                study = load_json_bytes(process.stdout, label="mncs-language source-study JSON")
+            except ProtocolError as exc:
+                raise ProducerError(str(exc)) from exc
             write_json(report_path, study)
             output = outputs[case["check_id"]]
             target = _output_path(output_dir, case["check_id"])
@@ -310,8 +353,29 @@ def run(args: argparse.Namespace) -> int:
         artifact_path = _inside(checkout, artifact)
         if not artifact_path.is_file():
             raise ProducerError(f"missing {producer} artifact: {artifact}")
+        if artifact_path.stat().st_size > MAX_ARTIFACT_BYTES:
+            raise ProducerError(f"family artifact exceeds {MAX_ARTIFACT_BYTES} bytes: {artifact}")
 
+    try:
+        ensure_clean_directory(output_dir, label="producer output directory")
+    except ProtocolError as exc:
+        raise ProducerError(str(exc)) from exc
     output_dir.mkdir(parents=True, exist_ok=True)
+    provenance_binding: dict[str, Any] | None = None
+    provenance_context = descriptor.get("provenance_context")
+    if provenance_context is not None:
+        input_path = _inside(checkout, descriptor["execution"]["input_paths"][provenance_context["input_key"]])
+        if descriptor["execution"]["input_paths"][provenance_context["input_key"]] not in entry["artifacts"]:
+            raise ProducerError("provenance context input must be pinned in the family contract")
+        copied = _copy_native(input_path, output_dir, provenance_context["transport_name"])
+        provenance_binding = {
+            "kind": provenance_context["kind"],
+            "authority": provenance_context["authority"],
+            "path": copied.relative_to(output_dir).as_posix(),
+            "sha256": sha256_hex(copied.read_bytes()),
+            "authority_status": provenance_context.get("authority_status", "UNKNOWN"),
+            "revision": actual_revision,
+        }
     generated = _run_operation(
         descriptor,
         checkout=checkout,
@@ -320,19 +384,30 @@ def run(args: argparse.Namespace) -> int:
         output_dir=output_dir,
         producer_revision=actual_revision,
         language_binary=args.language_binary.resolve() if args.language_binary else None,
+        provenance_binding=provenance_binding,
     )
     expected_outputs = descriptor_outputs(descriptor)
     check_results = []
     files = []
-    for path in sorted(output_dir.rglob("*.json")):
-        relative = path.relative_to(output_dir).as_posix()
-        if relative == "producer-execution.json":
-            continue
-        kind = "check-result" if path.parent.name == "checks" else "native"
-        files.append({"path": relative, "sha256": sha256_hex(path.read_bytes()), "kind": kind})
+    try:
+        output_stats = _walk_transport_files(output_dir)
+    except ProtocolError as exc:
+        raise ProducerError(str(exc)) from exc
+    for relative in sorted(output_stats):
+        kind = "check-result" if relative.startswith("checks/") else "native"
+        path = output_dir / relative
+        files.append({
+            "path": relative,
+            "sha256": sha256_hex(path.read_bytes()),
+            "size": output_stats[relative],
+            "kind": kind,
+        })
     for path in sorted(generated):
         raw = path.read_bytes()
-        value = json.loads(raw.decode("utf-8"))
+        try:
+            value = load_json_bytes(raw, label=f"generated check {path}")
+        except ProtocolError as exc:
+            raise ProducerError(str(exc)) from exc
         errors = validate_check_result(value)
         if errors:
             raise ProducerError(f"generated check is invalid: {path}: {'; '.join(errors)}")
@@ -357,10 +432,17 @@ def run(args: argparse.Namespace) -> int:
         "repository": descriptor["repository"],
         "revision": actual_revision,
         "descriptor_digest": document_digest(args.descriptors.resolve()),
+        "contract_digest": document_digest(args.contracts.resolve()),
         "files": files,
         "check_results": check_results,
     }
+    if provenance_binding is not None:
+        output["provenance_bindings"] = [provenance_binding]
     write_json(output_dir / "producer-execution.json", output)
+    try:
+        validate_transport_tree(output_dir, [item["path"] for item in files])
+    except ProtocolError as exc:
+        raise ProducerError(str(exc)) from exc
     print(json.dumps({"producer": producer, "checks": len(check_results), "output": str(output_dir)}, sort_keys=True))
     return 0
 

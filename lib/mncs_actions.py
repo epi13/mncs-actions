@@ -284,6 +284,8 @@ def validate_evidence_reference(obj: Any) -> List[str]:
         "producer_revision",
         "uri",
         "digest",
+        "authority",
+        "authority_record_identity",
     ):
         if obj.get(field) is not None and not isinstance(obj[field], str):
             errors.append(f"reference.{field} must be a string when present")
@@ -298,6 +300,10 @@ def validate_evidence_reference(obj: Any) -> List[str]:
         errors.append(
             "reference.digest must be hex64 or sha256:hex64 when present"
         )
+    if "authority_status" in obj and obj["authority_status"] not in (
+        "PASS", "FAIL", "UNKNOWN"
+    ):
+        errors.append("reference.authority_status must be PASS, FAIL, or UNKNOWN")
     return errors
 
 

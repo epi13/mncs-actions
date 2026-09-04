@@ -1,5 +1,5 @@
 {
-  "schema_version": "mncs-actions.family-integration-evidence/1",
+  "schema_version": "mncs-actions.family-integration-evidence/2",
   "mode": "fixed",
   "contract_document": "family-contracts.json",
   "contract_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -16,6 +16,11 @@
     {
       "id": "fixture-check",
       "provider": "fixture-provider",
+      "evidence_provider": "fixture-provider",
+      "semantic_authority": "fixture-authority",
+      "remediation_owner": "owner/fixture",
+      "transport_authority": "mncs-actions",
+      "originating_project": "owner/fixture-actions",
       "producer": "fixture",
       "producer_revision": "cccccccccccccccccccccccccccccccccccccccc",
       "contract_revision": "1",
@@ -24,6 +29,7 @@
       "digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
     }
   ],
+  "provenance_bindings": [],
   "unresolved_obligations": [],
   "authority": {
     "mncs": "machine-native-complexity-standard",
@@ -36,7 +42,7 @@
   },
   "promotion": "observation-only; this document cannot update family-contracts.json",
   "execution": {
-    "protocol": "mncs-actions.family-producer-output/1",
+    "protocol": "mncs-actions.family-producer-output/2",
     "producer_jobs": true,
     "aggregator_executes_producer_code": false,
     "artifact_transport": "content-addressed",
@@ -47,5 +53,12 @@
     "digest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
     "obligation_count": 0,
     "not_reproduced_count": 0
+  },
+  "observation": {
+    "observation_id": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "kind": "family-evaluation",
+    "resolution_status": "NOT_ESTABLISHED",
+    "semantic_resolution_authority": "fixture-authority",
+    "promotion_status": "INDEPENDENT_REVIEW_REQUIRED"
   }
 }

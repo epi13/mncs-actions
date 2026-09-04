@@ -90,6 +90,7 @@ def build_check(
             {
                 "kind": "commons-producer-registry",
                 "producer": "MNCS-Commons",
+                "authority": "MNCS-Commons",
                 "path": registry_path,
                 "digest": registry_digest,
             }

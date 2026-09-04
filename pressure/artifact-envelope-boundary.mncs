@@ -1,0 +1,19 @@
+mncs 0.6;
+
+// mncs-actions pressure: pure tri-state projection for a bounded envelope.
+//
+// The host currently owns byte enumeration, path identity, and digest checks.
+// This source study keeps the language-side pressure honest: it expresses
+// only the status lattice used when a declared/observed membership result is
+// carried into evidence. It does not pretend that filesystem or hashing
+// effects are available in MNCS.
+
+module mncs.actions.artifact_envelope_boundary.v01;
+
+use mncs.core.status.v1;
+
+record EnvelopeMembership { declared: Status, observed: Status }
+
+fn project_membership(pair: EnvelopeMembership) -> (result: Status) {
+    return dominate(pair.declared, pair.observed);
+}

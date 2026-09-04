@@ -1,5 +1,5 @@
 {
-  "schema_version": "mncs-actions.family-producer-descriptors/1",
+  "schema_version": "mncs-actions.family-producer-descriptors/2",
   "descriptors": [
     {
       "producer": "mncs-standard",
@@ -24,7 +24,14 @@
         {
           "check_id": "mncs-validation",
           "provider": "mncs-validator-rs",
-          "contract_revision": "0.2"
+          "contract_revision": "0.2",
+          "roles": {
+            "evidence_provider": "mncs-validator-rs",
+            "semantic_authority": "machine-native-complexity-standard",
+            "remediation_owner": "epi13/machine-native-complexity-standard",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
         }
       ]
     },
@@ -33,7 +40,8 @@
       "repository": "epi13/mncs-rights-provenance",
       "artifact_paths": [
         "schemas/v0.3/lineage-record.schema.json",
-        "examples/v0.3/lineage-record-example.json"
+        "examples/v0.3/lineage-record-example.json",
+        "dogfood/human-specification.json"
       ],
       "contract": {
         "id": "mncs-rights-provenance",
@@ -48,11 +56,25 @@
           "manifest": "dogfood/human-specification.json"
         }
       },
+      "provenance_context": {
+        "kind": "rights-manifest",
+        "authority": "mncs-rights-provenance",
+        "input_key": "manifest",
+        "transport_name": "rights-manifest.json",
+        "authority_status": "UNKNOWN"
+      },
       "outputs": [
         {
           "check_id": "rights-provenance",
           "provider": "mncs-rights-provenance",
-          "contract_revision": "0.3.0"
+          "contract_revision": "0.3.0",
+          "roles": {
+            "evidence_provider": "mncs-rights-provenance",
+            "semantic_authority": "mncs-rights-provenance",
+            "remediation_owner": "epi13/mncs-rights-provenance",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
         }
       ]
     },
@@ -80,7 +102,14 @@
         {
           "check_id": "mncds-development-record",
           "provider": "mncds",
-          "contract_revision": "0.2-alpha.1"
+          "contract_revision": "0.2-alpha.1",
+          "roles": {
+            "evidence_provider": "mncds",
+            "semantic_authority": "machine-native-complexity-development-specification",
+            "remediation_owner": "epi13/machine-native-complexity-development-specification",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
         }
       ]
     },
@@ -108,7 +137,14 @@
         {
           "check_id": "commons-family-compatibility",
           "provider": "MNCS-Commons",
-          "contract_revision": "0.1"
+          "contract_revision": "0.1",
+          "roles": {
+            "evidence_provider": "MNCS-Commons",
+            "semantic_authority": "MNCS-Commons",
+            "remediation_owner": "epi13/MNCS-Commons",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
         }
       ]
     },
@@ -145,6 +181,11 @@
             "name": "changeset-boundary",
             "source_path": "pressure/changeset-boundary.mncs",
             "check_id": "mncs-language-changeset-boundary"
+          },
+          {
+            "name": "artifact-envelope",
+            "source_path": "pressure/artifact-envelope-boundary.mncs",
+            "check_id": "mncs-language-artifact-envelope"
           }
         ]
       },
@@ -152,17 +193,50 @@
         {
           "check_id": "mncs-language-family-boundary",
           "provider": "mncs-language",
-          "contract_revision": "mncs:language:compilation-study-result:0.1"
+          "contract_revision": "mncs:language:compilation-study-result:0.1",
+          "roles": {
+            "evidence_provider": "mncs-language",
+            "semantic_authority": "mncs-language",
+            "remediation_owner": "epi13/mncs-language",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
         },
         {
           "check_id": "mncs-language-rights-projection",
           "provider": "mncs-language",
-          "contract_revision": "mncs:language:compilation-study-result:0.1"
+          "contract_revision": "mncs:language:compilation-study-result:0.1",
+          "roles": {
+            "evidence_provider": "mncs-language",
+            "semantic_authority": "mncs-language",
+            "remediation_owner": "epi13/mncs-language",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
         },
         {
           "check_id": "mncs-language-changeset-boundary",
           "provider": "mncs-language",
-          "contract_revision": "mncs:language:compilation-study-result:0.1"
+          "contract_revision": "mncs:language:compilation-study-result:0.1",
+          "roles": {
+            "evidence_provider": "mncs-language",
+            "semantic_authority": "mncs-language",
+            "remediation_owner": "epi13/mncs-language",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        },
+        {
+          "check_id": "mncs-language-artifact-envelope",
+          "provider": "mncs-language",
+          "contract_revision": "mncs:language:compilation-study-result:0.1",
+          "roles": {
+            "evidence_provider": "mncs-language",
+            "semantic_authority": "mncs-language",
+            "remediation_owner": "epi13/mncs-language",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
         }
       ]
     },
@@ -192,7 +266,14 @@
         {
           "check_id": "forge-cell-contract",
           "provider": "mncs-forge-mcp",
-          "contract_revision": "0.1"
+          "contract_revision": "0.1",
+          "roles": {
+            "evidence_provider": "mncs-forge-mcp",
+            "semantic_authority": "mncs-forge-mcp",
+            "remediation_owner": "epi13/mncs-forge-mcp",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
         }
       ]
     }

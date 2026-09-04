@@ -15,7 +15,7 @@ from family_protocol import PRESSURE_EVIDENCE_SCHEMA, canonical_digest
 
 
 def _category(check: dict[str, Any]) -> str:
-    value = f"{check.get('id', '')} {check.get('provider', '')}".lower()
+    value = f"{check.get('id', '')} {check.get('semantic_authority', check.get('provider', ''))}".lower()
     if "rights" in value or "provenance" in value:
         return "rights/provenance"
     if "language" in value or "compiler" in value:
@@ -74,6 +74,13 @@ def build_pressure_bundle(
 ) -> dict[str, Any]:
     previous_by_key = _previous_index(previous)
     obligations: list[dict[str, Any]] = []
+    default_roles = {
+        "evidence_provider": "unknown-provider",
+        "semantic_authority": "unknown-authority",
+        "remediation_owner": "unknown-owner",
+        "transport_authority": "mncs-actions",
+        "originating_project": "epi13/mncs-actions",
+    }
     for check in checks:
         if check.get("verdict") != "UNKNOWN":
             continue
@@ -84,10 +91,24 @@ def build_pressure_bundle(
         references = _references(check)
         for detail in unresolved:
             detail_text = str(detail)
-            owner = str(check.get("provider", "unknown-owner"))
+            roles = {
+                key: str(check.get(key, default_roles[key]))
+                for key in default_roles
+            }
+            # A family check's provider remains the backwards-compatible
+            # evidence-provider field, but it is never used as the semantic
+            # or remediation owner when the explicit role projection exists.
+            if "evidence_provider" not in check and check.get("provider"):
+                roles["evidence_provider"] = str(check["provider"])
+            if "remediation_owner" not in check and check.get("provider"):
+                roles["remediation_owner"] = str(check["provider"])
+            if "semantic_authority" not in check and check.get("provider"):
+                roles["semantic_authority"] = str(check["provider"])
+            owner = roles["remediation_owner"]
             key_material = {
                 "check_id": check.get("id", ""),
-                "owner": owner,
+                "semantic_authority": roles["semantic_authority"],
+                "remediation_owner": owner,
                 "category": category,
                 "claim": check.get("claim", ""),
                 "limitation": detail_text,
@@ -104,13 +125,14 @@ def build_pressure_bundle(
             payload: dict[str, Any] = {
                 "producer": "mncs-actions",
                 "owner": owner,
-                "originating_project": "epi13/mncs-actions",
+                **roles,
                 "source_revision": actions_revision,
                 "contract_revision": check.get("contract_revision", ""),
                 "requested_capability": (
                     f"establish {check.get('claim') or check.get('id', 'family check')}"
                 ),
                 "current_limitation": detail_text,
+                "category": category,
                 "affected_surfaces": _surfaces(category),
                 "protected_properties": [
                     "PASS/FAIL/UNKNOWN distinction",
@@ -134,7 +156,7 @@ def build_pressure_bundle(
                 "references": references,
                 "upstream_downstream_contracts": [
                     "mncs.check-result/1",
-                    "mncs-actions.family-integration-evidence/1",
+                    "mncs-actions.family-integration-evidence/2",
                     str(check.get("contract_revision", "")),
                 ],
                 "status": "UNKNOWN",
@@ -144,6 +166,14 @@ def build_pressure_bundle(
                     "same_obligation_appeared_previously": "YES" if prior else "NOT_OBSERVED",
                     "prior_pressure_id": prior.get("pressure_id") if prior else None,
                     "resolved_by_revision": None,
+                },
+                "lifecycle": {
+                    "state": "OPEN",
+                    "reproduction": "REPRODUCED" if prior else "NEW",
+                    "resolution_status": "NOT_ESTABLISHED",
+                    "semantic_resolution": "NOT_ESTABLISHED",
+                    "promotion_status": "INDEPENDENT_REVIEW_REQUIRED",
+                    "correlation_key": obligation_key,
                 },
             }
             payload["pressure_id"] = "sha256:" + canonical_digest(payload)
@@ -159,6 +189,14 @@ def build_pressure_bundle(
                     "prior_pressure_id": prior.get("pressure_id"),
                     "current_status": "NOT_REPRODUCED",
                     "resolved_by_revision": None,
+                    "lifecycle": {
+                        "state": "NOT_REPRODUCED",
+                        "reproduction": "NOT_REPRODUCED",
+                        "resolution_status": "NOT_ESTABLISHED",
+                        "semantic_resolution": "NOT_ESTABLISHED",
+                        "promotion_status": "INDEPENDENT_REVIEW_REQUIRED",
+                        "correlation_key": key,
+                    },
                     "note": "Absence from one observation is not proof of semantic resolution.",
                 }
             )
@@ -182,4 +220,19 @@ def build_pressure_bundle(
             "transport": "mncs-actions",
         },
         "promotion": "observation only; no pressure observation authorizes a change",
+        "observation": {
+            "observation_id": "sha256:" + canonical_digest(
+                {
+                    "mode": mode,
+                    "contract_digest": contract_digest,
+                    "descriptor_digest": descriptor_digest,
+                    "source_revision": actions_revision,
+                    "obligation_keys": sorted(current_keys),
+                }
+            ),
+            "kind": "family-evaluation",
+            "resolution_status": "NOT_ESTABLISHED",
+            "semantic_resolution_authority": "domain-owner-protocol",
+            "promotion_status": "INDEPENDENT_REVIEW_REQUIRED",
+        },
     }

@@ -2,11 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/epi13/mncs-actions/blob/main/schemas/development-pressure-evidence.schema.json",
   "title": "MNCS Actions DevelopmentPressure evidence",
-  "description": "Transport of MNCDS-shaped unresolved family obligations. It is an observation and correlation record; it does not define owner semantics or authorize a change.",
+  "description": "Version 2 transport of MNCDS-shaped unresolved family obligations. It is an observation and correlation record with explicit evidence-provider, semantic-authority, remediation-target, and lifecycle roles; it does not define owner semantics or authorize a change. Actions emits resolution NOT_ESTABLISHED and leaves semantic closure to the owning protocol.",
   "type": "object",
-  "required": ["schema_version", "protocol", "mode", "source_revision", "contract_document", "contract_digest", "descriptor_document", "descriptor_digest", "obligations", "not_reproduced", "authority", "promotion"],
+  "required": ["schema_version", "protocol", "mode", "source_revision", "contract_document", "contract_digest", "descriptor_document", "descriptor_digest", "obligations", "not_reproduced", "authority", "promotion", "observation"],
   "properties": {
-    "schema_version": { "const": "mncs-actions.development-pressure-evidence/1" },
+    "schema_version": { "const": "mncs-actions.development-pressure-evidence/2" },
     "protocol": { "const": "MNCDS DevelopmentPressure transport; observation only" },
     "mode": { "enum": ["fixed", "moving-head"] },
     "source_revision": { "type": "string", "minLength": 1 },
@@ -14,8 +14,8 @@
     "contract_digest": { "$ref": "#/$defs/digest" },
     "descriptor_document": { "$ref": "#/$defs/safePath" },
     "descriptor_digest": { "$ref": "#/$defs/digest" },
-    "obligations": { "type": "array", "items": { "$ref": "#/$defs/obligation" } },
-    "not_reproduced": { "type": "array", "items": { "$ref": "#/$defs/notReproduced" } },
+    "obligations": { "type": "array", "maxItems": 128, "items": { "$ref": "#/$defs/obligation" } },
+    "not_reproduced": { "type": "array", "maxItems": 128, "items": { "$ref": "#/$defs/notReproduced" } },
     "authority": {
       "type": "object",
       "required": ["pressure_semantics", "rights_semantics", "coordination_exchange", "language_capability", "assurance_semantics", "transport"],
@@ -29,7 +29,8 @@
       },
       "additionalProperties": false
     },
-    "promotion": { "const": "observation only; no pressure observation authorizes a change" }
+    "promotion": { "const": "observation only; no pressure observation authorizes a change" },
+    "observation": { "$ref": "#/$defs/observation" }
   },
   "$defs": {
     "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
@@ -37,6 +38,7 @@
     "safePath": {
       "type": "string",
       "minLength": 1,
+      "maxLength": 512,
       "pattern": "^(?!/)(?!^[A-Za-z]:)(?!.*(^|/)(?:\\.|\\.\\.)(/|$))(?!.*//)(?!.*\\/$)(?!.*\\\\)[^\\u0000-\\u001f\\u007f]+$"
     },
     "reference": {
@@ -47,17 +49,22 @@
     },
     "obligation": {
       "type": "object",
-      "required": ["pressure_id", "obligation_key", "producer", "owner", "originating_project", "source_revision", "contract_revision", "requested_capability", "current_limitation", "affected_surfaces", "protected_properties", "evidence_requirements", "reproducer", "references", "upstream_downstream_contracts", "status", "unresolved", "history"],
+      "required": ["pressure_id", "obligation_key", "producer", "owner", "evidence_provider", "semantic_authority", "remediation_owner", "transport_authority", "originating_project", "source_revision", "contract_revision", "requested_capability", "current_limitation", "category", "affected_surfaces", "protected_properties", "evidence_requirements", "reproducer", "references", "upstream_downstream_contracts", "status", "unresolved", "history", "lifecycle"],
       "properties": {
         "pressure_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
         "obligation_key": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
         "producer": { "const": "mncs-actions" },
         "owner": { "type": "string", "minLength": 1 },
+        "evidence_provider": { "type": "string", "minLength": 1 },
+        "semantic_authority": { "type": "string", "minLength": 1 },
+        "remediation_owner": { "type": "string", "minLength": 1 },
+        "transport_authority": { "const": "mncs-actions" },
         "originating_project": { "type": "string", "minLength": 1 },
         "source_revision": { "type": "string", "minLength": 1 },
         "contract_revision": { "type": "string" },
         "requested_capability": { "type": "string", "minLength": 1 },
         "current_limitation": { "type": "string", "minLength": 1 },
+        "category": { "type": "string", "minLength": 1 },
         "affected_surfaces": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
         "protected_properties": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
         "evidence_requirements": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
@@ -66,14 +73,53 @@
         "upstream_downstream_contracts": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
         "status": { "const": "UNKNOWN" },
         "unresolved": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
-        "history": { "type": "object", "required": ["same_obligation_appeared_previously", "prior_pressure_id", "resolved_by_revision"], "properties": { "same_obligation_appeared_previously": { "enum": ["YES", "NOT_OBSERVED"] }, "prior_pressure_id": { "type": ["string", "null"] }, "resolved_by_revision": { "type": ["string", "null"] } }, "additionalProperties": false }
+        "history": { "type": "object", "required": ["same_obligation_appeared_previously", "prior_pressure_id", "resolved_by_revision"], "properties": { "same_obligation_appeared_previously": { "enum": ["YES", "NOT_OBSERVED"] }, "prior_pressure_id": { "type": ["string", "null"] }, "resolved_by_revision": { "type": ["string", "null"] } }, "additionalProperties": false },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" }
       },
       "additionalProperties": false
     },
     "notReproduced": {
       "type": "object",
-      "required": ["obligation_key", "prior_pressure_id", "current_status", "resolved_by_revision", "note"],
-      "properties": { "obligation_key": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }, "prior_pressure_id": { "type": ["string", "null"] }, "current_status": { "const": "NOT_REPRODUCED" }, "resolved_by_revision": { "type": ["string", "null"] }, "note": { "type": "string", "minLength": 1 } },
+      "required": ["obligation_key", "prior_pressure_id", "current_status", "resolved_by_revision", "lifecycle", "note"],
+      "properties": { "obligation_key": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }, "prior_pressure_id": { "type": ["string", "null"] }, "current_status": { "const": "NOT_REPRODUCED" }, "resolved_by_revision": { "type": ["string", "null"] }, "lifecycle": { "$ref": "#/$defs/notReproducedLifecycle" }, "note": { "type": "string", "minLength": 1 } },
+      "additionalProperties": false
+    },
+    "lifecycle": {
+      "type": "object",
+      "required": ["state", "reproduction", "resolution_status", "semantic_resolution", "promotion_status", "correlation_key"],
+      "properties": {
+        "state": { "const": "OPEN" },
+        "reproduction": { "enum": ["NEW", "REPRODUCED"] },
+        "resolution_status": { "const": "NOT_ESTABLISHED" },
+        "semantic_resolution": { "const": "NOT_ESTABLISHED" },
+        "promotion_status": { "const": "INDEPENDENT_REVIEW_REQUIRED" },
+        "correlation_key": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "notReproducedLifecycle": {
+      "type": "object",
+      "required": ["state", "reproduction", "resolution_status", "semantic_resolution", "promotion_status", "correlation_key"],
+      "properties": {
+        "state": { "const": "NOT_REPRODUCED" },
+        "reproduction": { "const": "NOT_REPRODUCED" },
+        "resolution_status": { "const": "NOT_ESTABLISHED" },
+        "semantic_resolution": { "const": "NOT_ESTABLISHED" },
+        "promotion_status": { "const": "INDEPENDENT_REVIEW_REQUIRED" },
+        "correlation_key": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "observation": {
+      "type": "object",
+      "required": ["observation_id", "kind", "resolution_status", "semantic_resolution_authority", "promotion_status"],
+      "properties": {
+        "observation_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "kind": { "const": "family-evaluation" },
+        "resolution_status": { "const": "NOT_ESTABLISHED" },
+        "semantic_resolution_authority": { "type": "string", "minLength": 1 },
+        "promotion_status": { "const": "INDEPENDENT_REVIEW_REQUIRED" }
+      },
       "additionalProperties": false
     }
   },

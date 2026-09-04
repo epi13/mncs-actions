@@ -1,5 +1,5 @@
 {
-  "schema_version": "mncs-actions.development-pressure-evidence/1",
+  "schema_version": "mncs-actions.development-pressure-evidence/2",
   "protocol": "MNCDS DevelopmentPressure transport; observation only",
   "mode": "fixed",
   "source_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -17,5 +17,12 @@
     "assurance_semantics": "mncs-forge-mcp",
     "transport": "mncs-actions"
   },
-  "promotion": "observation only; no pressure observation authorizes a change"
+  "promotion": "observation only; no pressure observation authorizes a change",
+  "observation": {
+    "observation_id": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+    "kind": "family-evaluation",
+    "resolution_status": "NOT_ESTABLISHED",
+    "semantic_resolution_authority": "fixture-authority",
+    "promotion_status": "INDEPENDENT_REVIEW_REQUIRED"
+  }
 }

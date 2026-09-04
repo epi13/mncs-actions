@@ -39,3 +39,12 @@ mechanically complete versus incomplete coordination record. JSON parsing,
 canonical hashing, filesystem confinement, and evidence-byte verification
 remain host-side until the language exposes safe bounded text/byte and IO
 capabilities.
+
+`pressure/artifact-envelope-boundary.mncs` adds the next membrane pressure
+case. It expresses only the pure tri-state projection used when declared and
+observed membership statuses are combined; the v2 host protocol still owns
+bounded byte enumeration, path identity, links, and SHA-256 verification.
+The family language producer runs this source study alongside the existing
+family, rights, and ChangeSet studies. This keeps the pressure loop concrete
+without pretending that immature filesystem or byte capabilities are already
+available in MNCS.

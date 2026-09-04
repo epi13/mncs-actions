@@ -86,17 +86,22 @@ Moving sibling heads are not silently substituted for the recorded revisions.
 The fixed canary now has a bounded three-stage topology:
 
 1. one matrix job checks out and runs exactly one owner-native producer;
-2. the job uploads only its own `family-producer-output/1` envelope, with
-   SHA-256 bindings for every native and check-result file;
+2. the job uploads only its own `family-producer-output/2` envelope, with
+   raw-byte SHA-256 and size bindings for every native and check-result file;
 3. a fresh assembler job downloads those envelopes, validates membership and
    revisions, and runs only Actions-side adapters before aggregation.
 
-The aggregator does not check out or import family repositories. A candidate
+The `family-producer-output/2` envelope requires exact file membership: every
+transport file is declared, check-result paths and IDs are one-to-one, and
+links, special files, traversal, Unicode/case aliases, oversized files, and
+malformed/deep JSON are rejected. A descriptor-declared rights context also
+requires a native, digest-bound authority record in the envelope. The
+aggregator does not check out or import family repositories. A candidate
 producer can falsify its own report, but it cannot overwrite a sibling's
 artifact or the final aggregate through the workflow. This is still a hosted
 runner boundary rather than a kernel sandbox: code in a producer job can
-tamper with that job's workspace and its own claimed output, so the result is
-evidence requiring owner semantics and independent review, not attestation.
+tamper with that job's workspace and its own claimed output, so content
+integrity is not semantic truth or attestation.
 
 ## Moving-head drift observation
 
@@ -115,15 +120,23 @@ artifact; adapters project their result into `mncs.check-result/1`. Unresolved
 compiler obligations and unmet Forge isolation therefore remain visible as
 `UNKNOWN`.
 
-`family-integration-evidence/1` binds the mode, exact contract and descriptor
+`family-integration-evidence/2` binds the mode, exact contract and descriptor
 digests, every family revision, every check's producer/revision/digest/path,
-authority mapping, promotion prohibition, and execution topology. The
-corresponding `development-pressure-evidence/1` bundle gives each UNKNOWN an
-obligation key, pressure identity, owner, category, claim, limitation,
-reproducer, references, affected surfaces, and history fields. It follows the
-MNCDS `DevelopmentPressure` vocabulary; Actions transports and correlates the
+explicit authority roles, typed provenance bindings, promotion prohibition,
+and execution topology. The corresponding
+`development-pressure-evidence/2` bundle gives each UNKNOWN an obligation
+key, pressure identity, evidence provider, semantic authority, remediation
+owner, originating project, category, claim, limitation, reproducer,
+references, affected surfaces, and lifecycle fields. A missing observation in
+a later run is `NOT_REPRODUCED`, not resolved. It follows the MNCDS
+`DevelopmentPressure` vocabulary; Actions transports and correlates the
 observation but does not define rights, language, assurance, or promotion
 semantics.
+
+Protocol limits are explicit: protocol JSON is at most 8 MiB and 64 levels
+deep; a producer may transport at most 128 regular files, each at most 8 MiB,
+with a 64 MiB total. These are bounded transport limits, not claims that a
+GitHub-hosted runner is a sandbox.
 
 ## Explicit advancement path
 

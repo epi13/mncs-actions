@@ -92,24 +92,40 @@ workflow consumes contract
 
 A capability gap is evidence about the current language, standard, or integration surface. It is not permission to weaken the contract silently. Future actions may emit canonical capability-gap records once the owning MNCS-family contract is available.
 
-## Family protocol increment
+## Family protocol increment (v2)
 
-- `mncs-actions.family-producer-descriptors/1` is a data-only descriptor
+- `mncs-actions.family-producer-descriptors/2` is a data-only descriptor
   registry. It selects an allowlisted operation/adapter, safe input paths,
-  expected output identities, and required capabilities. It cannot request
-  arbitrary shell execution.
-- `mncs-actions.family-producer-output/1` is a per-owner content-addressed
+  expected output identities, explicit evidence/semantic/remediation/
+  transport/origin roles, and required capabilities. It cannot request
+  arbitrary shell execution. Runtime validation additionally enforces the
+  operation-to-input registry and exact family artifact inventory.
+- `mncs-actions.family-producer-output/2` is a per-owner content-addressed
   artifact envelope. It binds the independently expected family revision,
-  descriptor digest, native reports, and check-result paths/digests.
-- `mncs-actions.family-integration-evidence/1` is schema-covered and
+  exact raw contract and descriptor digests, regular-file membership, sizes,
+  native reports, check-result paths/digests, and typed provenance-context
+  bindings. Runtime validation rejects links, aliases, substitutions,
+  malformed/deep JSON, and unbounded transport; the producer envelope itself
+  is not a semantic authorization token.
+- `mncs-actions.family-integration-evidence/2` is schema-covered and
   mechanically validated. It records fixed versus moving-head mode, exact
   contract/descriptor digests, all producer identities and revisions, strict
-  check membership, authority, promotion semantics, and the producer-job /
+  check membership, explicit authority roles, provenance bindings, lifecycle
+  observation metadata, promotion semantics, and the producer-job /
   artifact-only aggregation boundary.
-- `mncs-actions.development-pressure-evidence/1` carries unresolved family
-  obligations using the current MNCDS `DevelopmentPressure` vocabulary.
-  Actions correlates observations and preserves owner references; absence in
-  a later observation is explicitly not treated as proof of resolution.
+- `mncs-actions.development-pressure-evidence/2` carries unresolved family
+  obligations using the current MNCDS `DevelopmentPressure` vocabulary. Each
+  obligation separates evidence provider, semantic authority, remediation
+  owner, transport authority, and originating project. Actions correlates
+  observations and preserves owner references; absence in a later observation
+  is explicitly `NOT_REPRODUCED`, never proof of resolution.
+
+The v2 digests are deliberately layered: contract/descriptor and transported
+file digests hash exact raw bytes; pressure IDs and observation IDs hash the
+canonicalized JSON values created by Actions. This gives distributed
+consumers both byte-level substitution detection and stable semantic
+correlation without claiming a general RFC 8785 implementation.
+
 - The required-family JUnit guard counts nested testcase elements rather than
   trusting a root counter, and rejects malformed, empty, skipped, or failed
   reports.

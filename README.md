@@ -39,7 +39,9 @@ Primitives:
   inputs; they cannot contain executable shell or Python.
 - `scripts/family_producer.py` and `scripts/assemble_family_evidence.py`:
   producer-job and artifact-only aggregation stages. The latter verifies
-  content-addressed outputs and never checks out or executes a family repo.
+  the bounded v2 content-addressed envelope (exact membership, digests,
+  sizes, path/link checks, and revision bindings) and never checks out or
+  executes a family repo.
 - `schemas/family-integration-evidence.schema.json` and
   `schemas/development-pressure-evidence.schema.json`: public machine
   contracts for family observations and unresolved MNCDS-shaped obligations.
@@ -170,6 +172,21 @@ docs/                 Architecture and integration notes
 
 The action should not silently invent canonical evidence relationships, rights, or promotion authority. Those belong to the appropriate MNCS-family contract.
 
+## Family protocol membrane
+
+The family protocol separates producer, evidence provider, semantic authority,
+remediation owner, transport authority, and originating project. Producer
+envelopes bind exact raw contract/descriptor/file bytes and revisions; the
+assembler independently validates the complete file set before writing
+integration evidence. Protocol JSON and transport sizes/counts are bounded,
+links and path aliases are rejected, and a declared rights context must carry
+its pinned native authority record. These constraints establish what was
+transported and observed, not that an owner claim is semantically true.
+
+Workflow success and MNCS evidence are separate signals. `UNKNOWN` remains
+visible, Forge isolation gaps remain unknown, and `NOT_REPRODUCED` pressure
+remains unresolved until the owning authority establishes resolution.
+
 ## Presentation badge
 
 `actions/render-badge` is deliberately downstream of aggregation. It maps an
@@ -217,7 +234,7 @@ identity.
 ## Roadmap
 
 1. Stabilize the result and evidence contracts through use in the family repositories.
-2. Carry rights/provenance and validator references without duplicating their models (done for v1 adapters and fixed/candidate family integration).
+2. Carry rights/provenance and validator references without duplicating their models (v2 typed family bindings now cover the pinned rights context).
 3. Extend coordination and ChangeSet coverage beyond the bounded rights-lineage bridge when MNCDS/Commons publish a dedicated stable contract (current provider composition seam and mechanical bridge are implemented).
 4. Add capability-gap and promotion-boundary actions once their owning contracts are stable.
 5. Implement the action logic in MNCS where the language can express it without weakening observability or security (current host-language escape: process execution, filesystem, hashing, GitHub environment, and JSON canonicalization have no safe MNCS expression yet).

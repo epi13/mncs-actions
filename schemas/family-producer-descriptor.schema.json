@@ -2,11 +2,11 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/epi13/mncs-actions/blob/main/schemas/family-producer-descriptor.schema.json",
   "title": "MNCS Actions family producer descriptors",
-  "description": "Versioned data-only declarations for bounded family producer jobs. A descriptor selects an allowlisted adapter and operation; it cannot supply shell code or executable paths outside the operation registry.",
+  "description": "Versioned data-only declarations for bounded family producer jobs. A descriptor selects an allowlisted adapter and operation; it cannot supply shell code or executable paths outside the operation registry. Runtime validation adds cross-field operation/input, family-inventory, path-identity, and authority-role checks that JSON Schema cannot express here.",
   "type": "object",
   "required": ["schema_version", "descriptors"],
   "properties": {
-    "schema_version": { "const": "mncs-actions.family-producer-descriptors/1" },
+    "schema_version": { "const": "mncs-actions.family-producer-descriptors/2" },
     "descriptors": {
       "type": "array",
       "minItems": 1,
@@ -18,15 +18,32 @@
     "safePath": {
       "type": "string",
       "minLength": 1,
+      "maxLength": 512,
       "pattern": "^(?!/)(?!^[A-Za-z]:)(?!.*(^|/)(?:\\.|\\.\\.)(/|$))(?!.*//)(?!.*\\/$)(?!.*\\\\)[^\\u0000-\\u001f\\u007f]+$"
     },
     "output": {
       "type": "object",
-      "required": ["check_id", "provider", "contract_revision"],
+      "required": ["check_id", "provider", "contract_revision", "roles"],
       "properties": {
-        "check_id": { "type": "string", "minLength": 1 },
+        "check_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
         "provider": { "type": "string", "minLength": 1 },
-        "contract_revision": { "type": "string", "minLength": 1 }
+        "contract_revision": { "type": "string", "minLength": 1 },
+        "roles": { "$ref": "#/$defs/roles" }
+      },
+      "additionalProperties": false
+    },
+    "roles": {
+      "type": "object",
+      "required": [
+        "evidence_provider", "semantic_authority", "remediation_owner",
+        "transport_authority", "originating_project"
+      ],
+      "properties": {
+        "evidence_provider": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "semantic_authority": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "remediation_owner": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "transport_authority": { "const": "mncs-actions" },
+        "originating_project": { "type": "string", "minLength": 1, "maxLength": 512 }
       },
       "additionalProperties": false
     },
@@ -43,11 +60,13 @@
         "outputs"
       ],
       "properties": {
-        "producer": { "type": "string", "minLength": 1 },
+        "producer": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
         "repository": { "type": "string", "pattern": "^[^/\\s]+/[^/\\s]+$" },
         "artifact_paths": {
           "type": "array",
           "minItems": 1,
+          "maxItems": 128,
+          "uniqueItems": true,
           "items": { "$ref": "#/$defs/safePath" }
         },
         "contract": {
@@ -71,11 +90,14 @@
         "required_capabilities": {
           "type": "array",
           "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
           "items": {
             "enum": ["python", "mncs-language-binary", "owner-python-package", "owner-compatibility-script", "owner-forge-package"]
           }
         },
         "execution": {
+          "description": "The runtime validator additionally enforces the allowlisted operation-to-input mapping and rejects descriptor-controlled executable arguments.",
           "type": "object",
           "required": ["mode", "operation", "input_paths"],
           "properties": {
@@ -100,7 +122,7 @@
                 "type": "object",
                 "required": ["name", "source_path", "check_id"],
                 "properties": {
-                  "name": { "type": "string", "minLength": 1 },
+                  "name": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
                   "source_path": { "$ref": "#/$defs/safePath" },
                   "check_id": { "type": "string", "minLength": 1 }
                 },
@@ -114,7 +136,20 @@
         "outputs": {
           "type": "array",
           "minItems": 1,
+          "maxItems": 128,
           "items": { "$ref": "#/$defs/output" }
+        },
+        "provenance_context": {
+          "type": "object",
+          "required": ["kind", "authority", "input_key", "transport_name"],
+          "properties": {
+            "kind": { "type": "string", "minLength": 1 },
+            "authority": { "type": "string", "minLength": 1 },
+            "input_key": { "type": "string", "minLength": 1 },
+            "transport_name": { "$ref": "#/$defs/safePath" },
+            "authority_status": { "enum": ["PASS", "FAIL", "UNKNOWN"] }
+          },
+          "additionalProperties": false
         }
       },
       "additionalProperties": false

@@ -86,7 +86,6 @@ def main() -> int:
     if not isinstance(issues, list):
         issues = [str(issues)]
     identity = str(report.get("manifest_identity_expected", ""))
-    identity_matches = report.get("manifest_identity_matches")
 
     summary_parts = [
         f"rights outcome {outcome or '(missing)'} -> {verdict}",
@@ -110,6 +109,7 @@ def main() -> int:
         ref: dict = {
             "kind": "rights-manifest",
             "producer": "mncs-rights-provenance",
+            "authority": "mncs-rights-provenance",
         }
         if args.contract_revision:
             ref["contract_revision"] = args.contract_revision
@@ -119,7 +119,14 @@ def main() -> int:
             ref["path"] = args.manifest_path
         digest = args.manifest_digest or identity
         if digest:
-            ref["digest"] = digest if len(digest) != 64 else digest
+            ref["digest"] = digest
+        ref["authority_status"] = (
+            report.get("authority_status")
+            if report.get("authority_status") in {"PASS", "FAIL", "UNKNOWN"}
+            else "UNKNOWN"
+        )
+        if identity:
+            ref["authority_record_identity"] = identity
         references.append(ref)
 
     check = {

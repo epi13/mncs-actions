@@ -52,6 +52,7 @@ def build_check(
             {
                 "kind": kind,
                 "producer": "mncs-forge-mcp",
+                "authority": "mncs-forge-mcp",
                 "path": "family/forge/" + str(path.relative_to(forge_root)).replace("\\", "/"),
                 "digest": sha256_hex(path.read_bytes()),
             }
@@ -72,7 +73,20 @@ def build_check(
         "references": references,
         "unresolved": list(assessment.reasons),
         "digest": sha256_hex(record_path.read_bytes()),
+        "assurance_projection": {
+            "status": assessment.status,
+            "requested": list(assessment.requested),
+            "enforced": list(assessment.enforced),
+            "unmet": list(assessment.unmet),
+            "policy_binding": "policy-bound" in assessment.enforced,
+            "process_isolation": "process-isolated" in assessment.enforced,
+            "attestation": record.get("attestation", {}),
+            "scope": "declared Forge Cell properties only; no kernel or attestation inference",
+        },
     }
+    limitations = record.get("limitations", [])
+    if isinstance(limitations, list):
+        check["unresolved"].extend(str(item) for item in limitations if str(item))
     if producer_revision:
         check["producer_revision"] = producer_revision
         for reference in references:
