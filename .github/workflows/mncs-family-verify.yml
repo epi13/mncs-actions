@@ -205,7 +205,7 @@ jobs:
       - name: MNCS validation check
         id: mncs
         if: ${{ inputs.mncs-command != '' }}
-        uses: epi13/mncs-actions/actions/run-check@6c38ccbcb11e0712ff52e0063e6c11bd52817ffc
+        uses: epi13/mncs-actions/actions/run-check@f6b70a897632e5c077633be7777847ee9c78feab
         with:
           command: ${{ inputs.mncs-command }}
           check-id: ${{ inputs.mncs-check-id }}
@@ -218,7 +218,7 @@ jobs:
       - name: Rights and provenance check
         id: rights
         if: ${{ inputs.rights-command != '' }}
-        uses: epi13/mncs-actions/actions/run-check@6c38ccbcb11e0712ff52e0063e6c11bd52817ffc
+        uses: epi13/mncs-actions/actions/run-check@f6b70a897632e5c077633be7777847ee9c78feab
         with:
           command: ${{ inputs.rights-command }}
           check-id: ${{ inputs.rights-check-id }}
@@ -231,7 +231,7 @@ jobs:
       - name: Project verification check
         id: project
         if: ${{ inputs.project-command != '' }}
-        uses: epi13/mncs-actions/actions/run-check@6c38ccbcb11e0712ff52e0063e6c11bd52817ffc
+        uses: epi13/mncs-actions/actions/run-check@f6b70a897632e5c077633be7777847ee9c78feab
         with:
           command: ${{ inputs.project-command }}
           check-id: ${{ inputs.project-check-id }}
@@ -249,7 +249,7 @@ jobs:
       # generic aggregate action is strict about its explicit inputs.
       - name: Aggregate family verdict
         id: aggregate
-        uses: epi13/mncs-actions/actions/aggregate@6c38ccbcb11e0712ff52e0063e6c11bd52817ffc
+        uses: epi13/mncs-actions/actions/aggregate@f6b70a897632e5c077633be7777847ee9c78feab
         with:
           checks: >-
             ${{ inputs.mncs-command != '' && inputs.mncs-result-file || '' }}
@@ -269,7 +269,7 @@ jobs:
       - name: Render family badge
         id: badge
         if: always()
-        uses: epi13/mncs-actions/actions/render-badge@6c38ccbcb11e0712ff52e0063e6c11bd52817ffc
+        uses: epi13/mncs-actions/actions/render-badge@f6b70a897632e5c077633be7777847ee9c78feab
         with:
           verdict: ${{ steps.aggregate.outputs.verdict || 'INVALID' }}
           label: ${{ inputs.badge-label }}
