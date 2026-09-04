@@ -1,0 +1,22 @@
+{
+  "schema_version": "mncds-obligation-record/0.2",
+  "obligation_key": "pressure.mncs.promotion-adoption.optional",
+  "status": "open",
+  "required": false,
+  "subject": {
+    "repository": "epi13/machine-native-complexity-standard",
+    "commit": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0"
+  },
+  "origin": {
+    "kind": "development-pressure",
+    "authority": "mncs-family-promotion",
+    "pressure_id": "pressure-mncs-promotion-adoption"
+  },
+  "evidence": [],
+  "supersedes": null,
+  "extensions": {
+    "io.github.epi13:mncs": {
+      "summary": "Standing optional pressure: extend repository-owned promotion adoption (producer-revision allowlisting, second-consumer generalization) without weakening the boundary. Open and optional by design: visible in unresolved, never deciding."
+    }
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "schema_version": "mncds-obligation-record/0.2",
+  "obligation_key": "pressure.mncds.promotion-integration.required",
+  "status": "resolved",
+  "required": true,
+  "subject": {
+    "repository": "epi13/machine-native-complexity-development-specification",
+    "commit": "ec6232fe35de541639c13068addc10bfa18c3aa9"
+  },
+  "origin": {
+    "kind": "development-pressure",
+    "authority": "mncs-family-promotion",
+    "pressure_id": "pressure-mncds-promotion-integration"
+  },
+  "resolution": {
+    "resolution": "fixed",
+    "evidence_refs": [
+      "sha256:fb9bd1f841547e403a2730b277b87065ef8233291f69bf4ff886621fafc88d99",
+      "sha256:1207b5cd55252d7f013d1b47433790a417c97aec465cd586e2510d0acb9a8c5e",
+      "sha256:36b5192200f56f7833ecc412804cb8372d59368b9550b4c103353e276e25af7c"
+    ],
+    "resolved_by": "epi13/machine-native-complexity-development-specification",
+    "resolved_at": "2026-09-04T00:00:00Z"
+  },
+  "evidence": [
+    "sha256:0647e0fc372b7598e56fd2e4758f6273d26b82ed3f41834ad77fb2c1c58918aa"
+  ],
+  "supersedes": null,
+  "extensions": {
+    "io.github.epi13:mncds": {
+      "summary": "Adopt the repository-owned promotion pattern: owner-native obligation evaluator (src/mncds_validator/obligations.py), repository-owned development record, promotion boundary, and reusable-workflow consumption. Evidence refs are the digests of promotion/mncds-promotion.boundary.json, promotion/mncds-promotion-integration.development-record.json, and .github/workflows/promotion.yml as authored in this tranche."
+    }
+  }
+}

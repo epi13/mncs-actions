@@ -1,0 +1,430 @@
+{
+  "affectedContracts": [],
+  "apiVersion": "commons.mncs.dev/v0alpha1",
+  "confidence": {
+    "level": "unreported",
+    "rationale": "coordination only; carried claims carry their own verdicts"
+  },
+  "contentDigest": "sha256:a17c3c6903537bf41e4d80b58aca37bc774102c0d065206da2222cf82ddc6693",
+  "dependencies": [],
+  "details": {
+    "authorityBoundary": "coordination relationships only; development-process semantics stay in MNCDS, promotion semantics stay in MNCS, and no conformance verdict is inferred from component records",
+    "baseRevisions": [
+      {
+        "commit": "422540a4d50a763be3dbeeb0a88fd2ee4c272ce9",
+        "repository": "epi13/MNCS-Commons"
+      },
+      {
+        "commit": "805f821f4eea457c3940274750b21774c487d9a1",
+        "repository": "epi13/mncs-forge-mcp"
+      },
+      {
+        "commit": "ec6232fe35de541639c13068addc10bfa18c3aa9",
+        "repository": "epi13/machine-native-complexity-development-specification"
+      },
+      {
+        "commit": "f9a28b36dce3d4588bf591d8dec3bfe6f7b6e875",
+        "repository": "epi13/mncs-actions"
+      },
+      {
+        "commit": "4f3146a97f92389490d3e8dffdf08266e3390968",
+        "repository": "epi13/mncs-language"
+      },
+      {
+        "commit": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+        "repository": "epi13/machine-native-complexity-standard"
+      },
+      {
+        "commit": "2b43fcf9555a55d4635d343f0d2d9c7191c1dab2",
+        "repository": "epi13/mncs-rights-provenance"
+      }
+    ],
+    "changesetId": "changeset.family-graph-2",
+    "predecessorGraph": "fdcb32134e82404e3b9c2fcb187732487e586fb70f6c941b566d3655c6de7956",
+    "references": [
+      {
+        "group": "promotes",
+        "reference": {
+          "contentDigest": "sha256:2aeefa3b0810fd870cf38f98cae95f461dc64b3832a90a04b4fb560d6613acf7",
+          "producer": "mncs-promotion-boundary",
+          "recordKind": "check-result",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "0.1",
+          "stableId": "mncs://check-result/family-advancement"
+        },
+        "relation": "promotes"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:162822a6b0e9fb041823de6ce43317cc9df7fca362fecaa63c18a936273a9005",
+          "producer": "mncds",
+          "recordKind": "obligation-record",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "0.2",
+          "scope": {
+            "commit": "ec6232fe35de541639c13068addc10bfa18c3aa9",
+            "repository": "epi13/machine-native-complexity-development-specification"
+          },
+          "stableId": "mncds://obligation/pressure.mncds.promotion-integration.required"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:5bf4fe0bc449a64dbf245a3d889191375a5c6416f7e761dd9b397617118df966",
+          "producer": "mncds",
+          "recordKind": "obligation-record",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "0.2",
+          "scope": {
+            "commit": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+            "repository": "epi13/machine-native-complexity-standard"
+          },
+          "stableId": "mncds://obligation/pressure.mncs.promotion-adoption.optional"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:417c99a182b2af7fd06ef993d6f9034156fb6005d9abb85eedb501218b3fa6c6",
+          "producer": "mncds",
+          "recordKind": "obligation-record",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "0.2",
+          "scope": {
+            "commit": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+            "repository": "epi13/machine-native-complexity-standard"
+          },
+          "stableId": "mncds://obligation/pressure.mncs.promotion-self-reference.required"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:13dc4a20c3778142729ed4fd11ce96c18236fe55a0ae17869fe253badb6463e1",
+          "producer": "MNCS-Commons",
+          "recordKind": "check-result",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "0.1",
+          "scope": {
+            "commit": "422540a4d50a763be3dbeeb0a88fd2ee4c272ce9",
+            "repository": "epi13/MNCS-Commons"
+          },
+          "stableId": "mncs://check-result/commons-family-compatibility"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:8b9507735e2f97fa573f7f96323c1becc3b1fce5f8b86159375a4c7ed286aa21",
+          "producer": "mncs-forge-mcp",
+          "recordKind": "check-result",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "0.1",
+          "scope": {
+            "commit": "805f821f4eea457c3940274750b21774c487d9a1",
+            "repository": "epi13/mncs-forge-mcp"
+          },
+          "stableId": "mncs://check-result/forge-cell-contract"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:d2293f834e18be0dcfc77bd14933582ab9a22315aeda56687b5519355110b9cc",
+          "producer": "mncds",
+          "recordKind": "check-result",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "0.2-alpha.1",
+          "scope": {
+            "commit": "ec6232fe35de541639c13068addc10bfa18c3aa9",
+            "repository": "epi13/machine-native-complexity-development-specification"
+          },
+          "stableId": "mncs://check-result/mncds-development-record"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:dd9794b79744559836a408a88eb63c3d1d0d0c968aa320ed8fca882cfac7c724",
+          "producer": "mncs-language",
+          "recordKind": "check-result",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "mncs:language:compilation-study-result:0.1",
+          "scope": {
+            "commit": "4f3146a97f92389490d3e8dffdf08266e3390968",
+            "repository": "epi13/mncs-language"
+          },
+          "stableId": "mncs://check-result/mncs-language-acceptance"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:7e88cb5a507bccd4c9bf03470a7d013fe76b8832cb63666dc62d51f46d4ef256",
+          "producer": "mncs-language",
+          "recordKind": "check-result",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "mncs:language:compilation-study-result:0.1",
+          "scope": {
+            "commit": "4f3146a97f92389490d3e8dffdf08266e3390968",
+            "repository": "epi13/mncs-language"
+          },
+          "stableId": "mncs://check-result/mncs-language-artifact-envelope"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:58bb723c93cda95bc6d3ec412cb1b0dce18aa58e3954137275fcc051176b9d98",
+          "producer": "mncs-language",
+          "recordKind": "check-result",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "mncs:language:compilation-study-result:0.1",
+          "scope": {
+            "commit": "4f3146a97f92389490d3e8dffdf08266e3390968",
+            "repository": "epi13/mncs-language"
+          },
+          "stableId": "mncs://check-result/mncs-language-changeset-boundary"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:c43ec898d090b74026f39fc91cf29e748f2b65a0096b1125aaa9b6c89dbf1079",
+          "producer": "mncs-language",
+          "recordKind": "check-result",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "mncs:language:compilation-study-result:0.1",
+          "scope": {
+            "commit": "4f3146a97f92389490d3e8dffdf08266e3390968",
+            "repository": "epi13/mncs-language"
+          },
+          "stableId": "mncs://check-result/mncs-language-family-boundary"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:dd4effa5f3171c0e5d52cae29c5d637b8812be2a146c5fa1d8e888186dc2be6f",
+          "producer": "mncs-language",
+          "recordKind": "check-result",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "mncs:language:compilation-study-result:0.1",
+          "scope": {
+            "commit": "4f3146a97f92389490d3e8dffdf08266e3390968",
+            "repository": "epi13/mncs-language"
+          },
+          "stableId": "mncs://check-result/mncs-language-graph-coherence"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:369a1b4b5a7a10691a3a84ee954f5fedf4cbca5f52d1783ccc209957a7652672",
+          "producer": "mncs-language",
+          "recordKind": "check-result",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "mncs:language:compilation-study-result:0.1",
+          "scope": {
+            "commit": "4f3146a97f92389490d3e8dffdf08266e3390968",
+            "repository": "epi13/mncs-language"
+          },
+          "stableId": "mncs://check-result/mncs-language-promotion-boundary"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:a22c53d6a809cc08bf7f80edf1181fa981d4c8c93effbbbb900554da8ddaa0ff",
+          "producer": "mncs-language",
+          "recordKind": "check-result",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "mncs:language:compilation-study-result:0.1",
+          "scope": {
+            "commit": "4f3146a97f92389490d3e8dffdf08266e3390968",
+            "repository": "epi13/mncs-language"
+          },
+          "stableId": "mncs://check-result/mncs-language-rights-projection"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:58171759c43d09eee6cbb40bb568f786adaeb80263f7968ef7decaaa1518e1a6",
+          "producer": "mncs-validator-rs",
+          "recordKind": "check-result",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "0.2",
+          "scope": {
+            "commit": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+            "repository": "epi13/machine-native-complexity-standard"
+          },
+          "stableId": "mncs://check-result/mncs-validation"
+        },
+        "relation": "supports"
+      },
+      {
+        "group": "supports",
+        "reference": {
+          "contentDigest": "sha256:08a073994435b740924b73f1925320febb062d10e0fc1f6f54d3a7995c495145",
+          "producer": "mncs-rights-provenance",
+          "recordKind": "check-result",
+          "schema": "commons.mncs.dev/producer-reference/v0alpha1",
+          "schemaVersion": "0.3.0",
+          "scope": {
+            "commit": "2b43fcf9555a55d4635d343f0d2d9c7191c1dab2",
+            "repository": "epi13/mncs-rights-provenance"
+          },
+          "stableId": "mncs://check-result/rights-provenance"
+        },
+        "relation": "supports"
+      }
+    ],
+    "schema": "commons.mncs.dev/changeset/v0alpha1"
+  },
+  "evidence": [],
+  "kind": "ChangeSet",
+  "lifecycle": {
+    "initialState": "proposed",
+    "reviewWhen": []
+  },
+  "metadata": {
+    "author": {
+      "id": "MNCS-Commons",
+      "type": "producer"
+    },
+    "createdAt": "2026-09-04T20:08:53.615229Z",
+    "labels": [
+      "changeset",
+      "family-record-spine"
+    ],
+    "recordId": "changeset:changeset.family-graph-2"
+  },
+  "provenance": {
+    "producer": {
+      "id": "MNCS-Commons",
+      "type": "producer"
+    },
+    "sourceRecords": [
+      "mncs://check-result/family-advancement",
+      "mncds://obligation/pressure.mncds.promotion-integration.required",
+      "mncds://obligation/pressure.mncs.promotion-adoption.optional",
+      "mncds://obligation/pressure.mncs.promotion-self-reference.required",
+      "mncs://check-result/commons-family-compatibility",
+      "mncs://check-result/forge-cell-contract",
+      "mncs://check-result/mncds-development-record",
+      "mncs://check-result/mncs-language-acceptance",
+      "mncs://check-result/mncs-language-artifact-envelope",
+      "mncs://check-result/mncs-language-changeset-boundary",
+      "mncs://check-result/mncs-language-family-boundary",
+      "mncs://check-result/mncs-language-graph-coherence",
+      "mncs://check-result/mncs-language-promotion-boundary",
+      "mncs://check-result/mncs-language-rights-projection",
+      "mncs://check-result/mncs-validation",
+      "mncs://check-result/rights-provenance"
+    ]
+  },
+  "relationships": [
+    {
+      "target": "mncs://check-result/family-advancement",
+      "type": "promotion/promotes"
+    },
+    {
+      "target": "mncds://obligation/pressure.mncds.promotion-integration.required",
+      "type": "supports"
+    },
+    {
+      "target": "mncds://obligation/pressure.mncs.promotion-adoption.optional",
+      "type": "supports"
+    },
+    {
+      "target": "mncds://obligation/pressure.mncs.promotion-self-reference.required",
+      "type": "supports"
+    },
+    {
+      "target": "mncs://check-result/commons-family-compatibility",
+      "type": "supports"
+    },
+    {
+      "target": "mncs://check-result/forge-cell-contract",
+      "type": "supports"
+    },
+    {
+      "target": "mncs://check-result/mncds-development-record",
+      "type": "supports"
+    },
+    {
+      "target": "mncs://check-result/mncs-language-acceptance",
+      "type": "supports"
+    },
+    {
+      "target": "mncs://check-result/mncs-language-artifact-envelope",
+      "type": "supports"
+    },
+    {
+      "target": "mncs://check-result/mncs-language-changeset-boundary",
+      "type": "supports"
+    },
+    {
+      "target": "mncs://check-result/mncs-language-family-boundary",
+      "type": "supports"
+    },
+    {
+      "target": "mncs://check-result/mncs-language-graph-coherence",
+      "type": "supports"
+    },
+    {
+      "target": "mncs://check-result/mncs-language-promotion-boundary",
+      "type": "supports"
+    },
+    {
+      "target": "mncs://check-result/mncs-language-rights-projection",
+      "type": "supports"
+    },
+    {
+      "target": "mncs://check-result/mncs-validation",
+      "type": "supports"
+    },
+    {
+      "target": "mncs://check-result/rights-provenance",
+      "type": "supports"
+    }
+  ],
+  "scope": {
+    "context": {
+      "baseRevisionCount": 7,
+      "changesetId": "changeset.family-graph-2"
+    },
+    "limitations": [
+      "coordination status only; carried claims retain native owner semantics"
+    ]
+  },
+  "security": {
+    "executableAttachments": false,
+    "instructionsAreUntrusted": true,
+    "requiredExternalAuthority": false,
+    "sensitivity": "public"
+  },
+  "statement": {
+    "summary": "Family graph family-graph-2 (659dc7f1e61e): promotion PASS over 7 exact member revisions; related, not decided, by Commons"
+  },
+  "subject": {
+    "identity": "changeset.family-graph-2",
+    "type": "changeset"
+  }
+}

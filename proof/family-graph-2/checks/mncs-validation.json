@@ -1,0 +1,13 @@
+{
+  "contract_revision": "0.2",
+  "id": "mncs-validation",
+  "producer_revision": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+  "provider": "mncs-validator-rs",
+  "schema_version": "mncs.check-result/1",
+  "subject": {
+    "commit": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+    "repository": "epi13/machine-native-complexity-standard"
+  },
+  "summary": "validator valid=True status=PASS -> PASS; checked_files=14; issues=0",
+  "verdict": "PASS"
+}

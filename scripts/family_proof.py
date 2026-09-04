@@ -43,6 +43,7 @@ Usage:
   family_proof.py verify-accepted --proof DIR --boundary-template T.json
       --evaluator EVAL --commons-root CROOT [--lib-dir DIR]
       [--coherence-path PATH] [--checkouts-root DIR] [--previous-proof DIR]
+  family_proof.py publish-commons --proof DIR --commons-checkout DIR
 """
 
 from __future__ import annotations
@@ -376,6 +377,14 @@ def cmd_build_proof(args: argparse.Namespace) -> int:
         if previous.get("graph_digest") != predecessor["graph_digest"]:
             raise GraphError("previous proof is for a different predecessor graph")
         predecessor["proof_digest"] = previous.get("proof_digest")
+    else:
+        # First bundle after the proof model exists: the predecessor was
+        # accepted before bundles existed, so there is nothing to chain.
+        # The null link plus this note is the documented genesis case.
+        predecessor["note"] = (
+            f"predecessor {graph['base']['graph_id']} accepted before "
+            "the proof model existed; no prior bundle to chain"
+        )
 
     tool_digests = _tool_digests(Path(args.evaluator_path), Path(args.commons_root))
     manifest = {
@@ -450,6 +459,93 @@ def cmd_build_proof(args: argparse.Namespace) -> int:
     print(
         f"proof {manifest['graph_id']} tier={acceptance['tier']} "
         f"-> {out} ({manifest['proof_digest'][:12]})"
+    )
+    return 0
+
+
+PUBLISH_CHANGESETS_DIR = Path("family/changesets")
+
+
+def cmd_publish_commons(args: argparse.Namespace) -> int:
+    """Stage a proof bundle's ChangeSet for publication in Commons.
+
+    Transport only, append-only: re-derives the owner content digest
+    with the owner-native Commons code from the target checkout,
+    checks the manifest binding, and writes the bundle bytes verbatim
+    to ``family/changesets/<changeset-id>.json`` inside the checkout.
+    An existing different record refuses (never overwrite published
+    history); identical bytes are a no-op. Merging the staged file
+    stays human governance; Commons validators decide validity.
+    """
+    proof_dir = Path(args.proof)
+    manifest = _read(proof_dir / "proof.json", "proof manifest")
+    if manifest.get("schema_version") != PROOF_SCHEMA:
+        raise GraphError(
+            f"proof schema_version must be {PROOF_SCHEMA}, "
+            f"got {manifest.get('schema_version')!r}"
+        )
+    graph_id = manifest.get("graph_id", "")
+    expected_id = f"changeset.{graph_id}"
+    if manifest.get("commons", {}).get("changeset_id") != expected_id:
+        raise GraphError("manifest commons binding is not for this graph")
+    try:
+        record_raw = (proof_dir / "commons-record.json").read_bytes()
+    except OSError as exc:
+        raise GraphError(f"bundle commons record unreadable: {exc}") from exc
+    try:
+        record = json.loads(record_raw.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise GraphError(f"bundle commons record is not JSON: {exc}") from exc
+    details = record.get("details", {})
+    if details.get("changesetId") != expected_id:
+        raise GraphError("bundle commons record id does not match the manifest")
+    checkout = Path(args.commons_checkout)
+    if not (checkout / "src" / "mncs_commons" / "validation.py").is_file():
+        raise GraphError(f"not a Commons checkout: {checkout}")
+    _no_temp_paths(record, "commons record")
+    _no_temp_paths(manifest.get("commons", {}), "manifest commons binding")
+    _stamped, digest = _commons_content_digest(record, checkout)
+    if digest != manifest["commons"].get("content_digest"):
+        raise GraphError(
+            "recomputed Commons content digest does not match the manifest binding"
+        )
+    head = None
+    if (checkout / ".git").exists():
+        try:
+            head = subprocess.run(
+                ["git", "-C", str(checkout), "rev-parse", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            ).stdout.strip()
+        except (
+            OSError,
+            subprocess.CalledProcessError,
+            subprocess.TimeoutExpired,
+        ) as exc:
+            raise GraphError(f"cannot resolve Commons checkout HEAD: {exc}") from exc
+        recorded = manifest.get("generators", {}).get("commons_validator", {})
+        if head != recorded.get("commit"):
+            raise GraphError(
+                "Commons checkout is not at the recorded validator revision "
+                f"(checkout {head[:12] if head else '?'}, "
+                f"recorded {str(recorded.get('commit', ''))[:12]})"
+            )
+    dest = checkout / PUBLISH_CHANGESETS_DIR / f"{expected_id}.json"
+    if dest.is_file():
+        if dest.read_bytes() != record_raw:
+            raise GraphError(
+                f"refusing to overwrite published {dest}: bytes differ "
+                "(published history is append-only)"
+            )
+        print(f"commons publication already staged: {dest}")
+        return 0
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(record_raw)
+    print(
+        f"commons publication staged: {dest} "
+        f"({manifest['commons']['content_digest'][:19]}...)"
     )
     return 0
 
@@ -1336,6 +1432,14 @@ def cmd_verify_accepted(args: argparse.Namespace) -> int:
             graph.get("base", {}).get("graph_id") == predecessor.get("graph_id"),
             "graph base id does not match the manifest predecessor",
         )
+    if (
+        not getattr(args, "previous_proof", "")
+        and predecessor.get("proof_digest") is None
+    ):
+        refusals.check(
+            isinstance(predecessor.get("note"), str) and predecessor["note"].strip(),
+            "null predecessor link carries no documented reason",
+        )
     if getattr(args, "previous_proof", ""):
         try:
             previous = json.loads(
@@ -1448,6 +1552,11 @@ def _build_parser() -> argparse.ArgumentParser:
     build_parser.add_argument("--previous-proof", default="")
     build_parser.add_argument("--output-dir", required=True)
 
+    publish_parser = subparsers.add_parser(
+        "publish-commons", help="stage a bundle ChangeSet for Commons publication"
+    )
+    publish_parser.add_argument("--proof", required=True)
+    publish_parser.add_argument("--commons-checkout", required=True)
     replay_parser = subparsers.add_parser(
         "verify-accepted", help="independently replay an acceptance proof bundle"
     )
@@ -1476,6 +1585,8 @@ def main(argv: list[str] | None = None) -> int:
             return cmd_build_proof(args)
         if args.command == "verify-accepted":
             return cmd_verify_accepted(args)
+        if args.command == "publish-commons":
+            return cmd_publish_commons(args)
     except GraphError as exc:
         print(f"family proof REFUSED: {exc}", file=sys.stderr)
         return 2

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://github.com/epi13/mncs-actions/schemas/family-capability.schema.json",
+  "title": "MNCS family pin capability map",
+  "description": "Advancement tooling policy (mncs-actions orchestrates; owners may override per repository with promotion/capability-map.json in their own tree). Maps changed paths to impact classes so the coherence analyzer can classify whether a downstream pin must advance. Impact lattice: executable/contract -> REQUIRED, evidence -> OPTIONAL, docs/none -> NOT_REQUIRED, unmapped paths -> UNKNOWN (fail closed, blocks automatic advancement).",
+  "impacts": {
+    "executable": "REQUIRED",
+    "contract": "REQUIRED",
+    "evidence": "OPTIONAL",
+    "docs": "NOT_REQUIRED",
+    "none": "NOT_REQUIRED"
+  },
+  "floors": [
+    {
+      "id": "evaluator.graph-mode",
+      "repo": "epi13/machine-native-complexity-standard",
+      "min_revision": "a5eb1ae6aef99a206ae77dbb89917c1f6e251ec4",
+      "reason": "graph promotion needs --subject-graph member binding"
+    },
+    {
+      "id": "mncds.evaluate-obligations",
+      "repo": "epi13/machine-native-complexity-development-specification",
+      "min_revision": "3157150da572b6916b945a41c9c28badcd21ec65",
+      "reason": "graph obligations need the owner-native obligation evaluator"
+    }
+  ],
+  "pins": {
+    "epi13/machine-native-complexity-development-specification": [
+      {
+        "edge": "transport",
+        "target": "epi13/mncs-actions",
+        "files": [".github/workflows/promotion.yml", "scripts/mncds-check.sh", "scripts/mncds-obligations-check.sh"],
+        "patterns": ["MNC_ACTIONS_PIN:?=?\\s*['\"]?(?P<sha>[0-9a-f]{40})", "mncs-family-verify\\.yml@(?P<sha>[0-9a-f]{40})"]
+      },
+      {
+        "edge": "evaluator",
+        "target": "epi13/machine-native-complexity-standard",
+        "files": [".github/workflows/promotion.yml"],
+        "patterns": ["origin\\s+(?P<sha>[0-9a-f]{40})", "checkout -q\\s+(?P<sha>[0-9a-f]{40})"]
+      }
+    ],
+    "epi13/machine-native-complexity-standard": [
+      {
+        "edge": "transport",
+        "target": "epi13/mncs-actions",
+        "files": [".github/workflows/promotion.yml", "scripts/mncs-check.sh", "scripts/mncds-obligations-check.sh"],
+        "patterns": ["MNC_ACTIONS_PIN:?=?\\s*['\"]?(?P<sha>[0-9a-f]{40})", "mncs-family-verify\\.yml@(?P<sha>[0-9a-f]{40})"]
+      },
+      {
+        "edge": "contract",
+        "target": "epi13/machine-native-complexity-development-specification",
+        "files": ["scripts/mncds-obligations-check.sh"],
+        "patterns": ["specification@(?P<sha>[0-9a-f]{40})", "MNDS_PIN=\"(?P<sha>[0-9a-f]{40})\""]
+      }
+    ]
+  },
+  "capabilities": {
+    "epi13/mncs-actions": [
+      {"paths": ["actions/", ".github/workflows/mncs-family-verify.yml", "adapters/", "lib/"], "impact": "executable"},
+      {"paths": ["schemas/", "family-producer-descriptors.json"], "impact": "contract"},
+      {"paths": ["scripts/", "pressure/", "promotion/", "family-capability.json", ".github/workflows/family-graph-advance.yml", "requirements-dev.lock", "requirements-dev.txt"], "impact": "evidence"},
+      {"paths": ["docs/", "examples/", "README.md", "CONTRIBUTING.md", "SECURITY.md"], "impact": "docs"},
+      {"paths": ["tests/", ".github/workflows/ci.yml", ".github/workflows/family-contract-canary.yml", ".github/workflows/family-contract-advance.yml", ".github/workflows/moving-head-family-drift.yml", ".github/workflows/promotion-dogfood.yml", "family-contracts.json", "family-graph-accepted.json", "proof/", "revision-binding.json", ".gitignore", "LICENSE"], "impact": "none"}
+    ],
+    "epi13/machine-native-complexity-standard": [
+      {"paths": ["scripts/mncs_promotion_evaluate.py"], "impact": "executable"},
+      {"paths": ["schemas/mncs-promotion-boundary"], "impact": "contract"},
+      {"paths": ["docs/"], "impact": "docs"},
+      {"paths": ["tests/", "promotion/", "examples/"], "impact": "none"}
+    ],
+    "epi13/machine-native-complexity-development-specification": [
+      {"paths": ["src/mncds_validator/"], "impact": "executable"},
+      {"paths": ["schemas/"], "impact": "contract"},
+      {"paths": ["promotion/", "examples/"], "impact": "evidence"},
+      {"paths": ["docs/"], "impact": "docs"},
+      {"paths": ["tests/", "conformance/", "scripts/"], "impact": "none"}
+    ]
+  }
+}

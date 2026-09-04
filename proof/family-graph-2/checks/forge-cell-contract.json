@@ -1,0 +1,68 @@
+{
+  "assurance_projection": {
+    "attestation": {
+      "kind": "none",
+      "nonce_binding": false,
+      "verification_status": "ABSENT"
+    },
+    "enforced": [
+      "policy-bound"
+    ],
+    "policy_binding": true,
+    "process_isolation": false,
+    "requested": [
+      "policy-bound",
+      "process-isolated"
+    ],
+    "scope": "declared Forge Cell properties only; no kernel or attestation inference",
+    "status": "UNKNOWN",
+    "unmet": [
+      "process-isolated"
+    ]
+  },
+  "claim": "Forge-owned Forge Cell validation and assurance projection were executed",
+  "contract_revision": "0.1",
+  "digest": "5c9982b94cd7f443ac45445e95ca94b3032712babcdf71e62e5fa0489eef9fbc",
+  "id": "forge-cell-contract",
+  "producer_revision": "805f821f4eea457c3940274750b21774c487d9a1",
+  "provider": "mncs-forge-mcp",
+  "references": [
+    {
+      "authority": "mncs-forge-mcp",
+      "digest": "5c47de78169a246fe25c2765a81d385f7f48c7d8ab111e896c08ca545f6b3cb1",
+      "kind": "forge-policy",
+      "path": "family/forge/examples/forge-cell/policy.json",
+      "producer": "mncs-forge-mcp",
+      "producer_revision": "805f821f4eea457c3940274750b21774c487d9a1"
+    },
+    {
+      "authority": "mncs-forge-mcp",
+      "digest": "24ee8fbd36855ec0f1a95b220fe0d690d3ca830c9fc9c181b35b4c5534fad9d1",
+      "kind": "forge-test-bundle",
+      "path": "family/forge/examples/forge-cell/test-bundle.json",
+      "producer": "mncs-forge-mcp",
+      "producer_revision": "805f821f4eea457c3940274750b21774c487d9a1"
+    },
+    {
+      "authority": "mncs-forge-mcp",
+      "digest": "5c9982b94cd7f443ac45445e95ca94b3032712babcdf71e62e5fa0489eef9fbc",
+      "kind": "forge-execution-record",
+      "path": "family/forge/examples/forge-cell/execution-record.json",
+      "producer": "mncs-forge-mcp",
+      "producer_revision": "805f821f4eea457c3940274750b21774c487d9a1"
+    }
+  ],
+  "schema_version": "mncs.check-result/1",
+  "scope": "forge-cell-schema-and-assurance-boundary",
+  "subject": {
+    "commit": "805f821f4eea457c3940274750b21774c487d9a1",
+    "repository": "epi13/mncs-forge-mcp"
+  },
+  "summary": "Forge execution result=PASS; assurance=UNKNOWN; enforced=['policy-bound']; unmet=['process-isolated']",
+  "unresolved": [
+    "requested assurance was not established: process-isolated",
+    "This reference record demonstrates that a test PASS can coexist with UNKNOWN isolation assurance.",
+    "No operating-system sandbox or external attestation was used."
+  ],
+  "verdict": "UNKNOWN"
+}

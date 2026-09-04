@@ -1,0 +1,55 @@
+{
+  "schema_version": "mncs-actions.family-contracts/1",
+  "purpose": "Deterministic hosted canary inputs; revisions are explicit and are not moving-head evidence.",
+  "repositories": [
+    {
+      "name": "mncs-standard",
+      "repository": "epi13/machine-native-complexity-standard",
+      "revision": "bc45a4d72371d721591d080978a3f242ef319a84",
+      "checkout_path": "family/mncs-standard",
+      "artifacts": ["examples/minimal/manifest.json"]
+    },
+    {
+      "name": "rights-provenance",
+      "repository": "epi13/mncs-rights-provenance",
+      "revision": "2b43fcf9555a55d4635d343f0d2d9c7191c1dab2",
+      "checkout_path": "family/rights-provenance",
+      "artifacts": [
+        "schemas/v0.3/lineage-record.schema.json",
+        "examples/v0.3/lineage-record-example.json",
+        "dogfood/human-specification.json"
+      ]
+    },
+    {
+      "name": "mncds",
+      "repository": "epi13/machine-native-complexity-development-specification",
+      "revision": "702013444d9b5d482b3f3df671564efcf6347fb5",
+      "checkout_path": "family/mncds",
+      "artifacts": [
+        "schemas/mncds-development-record-0.2-alpha.schema.json",
+        "examples/mncds-0.2-alpha/language-span-fix.development-record.json"
+      ]
+    },
+    {
+      "name": "commons",
+      "repository": "epi13/MNCS-Commons",
+      "revision": "422540a4d50a763be3dbeeb0a88fd2ee4c272ce9",
+      "checkout_path": "family/commons",
+      "artifacts": ["compat/family-record-producers.json"]
+    },
+    {
+      "name": "mncs-language",
+      "repository": "epi13/mncs-language",
+      "revision": "4f3146a97f92389490d3e8dffdf08266e3390968",
+      "checkout_path": "family/mncs-language",
+      "artifacts": ["crates/mncs-model/src/compiler.rs"]
+    },
+    {
+      "name": "forge",
+      "repository": "epi13/mncs-forge-mcp",
+      "revision": "805f821f4eea457c3940274750b21774c487d9a1",
+      "checkout_path": "family/forge",
+      "artifacts": ["examples/forge-cell/execution-record.json"]
+    }
+  ]
+}

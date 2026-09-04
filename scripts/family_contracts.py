@@ -76,7 +76,13 @@ def _read(path: Path) -> dict[str, Any]:
         )
     except ContractError:
         raise
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError) as exc:
+    except (
+        OSError,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        RecursionError,
+        ValueError,
+    ) as exc:
         raise ContractError(f"cannot read contract document {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise ContractError(f"contract document must be an object: {path}")
@@ -123,19 +129,26 @@ def _common_entry(entry: Any, index: int) -> dict[str, Any]:
             raise ContractError(f"{label}.{field} is required")
     if not isinstance(entry["name"], str) or not IDENTIFIER_RE.fullmatch(entry["name"]):
         raise ContractError(f"{label}.name must be a bounded identifier")
-    if not isinstance(entry["repository"], str) or len(entry["repository"]) > MAX_CONTRACT_PATH_LENGTH or not re.fullmatch(
-        r"[^/\s]+/[^/\s]+", entry["repository"]
+    if (
+        not isinstance(entry["repository"], str)
+        or len(entry["repository"]) > MAX_CONTRACT_PATH_LENGTH
+        or not re.fullmatch(r"[^/\s]+/[^/\s]+", entry["repository"])
     ):
         raise ContractError(f"{label}.repository must be an owner/repository slug")
     _safe_relative_path(entry["checkout_path"], f"{label}.checkout_path")
     artifacts = entry["artifacts"]
-    if not isinstance(artifacts, list) or not artifacts or len(artifacts) > 128 or not all(
-        isinstance(item, str) and item for item in artifacts
+    if (
+        not isinstance(artifacts, list)
+        or not artifacts
+        or len(artifacts) > 128
+        or not all(isinstance(item, str) and item for item in artifacts)
     ):
         raise ContractError(f"{label}.artifacts must be a non-empty string array")
     for artifact in artifacts:
         _safe_relative_path(artifact, f"{label}.artifacts[]")
-    identities = [unicodedata.normalize("NFC", artifact).casefold() for artifact in artifacts]
+    identities = [
+        unicodedata.normalize("NFC", artifact).casefold() for artifact in artifacts
+    ]
     if len(set(identities)) != len(identities):
         raise ContractError(f"{label}.artifacts contains ambiguous duplicate paths")
     return entry
@@ -162,10 +175,17 @@ def validate_fixed(document: dict[str, Any]) -> list[dict[str, Any]]:
         path_identity = _portable_identity(entry["checkout_path"])
         if entry["name"] in names or name_identity in name_identities:
             raise ContractError(f"duplicate family repository name: {entry['name']}")
-        if entry["repository"] in repositories or repository_identity in repository_identities:
-            raise ContractError(f"duplicate family repository slug: {entry['repository']}")
+        if (
+            entry["repository"] in repositories
+            or repository_identity in repository_identities
+        ):
+            raise ContractError(
+                f"duplicate family repository slug: {entry['repository']}"
+            )
         if entry["checkout_path"] in paths or path_identity in path_identities:
-            raise ContractError(f"duplicate family checkout path: {entry['checkout_path']}")
+            raise ContractError(
+                f"duplicate family checkout path: {entry['checkout_path']}"
+            )
         names.add(entry["name"])
         repositories.add(entry["repository"])
         paths.add(entry["checkout_path"])
@@ -205,18 +225,29 @@ def validate_candidate(document: dict[str, Any]) -> list[dict[str, Any]]:
     for index, raw in enumerate(entries):
         entry = _common_entry(raw, index)
         _sha(entry.get("base_revision"), f"repositories[{index}].base_revision")
-        _sha(entry.get("candidate_revision"), f"repositories[{index}].candidate_revision")
+        _sha(
+            entry.get("candidate_revision"), f"repositories[{index}].candidate_revision"
+        )
         if entry.get("branch") != branch:
-            raise ContractError(f"repositories[{index}].branch differs from document branch")
+            raise ContractError(
+                f"repositories[{index}].branch differs from document branch"
+            )
         name_identity = _portable_identity(entry["name"])
         repository_identity = _portable_identity(entry["repository"])
         path_identity = _portable_identity(entry["checkout_path"])
         if entry["name"] in names or name_identity in name_identities:
             raise ContractError(f"duplicate family repository name: {entry['name']}")
-        if entry["repository"] in repositories or repository_identity in repository_identities:
-            raise ContractError(f"duplicate family repository slug: {entry['repository']}")
+        if (
+            entry["repository"] in repositories
+            or repository_identity in repository_identities
+        ):
+            raise ContractError(
+                f"duplicate family repository slug: {entry['repository']}"
+            )
         if entry["checkout_path"] in paths or path_identity in path_identities:
-            raise ContractError(f"duplicate family checkout path: {entry['checkout_path']}")
+            raise ContractError(
+                f"duplicate family checkout path: {entry['checkout_path']}"
+            )
         names.add(entry["name"])
         repositories.add(entry["repository"])
         paths.add(entry["checkout_path"])
@@ -233,21 +264,27 @@ def validate_against_fixed(
     fixed_entries = validate_fixed(fixed)
     candidate_entries = validate_candidate(candidate)
     if sha256_hex(canonical_bytes(fixed)) != candidate["base_contract_digest"]:
-        raise ContractError("candidate base_contract_digest does not match fixed contract bytes")
+        raise ContractError(
+            "candidate base_contract_digest does not match fixed contract bytes"
+        )
     if len(fixed_entries) != len(candidate_entries):
         raise ContractError("candidate is missing a fixed family repository")
     fixed_by_name = {item["name"]: item for item in fixed_entries}
     for candidate_entry in candidate_entries:
         fixed_entry = fixed_by_name.get(candidate_entry["name"])
         if fixed_entry is None:
-            raise ContractError(f"candidate contains unknown family repository: {candidate_entry['name']}")
+            raise ContractError(
+                f"candidate contains unknown family repository: {candidate_entry['name']}"
+            )
         for field in ("repository", "checkout_path", "artifacts"):
             if candidate_entry[field] != fixed_entry[field]:
                 raise ContractError(
                     f"candidate {candidate_entry['name']} changed fixed {field} metadata"
                 )
         if candidate_entry["base_revision"] != fixed_entry["revision"]:
-            raise ContractError(f"candidate base revision mismatch for {candidate_entry['name']}")
+            raise ContractError(
+                f"candidate base revision mismatch for {candidate_entry['name']}"
+            )
     return candidate_entries
 
 
@@ -258,7 +295,13 @@ def _repository_url(slug: str) -> str:
 def resolve_remote_head(slug: str, branch: str) -> str:
     try:
         result = subprocess.run(
-            ["git", "ls-remote", "--refs", _repository_url(slug), f"refs/heads/{branch}"],
+            [
+                "git",
+                "ls-remote",
+                "--refs",
+                _repository_url(slug),
+                f"refs/heads/{branch}",
+            ],
             check=True,
             capture_output=True,
             text=True,
@@ -268,7 +311,9 @@ def resolve_remote_head(slug: str, branch: str) -> str:
         raise ContractError(f"unable to resolve {slug}@{branch}: {exc}") from exc
     rows = [line.split() for line in result.stdout.splitlines() if line.strip()]
     if len(rows) != 1 or len(rows[0]) < 2 or rows[0][1] != f"refs/heads/{branch}":
-        raise ContractError(f"{slug}@{branch} did not resolve to exactly one branch head")
+        raise ContractError(
+            f"{slug}@{branch} did not resolve to exactly one branch head"
+        )
     return _sha(rows[0][0], f"resolved {slug}@{branch}")
 
 
@@ -301,7 +346,9 @@ def resolve_local_head(local_root: Path, slug: str, branch: str) -> str:
     return _sha(result.stdout.strip(), f"resolved local {slug}@{branch}")
 
 
-def propose(fixed: dict[str, Any], branch: str, local_root: Path | None = None) -> dict[str, Any]:
+def propose(
+    fixed: dict[str, Any], branch: str, local_root: Path | None = None
+) -> dict[str, Any]:
     entries = validate_fixed(fixed)
     candidate_entries: list[dict[str, Any]] = []
     for entry in entries:
@@ -330,6 +377,162 @@ def propose(fixed: dict[str, Any], branch: str, local_root: Path | None = None) 
     }
     validate_against_fixed(candidate, fixed)
     return candidate
+
+
+RECORDED_CANDIDATE_PATH = "promotion/candidate.json"
+RECORDED_CANDIDATE_SCHEMA = "mncds-promotion-candidate/0.1"
+
+
+def _resolve_recorded_candidate(checkout: Path, member: str) -> dict[str, Any] | None:
+    """Read a member's recorded promotion candidate from its head tree.
+
+    Returns None when the member declares no candidate (no file): the
+    branch head keeps speaking for it. Any present-but-invalid file
+    refuses: silently falling back to the head would evaluate a
+    revision the member's obligation set does not describe.
+    """
+    path = checkout / RECORDED_CANDIDATE_PATH
+    if not path.exists():
+        return None
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        raise ContractError(f"{member} recorded candidate unreadable: {exc}") from exc
+    try:
+        document = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ContractError(f"{member} recorded candidate is not JSON: {exc}") from exc
+    if not isinstance(document, dict):
+        raise ContractError(f"{member} recorded candidate must be a JSON object")
+    if document.get("schema_version") != RECORDED_CANDIDATE_SCHEMA:
+        raise ContractError(
+            f"{member} recorded candidate schema must be {RECORDED_CANDIDATE_SCHEMA}"
+        )
+    return document
+
+
+def _resolve_commit_object(checkout: Path, member: str, revision: str) -> None:
+    try:
+        kind = subprocess.run(
+            ["git", "-C", str(checkout), "cat-file", "-t", revision],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+        raise ContractError(
+            f"{member} recorded candidate {revision} is not present in its checkout"
+        ) from exc
+    if kind != "commit":
+        raise ContractError(
+            f"{member} recorded candidate {revision} is a {kind}, not a commit"
+        )
+
+
+def resolve_candidates(
+    candidate: dict[str, Any],
+    fixed: dict[str, Any],
+    family_root: Path,
+    obligations_dir: Path,
+) -> dict[str, Any]:
+    """Nominate each member's recorded promotion candidate where declared.
+
+    A member's obligation set describes its recorded candidate, never its
+    moving head (owner doctrine: promotion speaks about the recorded
+    candidate). So the family must evaluate the recorded revision, with
+    checkouts, stamps, and obligation subjects converging on it exactly.
+    Members without a recorded candidate keep their branch head.
+
+    Obligation files are snapshotted from the head trees (which ship the
+    current set describing the candidate) into ``obligations_dir`` as
+    ``<member>--<basename>``. A member shipping obligation files without
+    a recorded candidate refuses: there is no revision its set speaks
+    about, so nothing can be nominated honestly.
+    """
+    entries = validate_against_fixed(candidate, fixed)
+    if obligations_dir.exists() and any(obligations_dir.iterdir()):
+        raise ContractError(
+            f"obligations output directory must be empty: {obligations_dir}"
+        )
+    obligations_dir.mkdir(parents=True, exist_ok=True)
+    resolved_entries: list[dict[str, Any]] = []
+    for entry in entries:
+        member = entry["name"]
+        checkout = family_root / entry["checkout_path"]
+        if not checkout.is_dir():
+            raise ContractError(f"missing member checkout: {checkout}")
+        recorded = _resolve_recorded_candidate(checkout, member)
+        shipped = sorted((checkout / "promotion" / "obligations").glob("*.json"))
+        if recorded is None:
+            if shipped:
+                raise ContractError(
+                    f"{member} ships obligation files without a recorded candidate: "
+                    "no revision speaks for them"
+                )
+            resolved_entries.append(json.loads(json.dumps(entry)))
+            continue
+        if recorded.get("repository") != entry["repository"]:
+            raise ContractError(
+                f"{member} recorded candidate belongs to {recorded.get('repository')!r}"
+            )
+        revision = _sha(recorded.get("commit"), f"{member} recorded candidate commit")
+        _resolve_commit_object(checkout, member, revision)
+        declared = recorded.get("obligations")
+        if not isinstance(declared, list) or not declared:
+            raise ContractError(f"{member} recorded candidate names no obligation set")
+        seen: set[str] = set()
+        wanted: dict[str, Path] = {}
+        basenames: set[str] = set()
+        for item in declared:
+            if not isinstance(item, str):
+                raise ContractError(
+                    f"{member} recorded candidate obligation entries must be paths"
+                )
+            _safe_relative_path(item, f"{member} recorded candidate obligation")
+            source = (checkout / item).resolve()
+            try:
+                source.relative_to(checkout.resolve())
+            except ValueError as exc:
+                raise ContractError(
+                    f"{member} recorded candidate obligation escapes its checkout: {item}"
+                ) from exc
+            if not source.is_file():
+                raise ContractError(
+                    f"{member} recorded candidate obligation missing: {item}"
+                )
+            if source.suffix != ".json":
+                raise ContractError(
+                    f"{member} recorded candidate obligation is not JSON: {item}"
+                )
+            if item in seen:
+                raise ContractError(
+                    f"{member} recorded candidate lists a duplicate obligation: {item}"
+                )
+            seen.add(item)
+            if source.name in basenames:
+                raise ContractError(
+                    f"{member} recorded candidate reuses an obligation basename: {item}"
+                )
+            basenames.add(source.name)
+            wanted[source.name] = source
+        shipped_names = {path.name for path in shipped}
+        if shipped_names != set(wanted):
+            raise ContractError(
+                f"{member} obligation directory does not match its recorded set: "
+                f"shipped {sorted(shipped_names)}, recorded {sorted(wanted)}"
+            )
+        for basename in sorted(wanted):
+            dest = obligations_dir / f"{member}--{basename}"
+            dest.write_bytes(wanted[basename].read_bytes())
+        resolved = json.loads(json.dumps(entry))
+        resolved["candidate_revision"] = revision
+        resolved_entries.append(resolved)
+        print(f"nominate {member}: recorded candidate {revision[:12]}")
+    resolved = json.loads(json.dumps(candidate))
+    resolved["repositories"] = resolved_entries
+    validate_against_fixed(resolved, fixed)
+    return resolved
 
 
 def write_document(path: Path, document: dict[str, Any]) -> None:
@@ -361,23 +564,40 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    propose_parser = subparsers.add_parser("propose", help="resolve moving heads into a candidate set")
-    propose_parser.add_argument("--contracts", type=Path, default=ROOT / "family-contracts.json")
+    propose_parser = subparsers.add_parser(
+        "propose", help="resolve moving heads into a candidate set"
+    )
+    propose_parser.add_argument(
+        "--contracts", type=Path, default=ROOT / "family-contracts.json"
+    )
     propose_parser.add_argument("--output", type=Path, required=True)
     propose_parser.add_argument("--branch", default="main")
     propose_parser.add_argument("--local-root", type=Path)
 
-    validate_parser = subparsers.add_parser("validate", help="validate a fixed or candidate set")
+    validate_parser = subparsers.add_parser(
+        "validate", help="validate a fixed or candidate set"
+    )
     validate_parser.add_argument("document", type=Path)
     validate_parser.add_argument("--fixed", type=Path)
     validate_parser.add_argument("--checkouts-root", type=Path)
 
     promote_parser = subparsers.add_parser(
-        "promote", help="write a reviewed candidate as a separate proposed fixed document"
+        "promote",
+        help="write a reviewed candidate as a separate proposed fixed document",
     )
     promote_parser.add_argument("--candidate", required=True, type=Path)
     promote_parser.add_argument("--fixed", required=True, type=Path)
     promote_parser.add_argument("--output", required=True, type=Path)
+
+    resolve_parser = subparsers.add_parser(
+        "resolve",
+        help="nominate recorded promotion candidates and snapshot their obligation sets",
+    )
+    resolve_parser.add_argument("--candidate", required=True, type=Path)
+    resolve_parser.add_argument("--fixed", required=True, type=Path)
+    resolve_parser.add_argument("--family-root", required=True, type=Path)
+    resolve_parser.add_argument("--obligations-dir", required=True, type=Path)
+    resolve_parser.add_argument("--output", required=True, type=Path)
 
     args = parser.parse_args(argv)
     try:
@@ -404,7 +624,11 @@ def main(argv: list[str] | None = None) -> int:
                 item["base_revision"] != item["candidate_revision"]
                 for item in candidate["repositories"]
             )
-            print(json.dumps({"candidate": str(args.output), "moved": moved}, sort_keys=True))
+            print(
+                json.dumps(
+                    {"candidate": str(args.output), "moved": moved}, sort_keys=True
+                )
+            )
             return 0
 
         if args.command == "promote":
@@ -415,7 +639,32 @@ def main(argv: list[str] | None = None) -> int:
             fixed = _read(args.fixed)
             proposed = promoted_fixed_document(document, fixed)
             write_document(args.output, proposed)
-            print(json.dumps({"proposed": str(args.output), "repositories": len(proposed["repositories"])}, sort_keys=True))
+            print(
+                json.dumps(
+                    {
+                        "proposed": str(args.output),
+                        "repositories": len(proposed["repositories"]),
+                    },
+                    sort_keys=True,
+                )
+            )
+            return 0
+
+        if args.command == "resolve":
+            fixed = _read(args.fixed)
+            resolved = resolve_candidates(
+                document, fixed, args.family_root, args.obligations_dir
+            )
+            write_document(args.output, resolved)
+            moved = sum(
+                item["base_revision"] != item["candidate_revision"]
+                for item in resolved["repositories"]
+            )
+            print(
+                json.dumps(
+                    {"resolved": str(args.output), "moved": moved}, sort_keys=True
+                )
+            )
             return 0
 
         if document.get("schema_version") == FIXED_SCHEMA:
@@ -438,10 +687,14 @@ def main(argv: list[str] | None = None) -> int:
                 ).stdout.strip()
                 expected = entry.get("revision", entry.get("candidate_revision"))
                 if actual != expected:
-                    raise ContractError(f"{entry['name']} checkout is {actual}, expected {expected}")
+                    raise ContractError(
+                        f"{entry['name']} checkout is {actual}, expected {expected}"
+                    )
                 for artifact in entry["artifacts"]:
                     if not (checkout / artifact).is_file():
-                        raise ContractError(f"missing {entry['name']} artifact: {artifact}")
+                        raise ContractError(
+                            f"missing {entry['name']} artifact: {artifact}"
+                        )
         print(json.dumps({"valid": True, "repositories": len(entries)}, sort_keys=True))
         return 0
     except (ContractError, OSError, subprocess.CalledProcessError) as exc:

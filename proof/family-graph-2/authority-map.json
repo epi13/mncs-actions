@@ -1,0 +1,65 @@
+{
+  "authorities": {
+    "commons-family-compatibility": {
+      "authority": "MNCS-Commons",
+      "provider": "MNCS-Commons",
+      "repository": "epi13/MNCS-Commons"
+    },
+    "forge-cell-contract": {
+      "authority": "mncs-forge-mcp",
+      "provider": "mncs-forge-mcp",
+      "repository": "epi13/mncs-forge-mcp"
+    },
+    "mncds-development-record": {
+      "authority": "machine-native-complexity-development-specification",
+      "provider": "mncds",
+      "repository": "epi13/machine-native-complexity-development-specification"
+    },
+    "mncs-language-acceptance": {
+      "authority": "mncs-language",
+      "provider": "mncs-language",
+      "repository": "epi13/mncs-language"
+    },
+    "mncs-language-artifact-envelope": {
+      "authority": "mncs-language",
+      "provider": "mncs-language",
+      "repository": "epi13/mncs-language"
+    },
+    "mncs-language-changeset-boundary": {
+      "authority": "mncs-language",
+      "provider": "mncs-language",
+      "repository": "epi13/mncs-language"
+    },
+    "mncs-language-family-boundary": {
+      "authority": "mncs-language",
+      "provider": "mncs-language",
+      "repository": "epi13/mncs-language"
+    },
+    "mncs-language-graph-coherence": {
+      "authority": "mncs-language",
+      "provider": "mncs-language",
+      "repository": "epi13/mncs-language"
+    },
+    "mncs-language-promotion-boundary": {
+      "authority": "mncs-language",
+      "provider": "mncs-language",
+      "repository": "epi13/mncs-language"
+    },
+    "mncs-language-rights-projection": {
+      "authority": "mncs-language",
+      "provider": "mncs-language",
+      "repository": "epi13/mncs-language"
+    },
+    "mncs-validation": {
+      "authority": "machine-native-complexity-standard",
+      "provider": "mncs-validator-rs",
+      "repository": "epi13/machine-native-complexity-standard"
+    },
+    "rights-provenance": {
+      "authority": "mncs-rights-provenance",
+      "provider": "mncs-rights-provenance",
+      "repository": "epi13/mncs-rights-provenance"
+    }
+  },
+  "schema_version": "mncs-authority-map/0.1"
+}

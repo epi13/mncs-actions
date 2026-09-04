@@ -1,0 +1,332 @@
+{
+  "schema_version": "mncs-actions.family-producer-descriptors/2",
+  "descriptors": [
+    {
+      "producer": "mncs-standard",
+      "repository": "epi13/machine-native-complexity-standard",
+      "artifact_paths": [
+        "examples/minimal/manifest.json"
+      ],
+      "contract": {
+        "id": "mncs-validator-rs",
+        "revision": "0.2"
+      },
+      "adapter_id": "validator-json-v1",
+      "required_capabilities": ["python", "owner-python-package"],
+      "execution": {
+        "mode": "owner-native",
+        "operation": "mncs-standard-validate",
+        "input_paths": {
+          "manifest": "examples/minimal/manifest.json"
+        }
+      },
+      "outputs": [
+        {
+          "check_id": "mncs-validation",
+          "provider": "mncs-validator-rs",
+          "contract_revision": "0.2",
+          "roles": {
+            "evidence_provider": "mncs-validator-rs",
+            "semantic_authority": "machine-native-complexity-standard",
+            "remediation_owner": "epi13/machine-native-complexity-standard",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        }
+      ]
+    },
+    {
+      "producer": "rights-provenance",
+      "repository": "epi13/mncs-rights-provenance",
+      "artifact_paths": [
+        "schemas/v0.3/lineage-record.schema.json",
+        "examples/v0.3/lineage-record-example.json",
+        "dogfood/human-specification.json"
+      ],
+      "contract": {
+        "id": "mncs-rights-provenance",
+        "revision": "0.3.0"
+      },
+      "adapter_id": "rights-json-v1",
+      "required_capabilities": ["python", "owner-python-package"],
+      "execution": {
+        "mode": "owner-native",
+        "operation": "rights-provenance-validate",
+        "input_paths": {
+          "manifest": "dogfood/human-specification.json"
+        }
+      },
+      "provenance_context": {
+        "kind": "rights-manifest",
+        "authority": "mncs-rights-provenance",
+        "input_key": "manifest",
+        "transport_name": "rights-manifest.json",
+        "authority_status": "UNKNOWN"
+      },
+      "outputs": [
+        {
+          "check_id": "rights-provenance",
+          "provider": "mncs-rights-provenance",
+          "contract_revision": "0.3.0",
+          "roles": {
+            "evidence_provider": "mncs-rights-provenance",
+            "semantic_authority": "mncs-rights-provenance",
+            "remediation_owner": "epi13/mncs-rights-provenance",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        }
+      ]
+    },
+    {
+      "producer": "mncds",
+      "repository": "epi13/machine-native-complexity-development-specification",
+      "artifact_paths": [
+        "schemas/mncds-development-record-0.2-alpha.schema.json",
+        "examples/mncds-0.2-alpha/language-span-fix.development-record.json"
+      ],
+      "contract": {
+        "id": "mncds-development-record",
+        "revision": "0.2-alpha.1"
+      },
+      "adapter_id": "mncds-json-v1",
+      "required_capabilities": ["python", "owner-python-package"],
+      "execution": {
+        "mode": "owner-native",
+        "operation": "mncds-development-record-validate",
+        "input_paths": {
+          "record": "examples/mncds-0.2-alpha/language-span-fix.development-record.json"
+        }
+      },
+      "outputs": [
+        {
+          "check_id": "mncds-development-record",
+          "provider": "mncds",
+          "contract_revision": "0.2-alpha.1",
+          "roles": {
+            "evidence_provider": "mncds",
+            "semantic_authority": "machine-native-complexity-development-specification",
+            "remediation_owner": "epi13/machine-native-complexity-development-specification",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        }
+      ]
+    },
+    {
+      "producer": "commons",
+      "repository": "epi13/MNCS-Commons",
+      "artifact_paths": [
+        "compat/family-record-producers.json"
+      ],
+      "contract": {
+        "id": "mncs-commons.family-record-spine",
+        "revision": "0.1"
+      },
+      "adapter_id": "commons-family-v1",
+      "required_capabilities": ["python", "owner-compatibility-script"],
+      "execution": {
+        "mode": "owner-native",
+        "operation": "commons-compatibility-validate",
+        "input_paths": {
+          "registry": "compat/family-record-producers.json",
+          "validator": "scripts/validate_compat.py"
+        }
+      },
+      "outputs": [
+        {
+          "check_id": "commons-family-compatibility",
+          "provider": "MNCS-Commons",
+          "contract_revision": "0.1",
+          "roles": {
+            "evidence_provider": "MNCS-Commons",
+            "semantic_authority": "MNCS-Commons",
+            "remediation_owner": "epi13/MNCS-Commons",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        }
+      ]
+    },
+    {
+      "producer": "mncs-language",
+      "repository": "epi13/mncs-language",
+      "artifact_paths": [
+        "crates/mncs-model/src/compiler.rs"
+      ],
+      "contract": {
+        "id": "mncs:language:compilation-study-result:0.1",
+        "revision": "0.1"
+      },
+      "adapter_id": "language-study-v1",
+      "required_capabilities": ["mncs-language-binary"],
+      "execution": {
+        "mode": "owner-native",
+        "operation": "language-source-study",
+        "input_paths": {
+          "library": "library"
+        },
+        "cases": [
+          {
+            "name": "family-boundary",
+            "source_path": "pressure/family-boundary.mncs",
+            "check_id": "mncs-language-family-boundary"
+          },
+          {
+            "name": "rights-projection",
+            "source_path": "pressure/rights-projection.mncs",
+            "check_id": "mncs-language-rights-projection"
+          },
+          {
+            "name": "changeset-boundary",
+            "source_path": "pressure/changeset-boundary.mncs",
+            "check_id": "mncs-language-changeset-boundary"
+          },
+          {
+            "name": "artifact-envelope",
+            "source_path": "pressure/artifact-envelope-boundary.mncs",
+            "check_id": "mncs-language-artifact-envelope"
+          },
+          {
+            "name": "promotion-boundary",
+            "source_path": "pressure/promotion-boundary.mncs",
+            "check_id": "mncs-language-promotion-boundary"
+          },
+          {
+            "name": "graph-coherence",
+            "source_path": "pressure/family-graph-coherence.mncs",
+            "check_id": "mncs-language-graph-coherence"
+          },
+          {
+            "name": "acceptance",
+            "source_path": "pressure/family-acceptance.mncs",
+            "check_id": "mncs-language-acceptance"
+          }
+        ]
+      },
+      "outputs": [
+        {
+          "check_id": "mncs-language-family-boundary",
+          "provider": "mncs-language",
+          "contract_revision": "mncs:language:compilation-study-result:0.1",
+          "roles": {
+            "evidence_provider": "mncs-language",
+            "semantic_authority": "mncs-language",
+            "remediation_owner": "epi13/mncs-language",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        },
+        {
+          "check_id": "mncs-language-rights-projection",
+          "provider": "mncs-language",
+          "contract_revision": "mncs:language:compilation-study-result:0.1",
+          "roles": {
+            "evidence_provider": "mncs-language",
+            "semantic_authority": "mncs-language",
+            "remediation_owner": "epi13/mncs-language",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        },
+        {
+          "check_id": "mncs-language-changeset-boundary",
+          "provider": "mncs-language",
+          "contract_revision": "mncs:language:compilation-study-result:0.1",
+          "roles": {
+            "evidence_provider": "mncs-language",
+            "semantic_authority": "mncs-language",
+            "remediation_owner": "epi13/mncs-language",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        },
+        {
+          "check_id": "mncs-language-artifact-envelope",
+          "provider": "mncs-language",
+          "contract_revision": "mncs:language:compilation-study-result:0.1",
+          "roles": {
+            "evidence_provider": "mncs-language",
+            "semantic_authority": "mncs-language",
+            "remediation_owner": "epi13/mncs-language",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        },
+        {
+          "check_id": "mncs-language-promotion-boundary",
+          "provider": "mncs-language",
+          "contract_revision": "mncs:language:compilation-study-result:0.1",
+          "roles": {
+            "evidence_provider": "mncs-language",
+            "semantic_authority": "mncs-language",
+            "remediation_owner": "epi13/mncs-language",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        },
+        {
+          "check_id": "mncs-language-graph-coherence",
+          "provider": "mncs-language",
+          "contract_revision": "mncs:language:compilation-study-result:0.1",
+          "roles": {
+            "evidence_provider": "mncs-language",
+            "semantic_authority": "mncs-language",
+            "remediation_owner": "epi13/mncs-language",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        },
+        {
+          "check_id": "mncs-language-acceptance",
+          "provider": "mncs-language",
+          "contract_revision": "mncs:language:compilation-study-result:0.1",
+          "roles": {
+            "evidence_provider": "mncs-language",
+            "semantic_authority": "mncs-language",
+            "remediation_owner": "epi13/mncs-language",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        }
+      ]
+    },
+    {
+      "producer": "forge",
+      "repository": "epi13/mncs-forge-mcp",
+      "artifact_paths": [
+        "examples/forge-cell/execution-record.json"
+      ],
+      "contract": {
+        "id": "forge-cell-execution-record",
+        "revision": "0.1"
+      },
+      "adapter_id": "forge-cell-v1",
+      "required_capabilities": ["python", "owner-forge-package"],
+      "execution": {
+        "mode": "owner-native",
+        "operation": "forge-cell-validate",
+        "input_paths": {
+          "policy": "examples/forge-cell/policy.json",
+          "bundle": "examples/forge-cell/test-bundle.json",
+          "record": "examples/forge-cell/execution-record.json"
+        },
+        "expected_nonce": "reference-nonce-0000000000000001"
+      },
+      "outputs": [
+        {
+          "check_id": "forge-cell-contract",
+          "provider": "mncs-forge-mcp",
+          "contract_revision": "0.1",
+          "roles": {
+            "evidence_provider": "mncs-forge-mcp",
+            "semantic_authority": "mncs-forge-mcp",
+            "remediation_owner": "epi13/mncs-forge-mcp",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        }
+      ]
+    }
+  ]
+}

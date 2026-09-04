@@ -1,0 +1,32 @@
+{
+  "claim": "language study stages were observed; no conformance or assurance claim",
+  "contract_revision": "mncs:language:compilation-study-result:0.1",
+  "digest": "728ecb6eba6c1a9451ad1bf28b655d2adc62f3f1df9e6687af32c95ec3c58427",
+  "id": "mncs-language-artifact-envelope",
+  "producer_revision": "4f3146a97f92389490d3e8dffdf08266e3390968",
+  "provider": "mncs-language",
+  "references": [
+    {
+      "authority": "mncs-language",
+      "contract_revision": "mncs:language:compilation-study-result:0.1",
+      "digest": "728ecb6eba6c1a9451ad1bf28b655d2adc62f3f1df9e6687af32c95ec3c58427",
+      "kind": "language-compilation-study",
+      "path": "pressure/artifact-envelope-boundary.mncs",
+      "producer": "mncs-language",
+      "producer_revision": "4f3146a97f92389490d3e8dffdf08266e3390968"
+    }
+  ],
+  "schema_version": "mncs.check-result/1",
+  "scope": "source-study/compiler-pipeline",
+  "subject": {
+    "commit": "4f3146a97f92389490d3e8dffdf08266e3390968",
+    "repository": "epi13/mncs-language"
+  },
+  "summary": "mncs-language source study completed_with_unresolved_obligations with 12 stage fingerprint(s); interpretation=observation_only_not_assurance_or_conformance",
+  "unresolved": [
+    "language unresolved obligation: mncs:0.2:obligation:body:iteration-exact-resource-cost:7a317338116d8271ce4ad1b657916acf78199e81702d78df474106d3b4bba3de",
+    "language unresolved obligation: mncs:0.2:obligation:body:iteration-exact-resource-cost:9c5350094f00678bf95852e14de35f4cf0a1158b88dbb132bbad32b4b22e3abb",
+    "language unresolved obligation: mncs:0.2:obligation:body:iteration-exact-resource-cost:cf8c6fe5a37735cdd86861e5d48caa5fb0138ca37d8b3d7a12700100b190ce6b"
+  ],
+  "verdict": "UNKNOWN"
+}
