@@ -25,6 +25,26 @@ come from pinned family producer descriptors
 checks (such as `project-tests`), where the originating project itself
 is the authority.
 
+Duplicate `check_id` declarations in the descriptors follow one
+mechanical policy (enforced by `scripts/authority_map.py`, which owns no
+authority semantics): a field-identical repeat (provider, authority, and
+repository attribution, including its absence) deduplicates
+deterministically with first-declaration-wins; any repeat differing in
+any field -- provider, semantic authority, or repository attribution
+(changed, added, or removed) -- is rejected with exit 2. Repository
+attribution can neither silently change nor silently disappear through
+deduplication. Producers must not depend on accidental behavior here.
+
+## Candidates
+
+A boundary may evaluate the checked-out revision (subject is the run's
+`GITHUB_SHA`, as in this repository's dogfood) or a recorded candidate
+revision (`promotion/candidate.json` naming an exact commit, as in MNCDS
+and MNCS). The candidate form fits repositories whose promotion evidence
+is bound before the run: both required checks are stamped for the
+candidate, the evaluator rejects any other subject, and advancing the
+candidate is a reviewed change that rebinds the evidence set.
+
 ## Executing
 
 `mncs-actions` executes the owner-native decisions and transports them:
@@ -54,3 +74,26 @@ the promotion command, or a checked-out owner tree).
 - Verdict semantics belong to the MNCS evaluator; authority semantics to
   the owning authorities; transport validates carrier shape only.
 - `UNKNOWN` stays red when `fail-on-unknown` is true; `FAIL` is always red.
+
+## Adoption
+
+Three repositories dogfood this pattern (all pinned, never `@main`):
+
+- `epi13/mncs-actions` (`promotion/boundary.json`): `project-tests` plus
+  its own `promotion-boundary` output over the checked-out revision.
+- `epi13/machine-native-complexity-development-specification`
+  (`promotion/mncds-promotion.boundary.json`): owner-native development
+  record plus candidate-bound obligation set over the recorded candidate.
+- `epi13/machine-native-complexity-standard`
+  (`promotion/mncs-promotion.boundary.json`): owner-native validation
+  gate plus candidate-bound obligation set over the recorded candidate,
+  requiring its own promotion output (evaluator skips the self entry;
+  aggregation enforces its presence).
+
+Compatibility canaries observe what pinned family checkouts currently
+produce and stay UNKNOWN while blockers stand; they never imply
+promotability. A promotion gate (`fail-on-unknown: true`) going green
+means the subject revision genuinely satisfied the boundary. The full
+loop -- development pressure to MNCDS obligations to authoritative
+evidence to MNCS promotion to transport/gate to Commons ChangeSet
+relation -- is recorded per-repository in each adopter's `docs/promotion.md`.
