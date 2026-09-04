@@ -331,12 +331,43 @@ jobs:
             --coherence .mncs/graph/coherence.json \
             --commons-record .mncs/graph/commons-record.json \
             --commons-root family/commons \
+            --boundary .mncs/graph/boundary.json \
+            --boundary-template promotion/family-advancement.boundary.json \
+            --authority-map .mncs/graph/authority-map.json \
+            --checks-dir .mncs/graph/checks \
+            --obligations-dir .mncs/graph/obligations \
             --output-contracts .mncs/graph/proposed-family-contracts.json \
             --output-graph .mncs/graph/accepted-graph.json; then
             echo "eligible=true" >> "$GITHUB_OUTPUT"
           else
             echo "eligible=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Build durable acceptance proof bundle
+        if: ${{ steps.proposal.outputs.eligible == 'true' }}
+        run: |
+          set -euo pipefail
+          python3 scripts/family_proof.py build-proof \
+            --graph .mncs/graph/graph-related.json \
+            --accepted-graph .mncs/graph/accepted-graph.json \
+            --coherence .mncs/graph/coherence.json \
+            --boundary .mncs/graph/boundary.json \
+            --boundary-template promotion/family-advancement.boundary.json \
+            --authority-map .mncs/graph/authority-map.json \
+            --capability family-capability.json \
+            --descriptors family-producer-descriptors.json \
+            --checks-dir .mncs/graph/checks \
+            --obligations-dir .mncs/graph/obligations \
+            --promotion-result .mncs/graph/promotion-check.json \
+            --commons-record .mncs/graph/commons-record.json \
+            --fixed family-contracts.json \
+            --proposed-contracts .mncs/graph/proposed-family-contracts.json \
+            --orchestrator-revision "${{ github.sha }}" \
+            --evaluator-path family/mncs-standard/scripts/mncs_promotion_evaluate.py \
+            --commons-root family/commons \
+            --output-dir .mncs/proof
+          test -f .mncs/proof/proof.json
+          test -f .mncs/proof/accepted-graph.json
 
       - name: Write advancement summary
         if: ${{ always() }}
@@ -372,5 +403,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: family-graph-advancement
-          path: .mncs/graph
+          path: |
+            .mncs/graph
+            .mncs/proof
           if-no-files-found: warn

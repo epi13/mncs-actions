@@ -1,0 +1,92 @@
+mncs 0.6;
+
+// This module expresses the pure deterministic core of family acceptance
+// decisions: tier projection, replay gating, and predecessor-chain links.
+// It is intentionally a thin decision layer over booleans the host
+// computes. Digest comparison, JSON canonicalization, content digests,
+// Git revision resolution, subprocess control, and filesystem access are
+// host escapes: the language has no bounded digest-comparison type, and
+// hashing/checkout/execution remain host responsibilities. What the
+// language owns is the decision lattice: which combinations of
+// established facts constitute acceptance, and which refuse.
+//
+// These decisions mirror scripts/family_graph.py (acceptance_tier) and
+// scripts/family_proof.py (replay gating, chain links) exactly; the
+// agreement tests pin the two together so they cannot drift apart.
+
+module mncs.actions.family_acceptance.v01;
+
+use mncs.core.status.v1;
+
+// Acceptance tiers. Core means the graph crossed the current required
+// advancement boundary (required owner evidence decides). Full
+// additionally means every boundary-listed optional authority returned
+// PASS with no open required obligations. Refused is never accepted:
+// it projects only so the host can distinguish "core, not full" from
+// "no acceptance at all".
+enum Truth { No, Yes }
+
+enum Tier { Core, Full, Refused }
+
+// Replay gate: the six facts an independent replay must establish.
+// Artifact closure (every listed byte present with its digest),
+// identity (graph + proof digests recompute), boundary (exact materialized
+// boundary under the operator template), promotion (owner-native PASS
+// re-executed), commons (owner validator + predecessor linkage), and
+// chain (predecessor + contracts transition). One No refuses the replay.
+record ReplayGate { artifacts_ok: Truth, identity_ok: Truth, boundary_ok: Truth, promotion_ok: Truth, commons_ok: Truth, chain_ok: Truth }
+
+// Predecessor-chain link inputs. Each flag is a host-established digest
+// or revision equality over opaque identities (never raw digests: the
+// language compares booleans, the host compares bytes).
+record ChainLink { predecessor_match: Truth, proof_match: Truth, contracts_match: Truth }
+
+// Project the acceptance tier from host-established facts.
+// required_complete: verdict PASS with every required check passed.
+// all_optional_pass: every boundary-listed optional check present at PASS.
+// open_required_present: any required obligation still open.
+fn project_tier(required_complete: Truth, all_optional_pass: Truth, open_required_present: Truth) -> (result: Tier) {
+    return match required_complete {
+        Truth.No => Tier.Refused,
+        Truth.Yes => match open_required_present {
+            Truth.Yes => Tier.Core,
+            Truth.No => match all_optional_pass {
+                Truth.Yes => Tier.Full,
+                Truth.No => Tier.Core,
+            },
+        },
+    };
+}
+
+// Accept a replay only when every gate holds. Dominance discipline:
+// any single No dominates to No, mirroring Status::dominate.
+fn replay_accept(gate: ReplayGate) -> (result: Truth) {
+    return match gate.artifacts_ok {
+        Truth.No => Truth.No,
+        Truth.Yes => match gate.identity_ok {
+            Truth.No => Truth.No,
+            Truth.Yes => match gate.boundary_ok {
+                Truth.No => Truth.No,
+                Truth.Yes => match gate.promotion_ok {
+                    Truth.No => Truth.No,
+                    Truth.Yes => match gate.commons_ok {
+                        Truth.No => Truth.No,
+                        Truth.Yes => gate.chain_ok,
+                    },
+                },
+            },
+        },
+    };
+}
+
+// A chain link holds only when the predecessor graph, the predecessor
+// proof, and the contracts transition all match.
+fn chain_link_valid(link: ChainLink) -> (result: Truth) {
+    return match link.predecessor_match {
+        Truth.No => Truth.No,
+        Truth.Yes => match link.proof_match {
+            Truth.No => Truth.No,
+            Truth.Yes => link.contracts_match,
+        },
+    };
+}

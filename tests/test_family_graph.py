@@ -312,6 +312,11 @@ def test_advance_refuses_without_proof(tmp_path: Path):
             coherence=str(coh_path),
             commons_record="x",
             commons_root="",
+            boundary="",
+            boundary_template="",
+            authority_map="",
+            checks_dir="",
+            obligations_dir="",
             output_contracts=str(tmp_path / "p.json"),
             output_graph=str(tmp_path / "a.json"),
         )
