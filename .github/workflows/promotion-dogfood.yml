@@ -20,7 +20,7 @@ permissions:
 jobs:
   promotion:
     # Pin an immutable reviewed commit SHA; never @main.
-    uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@8e0d91621349457b9fe496a4512e0609a7970088
+    uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@8cfc395d3596451b12fd121f7e6adfcc4b916fba
     with:
       required-checks: project-tests,promotion-boundary
       boundary: mncs-actions-promotion
