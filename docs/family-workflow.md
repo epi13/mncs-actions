@@ -22,6 +22,10 @@ Pin an immutable commit SHA (see `revision-coherence.md`); never `@main`.
   invokes the owner-native MNCS promotion evaluator over this workflow's
   other result files; the workflow exposes `promotion-verdict`,
   `promotion-result-path`, and `promotion-manifest-digest` as outputs.
+- Provider commands must let their exit status propagate as the final
+  command status (for example `(exit $rc)` in a subshell, never a bare
+  `exit`): the harness appends exit-code capture lines after the command,
+  and an early `exit` skips them, leaving the claim NOT_ESTABLISHED.
   Internal actions are pinned to a synchronized immutable SHA so a
   caller pinning workflow revision X executes exactly action revision X
   (never `./actions/...`, which would resolve inside the caller repo,

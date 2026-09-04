@@ -36,7 +36,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from mncs_actions import subject_stamp  # noqa: E402
 
-OBLIGATION_SCHEMA_VERSION = "mncds-obligation-record/0.1"
+OBLIGATION_SCHEMA_VERSION = "mncds-obligation-record/0.2"
 
 
 def _fail(message: str) -> int:

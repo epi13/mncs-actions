@@ -1,0 +1,22 @@
+{
+  "schema_version": "mncs.check-result/1",
+  "id": "mncds-obligations",
+  "provider": "mncds",
+  "verdict": "PASS",
+  "scope": "development obligations",
+  "claim": "development obligations are resolved enough for evaluation",
+  "summary": "gate fixture: obligations resolved=1 open-required=0 -> PASS",
+  "contract_revision": "mncds-obligation-record/0.2",
+  "subject": {
+    "repository": "epi13/mncs-actions",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "references": [
+    {
+      "kind": "mncds-obligation-record",
+      "producer": "mncds",
+      "authority": "machine-native-complexity-development-specification",
+      "contract_revision": "mncds-obligation-record/0.2"
+    }
+  ]
+}

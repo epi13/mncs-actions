@@ -1,0 +1,23 @@
+{
+  "schema_version": "mncs.check-result/1",
+  "id": "mncs-validation",
+  "provider": "mncs-validator-rs",
+  "verdict": "FAIL",
+  "scope": "specification",
+  "claim": "candidate satisfies applicable MNCS validation",
+  "summary": "gate negative: valid negative finding",
+  "contract_revision": "0.2",
+  "producer_revision": "688445783971db9027dc7fc44224bd63acd7a08a",
+  "subject": {
+    "repository": "epi13/mncs-actions",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "references": [
+    {
+      "kind": "mncs-report",
+      "producer": "mncs-validator-rs",
+      "authority": "machine-native-complexity-standard",
+      "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}

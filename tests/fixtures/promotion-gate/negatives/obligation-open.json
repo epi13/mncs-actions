@@ -1,6 +1,6 @@
 {
   "schema_version": "mncds-obligation-record/0.2",
-  "obligation_key": "pressure.fixture.open-required",
+  "obligation_key": "pressure.gate.open-gap",
   "status": "open",
   "required": true,
   "subject": {
@@ -10,7 +10,7 @@
   "origin": {
     "kind": "development-pressure",
     "authority": "mncs-actions",
-    "pressure_id": "pressure-fixture-1"
+    "pressure_id": "pressure-gate-1"
   },
   "evidence": [],
   "supersedes": null,

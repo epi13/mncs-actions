@@ -168,8 +168,8 @@ def test_descriptor_registry_is_versioned_and_allowlisted():
     descriptors = load_json(REPO / "family-producer-descriptors.json")
     assert descriptors["schema_version"] == DESCRIPTOR_SCHEMA
     assert {item["adapter_id"] for item in descriptors["descriptors"]} <= {
-        "validator-json-v1", "rights-json-v1", "commons-family-v1",
-        "language-study-v1", "forge-cell-v1",
+        "validator-json-v1", "mncds-json-v1", "rights-json-v1",
+        "commons-family-v1", "language-study-v1", "forge-cell-v1",
     }
     assert all("command" not in item and "shell" not in item for item in descriptors["descriptors"])
     validate_descriptor_registry(descriptors, validate_fixed(contract))

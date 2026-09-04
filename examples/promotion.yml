@@ -30,7 +30,7 @@ jobs:
       mncds-command: mncds validate docs/development-record.json --json > /tmp/mncds-report.json; python3 ./adapters/mncds_adapter.py --input /tmp/mncds-report.json --output .mncs/mncds-check.json --contract-revision 0.2-alpha.1 --subject-repository ${{ github.repository }} --subject-commit ${{ github.sha }}
       mncds-check-id: mncds-development-record
       mncds-provider: mncds
-      promotion-command: python3 family/mncs-standard/scripts/mncs_promotion_evaluate.py --boundary promotion-boundary.json --checks .mncs/mncs-check.json .mncs/mncds-check.json --subject-repository ${{ github.repository }} --subject-commit ${{ github.sha }} --output .mncs/promotion-check.json
+      promotion-command: python3 family/mncs-standard/scripts/mncs_promotion_evaluate.py --boundary promotion-boundary.json --authority-map promotion/authority-map.json --checks .mncs/mncs-check.json .mncs/mncds-check.json --subject-repository ${{ github.repository }} --subject-commit ${{ github.sha }} --output .mncs/promotion-check.json
       promotion-boundary: family-promotion
       promotion-check-id: promotion-boundary
       promotion-provider: mncs-promotion-boundary

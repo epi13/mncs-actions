@@ -69,6 +69,7 @@ OPERATIONS = {
 }
 ADAPTERS = {
     "validator-json-v1",
+    "mncds-json-v1",
     "rights-json-v1",
     "commons-family-v1",
     "language-study-v1",
@@ -77,7 +78,7 @@ ADAPTERS = {
 OPERATION_ADAPTERS = {
     "mncs-standard-validate": "validator-json-v1",
     "rights-provenance-validate": "rights-json-v1",
-    "mncds-development-record-validate": "validator-json-v1",
+    "mncds-development-record-validate": "mncds-json-v1",
     "commons-compatibility-validate": "commons-family-v1",
     "language-source-study": "language-study-v1",
     "forge-cell-validate": "forge-cell-v1",

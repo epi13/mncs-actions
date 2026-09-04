@@ -111,6 +111,14 @@ def test_promotion_boundary_arms_match_evaluator():
     assert "UNKNOWN => Status.PASS" not in text
     assert "FAIL => Status.PASS" not in text
     assert "dominate" in text
+    # Authority and revision standing mirror the evaluator's eligibility
+    # gates: unestablished authority and omitted/mismatched revisions stay
+    # UNKNOWN, never PASS; substitution and malformed carriers have no arm
+    # because the host establishes no claim for them.
+    assert "AuthorityBinding.Unbound => Status.UNKNOWN" in text
+    assert "RevisionStanding.Missing => Status.UNKNOWN" in text
+    assert "RevisionStanding.Mismatched => Status.UNKNOWN" in text
+    assert "fn eligible" in text
 
 
 def test_changeset_projection_arms_match_host():

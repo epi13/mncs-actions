@@ -149,7 +149,7 @@ bindings and moving refs are rejected at the membrane, never stamped.
 
 ## Capability gaps and promotion boundaries
 
-MNCDS obligation records (`mncds-obligation-record/0.1`) and the MNCS
+MNCDS obligation records (`mncds-obligation-record/0.2`) and the MNCS
 promotion boundary (`mncs-promotion-boundary/0.1`) are now stable owning
 contracts; see `docs/promotion-boundary.md`. Transport projects pressure
 into obligations (`scripts/pressure_to_obligations.py`), obligations into

@@ -42,12 +42,18 @@ promotion-boundary       (promotion-command, runs the MNCS evaluator
 ```
 
 See `examples/promotion.yml`. The `promotion-command` is caller-composed:
-boundary document + `--checks` (the other result files) + exact subject
+boundary document + `--authority-map` (pinned trust binding derived via
+`scripts/authority_map.py` from `family-producer-descriptors.json`) +
+`--checks` (the other result files) + exact subject
 (`--subject-repository` + 40-hex `--subject-commit`) + `--output` the
 promotion result file. The reusable workflow runs it after every evidence
 provider, validates the `check-result/1` shape, preserves the receipt,
 aggregates the check, and exposes `promotion-verdict`,
 `promotion-result-path`, and `promotion-manifest-digest` as outputs.
+Callers should additionally apply `validate_promotion_claim` and, wherever
+consumed bytes are at hand, recompute bound digests: shape validation
+proves the claim is well-formed, rebinding proves the bytes are the ones
+evaluated.
 
 ## What transport checks (and what it never decides)
 
@@ -66,6 +72,15 @@ aggregates the check, and exposes `promotion-verdict`,
 Malformed or contradictory promotion input establishes no claim
 (`INVALID` / `NOT_ESTABLISHED`); it is never softened to `UNKNOWN`.
 A valid negative stays `FAIL`; `UNKNOWN` never becomes `PASS`.
+
+## Compatibility observation vs promotion gate
+
+The fixed-family canary keeps `promotion-boundary` optional: it answers
+whether pinned authorities still execute and produce coherent evidence,
+and UNKNOWN may stay green there. That path never claims promotability.
+The separate `promotion-gate` job answers whether an exact pinned fixture
+universe satisfies an explicit required boundary and fails unless
+promotion is exactly PASS. See `docs/family-promotion-v01.md`.
 
 ## The two promotion-adjacent check ids
 

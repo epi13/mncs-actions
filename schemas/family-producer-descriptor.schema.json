@@ -81,6 +81,7 @@
         "adapter_id": {
           "enum": [
             "validator-json-v1",
+            "mncds-json-v1",
             "rights-json-v1",
             "commons-family-v1",
             "language-study-v1",

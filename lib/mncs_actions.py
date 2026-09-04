@@ -389,6 +389,9 @@ def subject_stamp(
     return {"repository": repository, "commit": commit}, None
 
 
+PROMOTION_BOUNDARY_REVISION = "mncs-promotion-boundary/0.1"
+
+
 def validate_promotion_claim(
     obj: Any,
     *,
@@ -404,10 +407,17 @@ def validate_promotion_claim(
     reinterprets.  Structural rules enforced here:
 
     - the document is a valid ``check-result/1`` claim;
-    - the ``promotion`` extension names the expected boundary and subject;
-    - at least one digest-bound evidence reference is preserved;
+    - the ``promotion`` extension names the expected boundary revision,
+      boundary id, and subject, with coherent required totals;
     - a non-PASS verdict names its blockers (a promotion claim that blocks
-      without saying why establishes no actionable claim).
+      without saying why establishes no actionable claim);
+    - every evidence reference is digest-bound, well-formed, and unique
+      (no contradictory duplicate references);
+    - authority identities, when carried, are well-formed.
+
+    This proves the claim is well-formed, from the expected semantic
+    authority, about the expected subject.  It never re-derives whether
+    the verdict is semantically correct.
     """
     errors = validate_check_result(obj)
     if errors:
@@ -416,6 +426,11 @@ def validate_promotion_claim(
     promotion = obj.get("promotion")
     if not isinstance(promotion, dict):
         return ["promotion result must carry a promotion extension object"]
+    if promotion.get("boundary_revision") != PROMOTION_BOUNDARY_REVISION:
+        errors.append(
+            "promotion.boundary_revision must be "
+            f"{PROMOTION_BOUNDARY_REVISION}"
+        )
     if promotion.get("boundary_id") != boundary_id:
         errors.append("promotion.boundary_id must match the declared boundary")
     subject = promotion.get("subject")
@@ -426,6 +441,20 @@ def validate_promotion_claim(
             errors.append("promotion.subject.repository must match the candidate")
         if subject.get("commit") != subject_commit:
             errors.append("promotion.subject.commit must match the candidate")
+    top_subject = obj.get("subject")
+    if top_subject is not None:
+        if not isinstance(top_subject, dict) or top_subject != subject:
+            errors.append("check subject must agree with the promotion subject")
+    total = promotion.get("required_total")
+    passed = promotion.get("required_passed")
+    if not isinstance(total, int) or total < 1:
+        errors.append("promotion.required_total must be a positive integer")
+    if not isinstance(passed, int) or passed < 0:
+        errors.append("promotion.required_passed must be a non-negative integer")
+    elif isinstance(total, int) and passed > total:
+        errors.append("promotion.required_passed cannot exceed required_total")
+    elif obj.get("verdict") == "PASS" and passed != total:
+        errors.append("promotion PASS must satisfy every required check")
     blockers = promotion.get("blockers")
     if not isinstance(blockers, list) or not all(
         isinstance(item, str) and item for item in blockers
@@ -439,15 +468,46 @@ def validate_promotion_claim(
     if not isinstance(references, list) or not references:
         errors.append("promotion result must preserve at least one evidence reference")
     else:
-        digests = [
-            ref.get("digest")
-            for ref in references
-            if isinstance(ref, dict) and isinstance(ref.get("digest"), str)
-        ]
-        if not digests or not all(_DIGEST.match(item) for item in digests):
-            errors.append(
-                "promotion result must preserve digest-bound evidence references"
+        seen: set[str] = set()
+        for index, ref in enumerate(references):
+            if not isinstance(ref, dict):
+                errors.append(f"references[{index}] must be an object")
+                continue
+            digest = ref.get("digest")
+            if not isinstance(digest, str) or not _DIGEST.match(digest):
+                errors.append(
+                    f"references[{index}] must carry a digest-bound reference"
+                )
+            identity = (
+                ref.get("check_id")
+                or ref.get("obligation_key")
+                or ref.get("boundary_id")
+                or (ref.get("contract_revision") if ref.get("kind") == "authority-map" else None)
             )
+            if not isinstance(identity, str) or not identity:
+                errors.append(
+                    f"references[{index}] must name its check, obligation, "
+                    "boundary, or authority-map contract"
+                )
+            else:
+                key = f"{ref.get('kind')}:{identity}:{digest}"
+                if key in seen:
+                    errors.append(
+                        f"references[{index}] duplicates an evidence reference"
+                    )
+                seen.add(key)
+            authority = ref.get("authority")
+            if authority is not None and (
+                not isinstance(authority, str) or not authority
+            ):
+                errors.append(
+                    f"references[{index}].authority must be non-empty when carried"
+                )
+    producer_revision = obj.get("producer_revision")
+    if producer_revision is not None and (
+        not isinstance(producer_revision, str) or not producer_revision
+    ):
+        errors.append("producer_revision must be a non-empty string when carried")
     if obj.get("verdict") in ("FAIL", "UNKNOWN"):
         unresolved = obj.get("unresolved")
         if not isinstance(unresolved, list) or not unresolved:

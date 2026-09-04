@@ -1,6 +1,6 @@
 {
   "schema_version": "mncs-promotion-boundary/0.1",
-  "boundary_id": "family-promotion",
+  "boundary_id": "family-promotion-gate",
   "subject_repository": "epi13/mncs-actions",
   "required_evidence": [
     {

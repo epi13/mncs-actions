@@ -1,0 +1,26 @@
+{
+  "schema_version": "mncs.check-result/1",
+  "id": "mncds-development-record",
+  "provider": "mncds",
+  "verdict": "UNKNOWN",
+  "scope": "development",
+  "claim": "development process satisfies MNCDS",
+  "summary": "gate negative: incomplete evidence",
+  "contract_revision": "0.2-alpha.1",
+  "producer_revision": "98006cc273025d218236bc3b7a47c2cd8adc572b",
+  "subject": {
+    "repository": "epi13/mncs-actions",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "references": [
+    {
+      "kind": "mncds-development-record",
+      "producer": "mncds",
+      "authority": "machine-native-complexity-development-specification",
+      "authority_record_identity": "record.gate-1"
+    }
+  ],
+  "unresolved": [
+    "record valid; selection pending"
+  ]
+}
