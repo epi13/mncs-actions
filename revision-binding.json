@@ -4,6 +4,6 @@
     "actions/render-badge",
     "actions/run-check"
   ],
-  "implementation_revision": "c2a552fed6e07c088ebf835324ab2946c7db4de7",
+  "implementation_revision": "6c38ccbcb11e0712ff52e0063e6c11bd52817ffc",
   "workflow": ".github/workflows/mncs-family-verify.yml"
 }
