@@ -1,0 +1,45 @@
+name: MNCS promotion dogfood
+
+# mncs-actions consumes its own reusable family verification with a
+# repository-owned promotion boundary (promotion/boundary.json). This
+# proves a real repository moves through project evidence, the owner-native
+# MNCS promotion boundary, and transport aggregation to a deterministic
+# verdict. UNKNOWN stays red here; FAIL is always red.
+#
+# Two-step pinning applies (see docs/revision-coherence.md): the reusable
+# workflow pin and the evaluator pin below name reviewed revisions and are
+# advanced after upstream merges. Never @main.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  promotion:
+    # Pin an immutable reviewed commit SHA; never @main.
+    uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@8e0d91621349457b9fe496a4512e0609a7970088
+    with:
+      required-checks: project-tests,promotion-boundary
+      boundary: mncs-actions-promotion
+      fail-on-unknown: true
+      project-command: >-
+        mkdir -p .mncs;
+        python3 -m pytest tests/test_promotion_transport.py tests/test_mncs_pressure.py -q > /tmp/project-tests.log 2>&1;
+        rc=$?;
+        PROJECT_RC=$rc python3 -c "import json, os; verdict = 'PASS' if os.environ['PROJECT_RC'] == '0' else 'FAIL'; json.dump({'schema_version': 'mncs.check-result/1', 'id': 'project-tests', 'provider': 'project-verifier', 'verdict': verdict, 'summary': 'dogfood project evidence ' + verdict, 'subject': {'repository': os.environ['GITHUB_REPOSITORY'], 'commit': os.environ['GITHUB_SHA']}}, open('.mncs/project-check.json', 'w'), indent=2, sort_keys=True)";
+        exit $rc
+      project-check-id: project-tests
+      project-provider: project-verifier
+      promotion-command: >-
+        rm -rf /tmp/mncs-standard;
+        git clone -q --filter=blob:none --no-checkout https://github.com/epi13/machine-native-complexity-standard /tmp/mncs-standard;
+        git -C /tmp/mncs-standard fetch -q --depth 1 origin 5f5cafcbfe26a72cc327ba4837c21a99fed273ec;
+        git -C /tmp/mncs-standard checkout -q 5f5cafcbfe26a72cc327ba4837c21a99fed273ec -- scripts/mncs_promotion_evaluate.py;
+        python3 /tmp/mncs-standard/scripts/mncs_promotion_evaluate.py --boundary promotion/boundary.json --authority-map promotion/authority-map.json --checks .mncs/project-check.json --subject-repository "$GITHUB_REPOSITORY" --subject-commit "$GITHUB_SHA" --output .mncs/promotion-check.json;
+        python3 -c "import sys, os; sys.path.insert(0, 'lib'); import mncs_actions, json; errors = mncs_actions.validate_promotion_claim(json.load(open('.mncs/promotion-check.json')), boundary_id='mncs-actions-promotion', subject_repository=os.environ['GITHUB_REPOSITORY'], subject_commit=os.environ['GITHUB_SHA']); assert not errors, errors; print('promotion claim shape valid')"
+      promotion-boundary: mncs-actions-promotion
+      promotion-check-id: promotion-boundary
+      promotion-provider: mncs-promotion-boundary

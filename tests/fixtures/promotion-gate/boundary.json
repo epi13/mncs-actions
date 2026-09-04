@@ -1,0 +1,32 @@
+{
+  "schema_version": "mncs-promotion-boundary/0.1",
+  "boundary_id": "family-promotion-gate",
+  "subject_repository": "epi13/mncs-actions",
+  "required_evidence": [
+    {
+      "check_id": "mncs-validation",
+      "authority": "machine-native-complexity-standard",
+      "contract_revision": "0.2"
+    },
+    {
+      "check_id": "mncds-development-record",
+      "authority": "machine-native-complexity-development-specification",
+      "contract_revision": "0.2-alpha.1"
+    },
+    {
+      "check_id": "mncds-obligations",
+      "authority": "machine-native-complexity-development-specification",
+      "contract_revision": "mncds-obligation-record/0.2"
+    }
+  ],
+  "optional_evidence": [
+    {
+      "check_id": "forge-cell-contract",
+      "authority": "mncs-forge-mcp"
+    }
+  ],
+  "require_subject_binding": true,
+  "obligation_check_id": "mncds-obligations",
+  "tolerated_obligations": [],
+  "extensions": {}
+}

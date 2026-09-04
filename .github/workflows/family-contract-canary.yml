@@ -1,9 +1,19 @@
 name: MNCS family contract canary
 
-# Fixed compatibility evidence. Each owner-native producer runs in a
-# separate hosted job and can only contribute its own artifact envelope. The
-# aggregator job receives those envelopes and never checks out or executes a
-# family repository.
+# Two distinct paths share this workflow file:
+#
+# 1. Fixed compatibility evidence (prepare / producers /
+#    assemble-and-aggregate). Each owner-native producer runs in a separate
+#    hosted job and can only contribute its own artifact envelope. The
+#    aggregator job receives those envelopes and never checks out or
+#    executes a family repository. This answers whether pinned authorities
+#    still execute and produce coherent evidence; UNKNOWN may stay green.
+#    It never claims the family is promotable.
+# 2. Promotion gate (promotion-gate). A deterministic fixture universe is
+#    evaluated against an explicit required promotion boundary and the job
+#    fails unless promotion is exactly PASS. This answers whether the exact
+#    pinned fixture set satisfies the boundary; it never claims the moving
+#    family is promotable.
 on:
   pull_request:
   workflow_dispatch:
@@ -75,7 +85,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/MNCS-Commons
-          ref: ead5366fa4700657ef246df88ca17e206dd62845
+          ref: b0cdbe0d7bf5b5076000dd81e718f7cdb3987eb4
           path: family/commons
           persist-credentials: false
           fetch-depth: 1
@@ -282,4 +292,62 @@ jobs:
         with:
           name: mncs-family-fixed-revision-evidence
           path: .mncs/fixed-family
+          if-no-files-found: error
+
+  # Promotion gate: unlike the compatibility observation above (where
+  # UNKNOWN stays green), this path answers whether an exact pinned
+  # fixture universe satisfies an explicit promotion boundary. The
+  # boundary is required here and the job fails unless promotion is
+  # exactly PASS. This gate proves promotability of the fixture set;
+  # it never claims the moving family is promotable.
+  promotion-gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out mncs-actions
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        # actions/setup-python v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+      - name: Resolve pinned MNCS evaluator revision
+        id: mncs-rev
+        run: >-
+          python3 -c "import json; contracts=json.load(open('family-contracts.json'));
+          print('revision=' + next(r['revision'] for r in contracts['repositories'] if r['name'] == 'mncs-standard'))" >> "$GITHUB_OUTPUT"
+      - name: Check out fixed MNCS promotion evaluator
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/machine-native-complexity-standard
+          ref: ${{ steps.mncs-rev.outputs.revision }}
+          path: family/mncs-standard
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Assert the promotion-gate contract
+        run: |
+          set -euo pipefail
+          mkdir -p .mncs/promotion-gate
+          python3 scripts/check_promotion_gate.py \
+            --evaluator family/mncs-standard/scripts/mncs_promotion_evaluate.py \
+            --fixtures tests/fixtures/promotion-gate \
+            --lib-dir lib \
+            --output-dir .mncs/promotion-gate \
+            --summary "$GITHUB_STEP_SUMMARY"
+          python3 scripts/render_promotion_summary.py \
+            --input .mncs/promotion-gate/promotion-pass.json \
+            --output .mncs/promotion-gate/summary.md
+          cat .mncs/promotion-gate/summary.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload promotion-gate evidence
+        if: ${{ always() }}
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: mncs-promotion-gate-evidence
+          path: .mncs/promotion-gate
           if-no-files-found: error

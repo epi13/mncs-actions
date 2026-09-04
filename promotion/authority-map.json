@@ -1,0 +1,10 @@
+{
+  "schema_version": "mncs-authority-map/0.1",
+  "authorities": {
+    "project-tests": {
+      "provider": "project-verifier",
+      "authority": "epi13/mncs-actions",
+      "repository": "epi13/mncs-actions"
+    }
+  }
+}

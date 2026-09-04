@@ -1,0 +1,21 @@
+{
+  "schema_version": "mncs-promotion-boundary/0.1",
+  "boundary_id": "mncs-actions-promotion",
+  "subject_repository": "epi13/mncs-actions",
+  "required_evidence": [
+    {
+      "check_id": "project-tests",
+      "authority": "epi13/mncs-actions"
+    },
+    {
+      "check_id": "promotion-boundary",
+      "authority": "machine-native-complexity-standard",
+      "contract_revision": "mncs-promotion-boundary/0.1"
+    }
+  ],
+  "optional_evidence": [],
+  "require_subject_binding": true,
+  "obligation_check_id": "mncds-obligations",
+  "tolerated_obligations": [],
+  "extensions": {}
+}
