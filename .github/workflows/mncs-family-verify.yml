@@ -8,15 +8,26 @@ name: MNCS family verify
 #     mncs:
 #       uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@<pinned-revision>
 #       with:
-#         required-checks: mncs-validation,rights-provenance,project-tests
+#         required-checks: mncs-validation,mncds-development-record,promotion-boundary
 #         mncs-command: ./scripts/mncs-check.sh
 #         rights-command: ./scripts/rights-check.sh
 #         project-command: ./scripts/project-verify.sh
+#         mncds-command: ./scripts/mncds-check.sh
+#         promotion-command: ./scripts/promotion-check.sh
 #
 # Composition is role-based: leave a command empty to mark that provider
 # not applicable for the caller.  "Not applicable" is never recorded as
 # PASS; the check is simply absent and the required set decides the
 # boundary.  Unavailable required coverage becomes UNKNOWN/FAIL, never PASS.
+#
+# MNCDS is first-class: mncds-command runs the owner-native MNCDS validator
+# (see machine-native-complexity-development-specification
+# docs/mncds-check-catalog.md) and needs no additional-checks seam.
+# Promotion is first-class: promotion-command runs the owner-native MNCS
+# promotion evaluator (see machine-native-complexity-standard
+# docs/promotion-boundary.md) over this workflow's other result files.
+# This workflow invokes both owners and aggregates their claims; it never
+# redefines development or promotion semantics.
 #
 # Trust domains: this workflow runs on the caller's runner (expected
 # GitHub-hosted for public PRs). It never dispatches to privileged
@@ -125,6 +136,53 @@ on:
         required: false
         default: .mncs/project-evidence
         type: string
+      mncds-command:
+        description: Provider command writing the MNCDS development-record check-result (empty = not applicable).
+        required: false
+        default: ""
+        type: string
+      mncds-check-id:
+        required: false
+        default: mncds-development-record
+        type: string
+      mncds-provider:
+        required: false
+        default: mncds
+        type: string
+      mncds-result-file:
+        required: false
+        default: .mncs/mncds-check.json
+        type: string
+      mncds-evidence-dir:
+        required: false
+        default: .mncs/mncds-evidence
+        type: string
+      promotion-command:
+        description: Provider command writing the promotion-boundary check-result, usually the owner-native MNCS evaluator over this workflow's other result files (empty = not applicable).
+        required: false
+        default: ""
+        type: string
+      promotion-boundary:
+        description: Declared promotion boundary id, recorded for attribution only.
+        required: false
+        default: ""
+        type: string
+      promotion-check-id:
+        required: false
+        default: promotion-boundary
+        type: string
+      promotion-provider:
+        required: false
+        default: mncs-promotion-boundary
+        type: string
+      promotion-result-file:
+        required: false
+        default: .mncs/promotion-check.json
+        type: string
+      promotion-evidence-dir:
+        required: false
+        default: .mncs/promotion-evidence
+        type: string
       additional-checks:
         description: Whitespace or comma separated paths to precomputed check-result/1 files. Their ids must be listed in required-checks or optional-checks.
         required: false
@@ -171,6 +229,15 @@ on:
       aggregate-digest:
         description: SHA-256 digest of the aggregate-result document.
         value: ${{ jobs.family-verify.outputs.aggregate-digest }}
+      promotion-verdict:
+        description: Promotion-boundary verdict PASS/FAIL/UNKNOWN when the promotion provider ran, else INVALID.
+        value: ${{ jobs.family-verify.outputs.promotion-verdict }}
+      promotion-result-path:
+        description: Path to the packaged promotion check-result when established.
+        value: ${{ jobs.family-verify.outputs.promotion-result-path }}
+      promotion-manifest-digest:
+        description: SHA-256 digest of the canonical promotion check manifest when established.
+        value: ${{ jobs.family-verify.outputs.promotion-manifest-digest }}
       badge-path:
         description: Path to the rendered SVG badge.
         value: ${{ jobs.family-verify.outputs.badge-path }}
@@ -195,6 +262,9 @@ jobs:
       manifest-digest: ${{ steps.aggregate.outputs.manifest-digest }}
       aggregate-path: ${{ steps.aggregate.outputs.aggregate-path }}
       aggregate-digest: ${{ steps.aggregate.outputs.aggregate-digest }}
+      promotion-verdict: ${{ steps.promotion.outputs.verdict }}
+      promotion-result-path: ${{ steps.promotion.outputs.check-path }}
+      promotion-manifest-digest: ${{ steps.promotion.outputs.manifest-digest }}
       badge-path: ${{ steps.badge.outputs.badge-path }}
       badge-sidecar-path: ${{ steps.badge.outputs.sidecar-path }}
     steps:
@@ -241,6 +311,36 @@ jobs:
           evidence-directory: ${{ inputs.project-evidence-dir }}
           upload-artifact: "false"
 
+      - name: MNCDS development-record check
+        id: mncds
+        if: ${{ inputs.mncds-command != '' }}
+        uses: epi13/mncs-actions/actions/run-check@f6b70a897632e5c077633be7777847ee9c78feab
+        with:
+          command: ${{ inputs.mncds-command }}
+          check-id: ${{ inputs.mncds-check-id }}
+          provider: ${{ inputs.mncds-provider }}
+          working-directory: ${{ inputs.working-directory }}
+          result-file: ${{ inputs.mncds-result-file }}
+          evidence-directory: ${{ inputs.mncds-evidence-dir }}
+          upload-artifact: "false"
+
+      # Promotion runs after every evidence provider because the
+      # owner-native evaluator consumes this workflow's other result
+      # files.  The command is caller-composed (boundary + checks +
+      # subject); this workflow never redefines the boundary semantics.
+      - name: MNCS promotion-boundary check
+        id: promotion
+        if: ${{ inputs.promotion-command != '' }}
+        uses: epi13/mncs-actions/actions/run-check@f6b70a897632e5c077633be7777847ee9c78feab
+        with:
+          command: ${{ inputs.promotion-command }}
+          check-id: ${{ inputs.promotion-check-id }}
+          provider: ${{ inputs.promotion-provider }}
+          working-directory: ${{ inputs.working-directory }}
+          result-file: ${{ inputs.promotion-result-file }}
+          evidence-directory: ${{ inputs.promotion-evidence-dir }}
+          upload-artifact: "false"
+
       # Intentional absence vs broken execution:
       # only list result files for providers that actually ran. An omitted
       # optional provider stays absent (no boundary effect); an omitted
@@ -255,6 +355,8 @@ jobs:
             ${{ inputs.mncs-command != '' && inputs.mncs-result-file || '' }}
             ${{ inputs.rights-command != '' && inputs.rights-result-file || '' }}
             ${{ inputs.project-command != '' && inputs.project-result-file || '' }}
+            ${{ inputs.mncds-command != '' && inputs.mncds-result-file || '' }}
+            ${{ inputs.promotion-command != '' && inputs.promotion-result-file || '' }}
             ${{ inputs.additional-checks }}
           required: ${{ inputs.required-checks }}
           optional: ${{ inputs.optional-checks }}

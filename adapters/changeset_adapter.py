@@ -34,6 +34,7 @@ from mncs_actions import (  # noqa: E402
     LINEAGE_CANONICAL_PROFILE,
     classify_changeset_lineage,
     is_safe_relative_path,
+    subject_stamp,
     validate_check_result,
 )
 
@@ -80,7 +81,14 @@ def main() -> int:
         default=[],
         help="optional caller assertion REPOSITORY=40-character-SHA; repeatable",
     )
+    parser.add_argument("--subject-repository", default="")
+    parser.add_argument("--subject-commit", default="")
     args = parser.parse_args()
+
+    stamp, stamp_error = subject_stamp(args.subject_repository, args.subject_commit)
+    if stamp_error:
+        print(f"error: {stamp_error}", file=sys.stderr)
+        return 2
 
     try:
         raw = Path(args.input).read_bytes()
@@ -138,6 +146,8 @@ def main() -> int:
     }
     if unresolved:
         check["unresolved"] = unresolved
+    if stamp:
+        check["subject"] = stamp
     validation_errors = validate_check_result(check)
     if validation_errors:
         for error in validation_errors:

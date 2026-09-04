@@ -14,8 +14,14 @@ jobs:
 
 Pin an immutable commit SHA (see `revision-coherence.md`); never `@main`.
 
-- Each provider (`mncs-command`, `rights-command`, `project-command`)
-  runs via `actions/run-check` and emits an independent check plus receipt.
+- Each provider (`mncs-command`, `rights-command`, `project-command`,
+  `mncds-command`, `promotion-command`) runs via `actions/run-check` and
+  emits an independent check plus receipt. `mncds-command` invokes the
+  owner-native MNCDS validator (first-class; no `additional-checks` seam
+  needed). `promotion-command` runs after every evidence provider and
+  invokes the owner-native MNCS promotion evaluator over this workflow's
+  other result files; the workflow exposes `promotion-verdict`,
+  `promotion-result-path`, and `promotion-manifest-digest` as outputs.
   Internal actions are pinned to a synchronized immutable SHA so a
   caller pinning workflow revision X executes exactly action revision X
   (never `./actions/...`, which would resolve inside the caller repo,

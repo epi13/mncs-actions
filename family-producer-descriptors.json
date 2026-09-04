@@ -186,6 +186,11 @@
             "name": "artifact-envelope",
             "source_path": "pressure/artifact-envelope-boundary.mncs",
             "check_id": "mncs-language-artifact-envelope"
+          },
+          {
+            "name": "promotion-boundary",
+            "source_path": "pressure/promotion-boundary.mncs",
+            "check_id": "mncs-language-promotion-boundary"
           }
         ]
       },
@@ -228,6 +233,18 @@
         },
         {
           "check_id": "mncs-language-artifact-envelope",
+          "provider": "mncs-language",
+          "contract_revision": "mncs:language:compilation-study-result:0.1",
+          "roles": {
+            "evidence_provider": "mncs-language",
+            "semantic_authority": "mncs-language",
+            "remediation_owner": "epi13/mncs-language",
+            "transport_authority": "mncs-actions",
+            "originating_project": "epi13/mncs-actions"
+          }
+        },
+        {
+          "check_id": "mncs-language-promotion-boundary",
           "provider": "mncs-language",
           "contract_revision": "mncs:language:compilation-study-result:0.1",
           "roles": {

@@ -48,3 +48,18 @@ The family language producer runs this source study alongside the existing
 family, rights, and ChangeSet studies. This keeps the pressure loop concrete
 without pretending that immature filesystem or byte capabilities are already
 available in MNCS.
+
+`pressure/promotion-boundary.mncs` expresses the pure promotion-decision
+core of the owner-native MNCS evaluator
+(`mncs_promotion_evaluate.py` in machine-native-complexity-standard):
+required combination via the authoritative `dominate` lattice join, the
+open-required-obligation gate to `UNKNOWN`, and optional-evidence carriage
+without deciding. JSON parsing, digest computation, exact-revision checks,
+subject-stamp comparison, and result emission remain explicit host escape
+(no safe MNCS surface yet). Rejected obligations arrive as `FAIL` evidence
+through required combination, never as obligations.
+
+Note the two promotion-adjacent check ids: `promotion-boundary` is the
+actual MNCS promotion evaluation result, while
+`mncs-language-promotion-boundary` is this compilation study of its pure
+decision core. The study is language pressure, never a promotion claim.

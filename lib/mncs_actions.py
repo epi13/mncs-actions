@@ -84,6 +84,7 @@ REVISION_TOKEN_RE = re.compile(r"^[^\s\x00-\x1f\x7f]{1,128}$")
 
 _HEX64 = re.compile(r"^[a-f0-9]{64}$")
 _DIGEST = re.compile(r"^(sha256:)?[a-f0-9]{64}$")
+_SUBJECT_COMMIT = re.compile(r"^[0-9a-f]{40}$")
 _NATIVE_HEX64 = re.compile(r"^[A-Fa-f0-9]{64}$")
 _REPOSITORY_ID = re.compile(
     r"^(?:https://)?github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+(?:\.git)?$"
@@ -364,6 +365,93 @@ def validate_check_result(obj: Any) -> List[str]:
                     continue
                 for err in validate_evidence_reference(ref):
                     errors.append(f"evidence_refs[{index}].{err}")
+    return errors
+
+
+def subject_stamp(
+    repository: str, commit: str
+) -> Tuple[Optional[Dict[str, str]], Optional[str]]:
+    """Build a subject binding stamp for a check-result.
+
+    Returns ``(stamp, None)`` when both inputs are empty (unstamped claim)
+    or both are well-formed, and ``(None, error)`` when they are partial
+    or the commit is not an exact 40-hex revision.  Moving refs are never
+    stamped: only exact revisions can carry a promotion-relevant claim.
+    """
+    if not repository and not commit:
+        return None, None
+    if not repository or not commit:
+        return None, "subject repository and commit are required together"
+    if not isinstance(repository, str) or not isinstance(commit, str):
+        return None, "subject repository and commit must be strings"
+    if not _SUBJECT_COMMIT.match(commit):
+        return None, "subject commit must be an exact 40-hex revision"
+    return {"repository": repository, "commit": commit}, None
+
+
+def validate_promotion_claim(
+    obj: Any,
+    *,
+    boundary_id: str,
+    subject_repository: str,
+    subject_commit: str,
+) -> List[str]:
+    """Transport validation for an MNCS promotion-boundary result.
+
+    This checks the carrier shape only: the verdict semantics belong to the
+    owner-native evaluator in machine-native-complexity-standard
+    (``mncs_promotion_evaluate.py``), which this function never re-runs or
+    reinterprets.  Structural rules enforced here:
+
+    - the document is a valid ``check-result/1`` claim;
+    - the ``promotion`` extension names the expected boundary and subject;
+    - at least one digest-bound evidence reference is preserved;
+    - a non-PASS verdict names its blockers (a promotion claim that blocks
+      without saying why establishes no actionable claim).
+    """
+    errors = validate_check_result(obj)
+    if errors:
+        return errors
+    assert isinstance(obj, dict)
+    promotion = obj.get("promotion")
+    if not isinstance(promotion, dict):
+        return ["promotion result must carry a promotion extension object"]
+    if promotion.get("boundary_id") != boundary_id:
+        errors.append("promotion.boundary_id must match the declared boundary")
+    subject = promotion.get("subject")
+    if not isinstance(subject, dict):
+        errors.append("promotion.subject must bind the candidate revision")
+    else:
+        if subject.get("repository") != subject_repository:
+            errors.append("promotion.subject.repository must match the candidate")
+        if subject.get("commit") != subject_commit:
+            errors.append("promotion.subject.commit must match the candidate")
+    blockers = promotion.get("blockers")
+    if not isinstance(blockers, list) or not all(
+        isinstance(item, str) and item for item in blockers
+    ):
+        errors.append("promotion.blockers must be an array of non-empty strings")
+    elif obj.get("verdict") == "PASS" and blockers:
+        errors.append("promotion PASS cannot carry blockers")
+    elif obj.get("verdict") in ("FAIL", "UNKNOWN") and not blockers:
+        errors.append("promotion FAIL/UNKNOWN must name the blockers that prevented PASS")
+    references = obj.get("references")
+    if not isinstance(references, list) or not references:
+        errors.append("promotion result must preserve at least one evidence reference")
+    else:
+        digests = [
+            ref.get("digest")
+            for ref in references
+            if isinstance(ref, dict) and isinstance(ref.get("digest"), str)
+        ]
+        if not digests or not all(_DIGEST.match(item) for item in digests):
+            errors.append(
+                "promotion result must preserve digest-bound evidence references"
+            )
+    if obj.get("verdict") in ("FAIL", "UNKNOWN"):
+        unresolved = obj.get("unresolved")
+        if not isinstance(unresolved, list) or not unresolved:
+            errors.append("promotion FAIL/UNKNOWN must surface unresolved blockers")
     return errors
 
 

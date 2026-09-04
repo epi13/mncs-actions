@@ -35,7 +35,7 @@ def uses_self_refs():
 def test_internal_pins_present():
     refs = uses_self_refs()
     names = [name for name, _ in refs]
-    assert names.count("run-check") == 3, names
+    assert names.count("run-check") == 5, names
     assert names.count("aggregate") == 1, names
     assert names.count("render-badge") == 1, names
 

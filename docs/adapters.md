@@ -131,14 +131,30 @@ particular, a policy-bound record with unmet process isolation stays
 claim. The projection scope explicitly excludes kernel and attestation
 inference.
 
+## MNCDS development record (`adapters/mncds_adapter.py`)
+
+First-class MNCDS authority. The adapter consumes `mncds validate --json`
+and applies `docs/mncds-check-catalog.md` verbatim (valid + computed
+status maps directly; unrecognized status and unsupported versions stay
+`UNKNOWN`, never `PASS`; invalid records are `FAIL`; unreadable input
+establishes no claim). Use `mncds-command` in `mncs-family-verify`; the
+generic `additional-checks` seam is no longer needed for normal MNCDS use.
+
+## Subject binding (`--subject-repository` / `--subject-commit`)
+
+Every adapter accepts optional subject stamps, built by the shared
+`subject_stamp` helper in `lib/mncs_actions.py`. A stamp binds the claim
+to an exact candidate revision for MNCS promotion evaluation. Partial
+bindings and moving refs are rejected at the membrane, never stamped.
+
 ## Capability gaps and promotion boundaries
 
-The current MNCS Language and MNCDS checkouts expose capability-gap and
-promotion-boundary material, but no stable transport contract that
-`mncs-actions` can validate without becoming a second semantic owner. No
-local schema is invented here. Once an owning contract is stable, its native
-report can be adapted through `additional-checks`; until then, providers may
-carry the existing records as evidence and must leave unresolved capability
-or promotion obligations explicit. A capability gap is evidence of a missing
-capability, never permission to omit a required check, and a runner or badge
-never grants promotion authority.
+MNCDS obligation records (`mncds-obligation-record/0.1`) and the MNCS
+promotion boundary (`mncs-promotion-boundary/0.1`) are now stable owning
+contracts; see `docs/promotion-boundary.md`. Transport projects pressure
+into obligations (`scripts/pressure_to_obligations.py`), obligations into
+a check (`scripts/project_obligations.py`), and validates promotion
+claims (`validate_promotion_claim`) without redefining any of their
+semantics. No local schema is invented here. A capability gap is evidence
+of a missing capability, never permission to omit a required check, and
+a runner or badge never grants promotion authority.

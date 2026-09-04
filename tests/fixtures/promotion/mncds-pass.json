@@ -1,0 +1,22 @@
+{
+  "schema_version": "mncs.check-result/1",
+  "id": "mncds-development-record",
+  "provider": "mncds",
+  "verdict": "PASS",
+  "scope": "development",
+  "claim": "development process satisfies MNCDS",
+  "summary": "mncds fixture PASS",
+  "contract_revision": "0.2-alpha.1",
+  "subject": {
+    "repository": "epi13/mncs-actions",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "references": [
+    {
+      "kind": "mncds-development-record",
+      "producer": "mncds",
+      "authority": "machine-native-complexity-development-specification",
+      "authority_record_identity": "record.fixture-1"
+    }
+  ]
+}

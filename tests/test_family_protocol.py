@@ -222,7 +222,7 @@ def test_assembler_emits_schema_complete_evidence_and_pressure(tmp_path):
     )) == 0
     evidence = load_json(output / "family-contract-evidence.json")
     pressure = load_json(output / "development-pressure/development-pressure-evidence.json")
-    assert len(evidence["checks"]) == 9
+    assert len(evidence["checks"]) == 10
     assert evidence["execution"]["aggregator_executes_producer_code"] is False
     assert evidence["execution"]["candidate_isolation"] is False
     assert evidence["development_pressure"]["obligation_count"] == 0

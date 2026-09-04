@@ -237,7 +237,7 @@ def _run_operation(
         output = outputs["mncds-development-record"]
         _adapt(
             [
-                sys.executable, str(adapters / "validator_adapter.py"),
+                sys.executable, str(adapters / "mncds_adapter.py"),
                 "--input", str(report_path), "--output", str(target),
                 "--check-id", output["check_id"], "--provider", output["provider"],
                 "--contract-revision", output["contract_revision"],

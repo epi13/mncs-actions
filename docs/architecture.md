@@ -40,12 +40,47 @@ orchestrates, invokes, transports, aggregates, and packages evidence.
 
 ## Contract ownership
 
-- MNCS and MNCDS define the standard and development-pressure rules.
+- MNCS defines the standard and the promotion/evidence boundary semantics.
+- MNCDS defines development/change/promotion-process semantics, including
+  development records and the obligation lifecycle.
 - Commons defines shared coordination records and evidence relationships.
 - mncs-rights-provenance defines rights, identity, and provenance semantics.
 - mncs-language defines the compiler and language capability surface.
 - Forge supplies pressure cases and candidate implementations.
-- mncs-actions connects those decisions to GitHub events and artifacts.
+- mncs-actions owns execution, transport, aggregation, evidence packaging,
+  CI integration, and GitHub-facing enforcement. It invokes the correct
+  authorities, preserves their evidence bound to exact revisions, and
+  aggregates the result. It never becomes the semantic authority.
+
+The promotion lifecycle this architecture serves:
+
+~~~text
+Change
+  |
+  v
+MNCDS (development record / obligations / unresolved evidence)
+  |
+  v
+family providers (MNCS validation, rights, project, MNCDS, Forge, language)
+  |
+  v
+MNCS promotion boundary (owner-native evaluation)
+  |
+  v
+mncs-actions (execute + aggregate + preserve)
+  |
+  v
+PASS / FAIL / UNKNOWN
+~~~
+
+See `docs/promotion-boundary.md` for the transport view: MNCDS and
+promotion are first-class providers in `mncs-family-verify`
+(`mncds-command`, `promotion-command`), development pressure projects
+into MNCDS obligations instead of living beside them, and every
+promotion decision binds exact revisions. `UNKNOWN` remains a real
+state: unresolved required obligations and missing required evidence
+block without a negative finding, and malformed evidence establishes no
+claim at all.
 
 When a workflow needs information from another repository, it should reference that repository's published contract or emitted artifact. It should not copy the semantics into a shell script merely for convenience.
 

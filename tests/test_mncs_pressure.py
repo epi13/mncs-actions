@@ -89,12 +89,28 @@ def test_pressure_sources_lex_and_parse():
         import pytest
 
         pytest.skip("mncs compiler binary unavailable (set MNCS_BIN)")
-    for name in ("family-boundary.mncs", "rights-projection.mncs", "changeset-boundary.mncs"):
+    for name in ("family-boundary.mncs", "rights-projection.mncs", "changeset-boundary.mncs", "promotion-boundary.mncs"):
         document, diags = _study_stages(PRESSURE / name)
         assert diags == [], (name, diags)
         assert document.get("lexical"), name
         assert document.get("cst"), name
         assert document.get("ast"), name
+
+
+def test_promotion_boundary_arms_match_evaluator():
+    text = (PRESSURE / "promotion-boundary.mncs").read_text(encoding="utf-8")
+    # Required combination uses the authoritative lattice join.
+    assert "dominate(pair.first, pair.second)" in text
+    # Open required obligations force UNKNOWN; optional evidence is carried.
+    assert "Truth.Yes => Status.UNKNOWN" in text
+    assert "return state.boundary;" in text
+    # No arm may turn UNKNOWN into PASS or delete FAIL. Rejected
+    # obligations arrive as FAIL evidence through required_boundary
+    # (dominate), never as obligations, so FAIL dominance needs no
+    # separate arm here.
+    assert "UNKNOWN => Status.PASS" not in text
+    assert "FAIL => Status.PASS" not in text
+    assert "dominate" in text
 
 
 def test_changeset_projection_arms_match_host():

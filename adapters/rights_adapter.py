@@ -43,6 +43,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from mncs_actions import (  # noqa: E402
     CHECK_RESULT_SCHEMA_VERSION,
     classify_rights_report,
+    subject_stamp,
     validate_check_result,
 )
 
@@ -59,7 +60,14 @@ def main() -> int:
     parser.add_argument("--producer-revision", default="")
     parser.add_argument("--manifest-path", default="")
     parser.add_argument("--manifest-digest", default="")
+    parser.add_argument("--subject-repository", default="")
+    parser.add_argument("--subject-commit", default="")
     args = parser.parse_args()
+
+    stamp, stamp_error = subject_stamp(args.subject_repository, args.subject_commit)
+    if stamp_error:
+        print(f"error: {stamp_error}", file=sys.stderr)
+        return 2
 
     try:
         report = json.loads(Path(args.input).read_text(encoding="utf-8"))
@@ -148,6 +156,8 @@ def main() -> int:
         check["unresolved"] = unresolved
     if references:
         check["references"] = references
+    if stamp:
+        check["subject"] = stamp
 
     errors = validate_check_result(check)
     if errors:

@@ -1,0 +1,18 @@
+{
+  "schema_version": "mncds-obligation-record/0.1",
+  "obligation_key": "pressure.fixture.open-required",
+  "status": "open",
+  "required": true,
+  "subject": {
+    "repository": "epi13/mncs-actions",
+    "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  },
+  "origin": {
+    "kind": "development-pressure",
+    "authority": "mncs-actions",
+    "pressure_id": "pressure-fixture-1"
+  },
+  "evidence": [],
+  "supersedes": null,
+  "extensions": {}
+}

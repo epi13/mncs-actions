@@ -44,7 +44,7 @@ jobs:
           python3 -m json.tool schemas/development-pressure-evidence.schema.json >/dev/null
           python3 -m json.tool family-producer-descriptors.json >/dev/null
           python3 scripts/family_contracts.py validate family-contracts.json
-          for fixture in tests/fixtures/verify/pass.json tests/fixtures/verify/fail.json tests/fixtures/verify/unknown.json tests/fixtures/check/pass.json; do
+          for fixture in tests/fixtures/verify/pass.json tests/fixtures/verify/fail.json tests/fixtures/verify/unknown.json tests/fixtures/check/pass.json tests/fixtures/promotion/boundary.json tests/fixtures/promotion/mncs-pass.json tests/fixtures/promotion/mncds-pass.json tests/fixtures/promotion/promotion-pass.json tests/fixtures/promotion/canary-boundary.json tests/fixtures/promotion/obligation-open.json tests/fixtures/mncds/valid-pass.json tests/fixtures/mncds/obligations-resolved.json; do
             python3 -m json.tool "$fixture" >/dev/null
           done
 
@@ -52,7 +52,7 @@ jobs:
         run: |
           pip install --require-hashes -r requirements-dev.lock
           check-jsonschema --schemafile schemas/verification-result.schema.json tests/fixtures/verify/pass.json tests/fixtures/verify/fail.json tests/fixtures/verify/unknown.json tests/fixtures/verify/extra-fields.json
-          check-jsonschema --schemafile schemas/check-result.schema.json tests/fixtures/check/pass.json tests/fixtures/check/fail.json tests/fixtures/check/unknown.json
+          check-jsonschema --schemafile schemas/check-result.schema.json tests/fixtures/check/pass.json tests/fixtures/check/fail.json tests/fixtures/check/unknown.json tests/fixtures/promotion/mncs-pass.json tests/fixtures/promotion/mncds-pass.json tests/fixtures/promotion/promotion-pass.json
           check-jsonschema --schemafile schemas/family-producer-descriptor.schema.json family-producer-descriptors.json
           check-jsonschema --schemafile schemas/family-producer-output.schema.json tests/fixtures/family/producer-output.json
           check-jsonschema --schemafile schemas/family-integration-evidence.schema.json tests/fixtures/family/integration-evidence.json
@@ -202,6 +202,45 @@ jobs:
           aggregate-digest: ${{ steps.aggregate.outputs.aggregate-digest }}
           manifest-digest: ${{ steps.aggregate.outputs.manifest-digest }}
           carrier-revision: self-test-carrier
+
+  promotion-self-test:
+    # mncs-actions verifies its own development/promotion path with the new
+    # contracts: MNCDS record + obligations project locally, and the
+    # promotion claim shape (as emitted by the owner-native MNCS evaluator)
+    # validates and aggregates. The true evaluator step runs in the
+    # fixed-revision family canary against the pinned MNCS revision.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Project MNCDS development record (fixture report)
+        run: |
+          set -euo pipefail
+          mkdir -p .mncs
+          python3 adapters/mncds_adapter.py --input tests/fixtures/mncds/valid-pass.json --output .mncs/mncds-check.json --check-id mncds-development-record --provider mncds --contract-revision 0.2-alpha.1 --subject-repository epi13/mncs-actions --subject-commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          python3 -c "import json; assert json.load(open('.mncs/mncds-check.json'))['verdict']=='PASS'"
+
+      - name: Project MNCDS obligations (fixture set)
+        run: |
+          set -euo pipefail
+          python3 scripts/project_obligations.py --obligations tests/fixtures/mncds/obligations-resolved.json --subject-repository epi13/mncs-actions --subject-commit aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa --output .mncs/mncds-obligations-check.json
+          python3 -c "import json; assert json.load(open('.mncs/mncds-obligations-check.json'))['verdict']=='PASS'"
+
+      - name: Validate promotion claim shape and aggregate the path
+        run: |
+          set -euo pipefail
+          python3 -c "import sys; sys.path.insert(0,'lib'); import mncs_actions, json; assert mncs_actions.validate_promotion_claim(json.load(open('tests/fixtures/promotion/promotion-pass.json')), boundary_id='family-promotion', subject_repository='epi13/mncs-actions', subject_commit='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa') == []"
+          cp tests/fixtures/promotion/mncs-pass.json .mncs/mncs-check.json
+          cp tests/fixtures/promotion/mncds-pass.json .mncs/mncds-check.json
+          cp tests/fixtures/promotion/promotion-pass.json .mncs/promotion-check.json
+          export GITHUB_OUTPUT="$RUNNER_TEMP/promotion-output"
+          export GITHUB_STEP_SUMMARY="$RUNNER_TEMP/promotion-summary"
+          touch "$GITHUB_OUTPUT" "$GITHUB_STEP_SUMMARY"
+          actions/aggregate/aggregate.sh --checks ".mncs/mncs-check.json .mncs/mncds-check.json .mncs/promotion-check.json" --required "mncs-validation,mncds-development-record,promotion-boundary" --evidence-dir .mncs/promotion-aggregate-evidence --working-dir . --boundary "ci-promotion-self-test"
+          grep -q '^verdict=PASS$' "$RUNNER_TEMP/promotion-output"
+          test -s .mncs/promotion-aggregate-evidence/aggregate-result.json
 
   boundary-matrix:
     # Shell-level boundary matrix: omission vs missing vs FAIL/UNKNOWN vs
