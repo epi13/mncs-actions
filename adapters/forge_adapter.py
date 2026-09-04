@@ -10,7 +10,12 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
-from mncs_actions import CHECK_RESULT_SCHEMA_VERSION, sha256_hex, validate_check_result  # noqa: E402
+from mncs_actions import (  # noqa: E402
+    CHECK_RESULT_SCHEMA_VERSION,
+    sha256_hex,
+    subject_stamp,
+    validate_check_result,
+)
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -29,6 +34,7 @@ def build_check(
     expected_nonce: str,
     producer_revision: str = "",
     contract_revision: str = "0.1",
+    subject: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     try:
         from mncs_forge.forge_cell import (  # type: ignore[import-not-found]
@@ -91,6 +97,8 @@ def build_check(
         check["producer_revision"] = producer_revision
         for reference in references:
             reference["producer_revision"] = producer_revision
+    if subject:
+        check["subject"] = subject
     errors = validate_check_result(check)
     if errors:
         raise ValueError("invalid adapted Forge check: " + "; ".join(errors))
@@ -104,7 +112,13 @@ def main() -> int:
     parser.add_argument("--expected-nonce", required=True)
     parser.add_argument("--producer-revision", default="")
     parser.add_argument("--contract-revision", default="0.1")
+    parser.add_argument("--subject-repository", default="")
+    parser.add_argument("--subject-commit", default="")
     args = parser.parse_args()
+    stamp, stamp_error = subject_stamp(args.subject_repository, args.subject_commit)
+    if stamp_error:
+        print(f"error: {stamp_error}", file=sys.stderr)
+        return 2
     try:
         # The Forge package is loaded from the exact checked-out family head.
         sys.path.insert(0, str(args.forge_root / "src"))
@@ -116,6 +130,7 @@ def main() -> int:
             expected_nonce=args.expected_nonce,
             producer_revision=args.producer_revision,
             contract_revision=args.contract_revision,
+            subject=stamp,
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(check, indent=2, sort_keys=True) + "\n", encoding="utf-8")

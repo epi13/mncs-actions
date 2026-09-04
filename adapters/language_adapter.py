@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from mncs_actions import (  # noqa: E402
     CHECK_RESULT_SCHEMA_VERSION,
     sha256_hex,
+    subject_stamp,
     validate_check_result,
 )
 
@@ -52,6 +53,7 @@ def build_check(
     check_id: str = "mncs-language-study",
     producer_revision: str = "",
     required_module: str = "",
+    subject: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     if study.get("contract_id") != CONTRACT_ID:
         raise ValueError(f"compiler study contract_id must be {CONTRACT_ID}")
@@ -124,6 +126,8 @@ def build_check(
     if producer_revision:
         check["producer_revision"] = producer_revision
         reference["producer_revision"] = producer_revision
+    if subject:
+        check["subject"] = subject
     errors = validate_check_result(check)
     if errors:
         raise ValueError("invalid adapted compiler check: " + "; ".join(errors))
@@ -138,7 +142,13 @@ def main() -> int:
     parser.add_argument("--check-id", default="mncs-language-study")
     parser.add_argument("--producer-revision", default="")
     parser.add_argument("--required-module", default="mncs.core.status.v1")
+    parser.add_argument("--subject-repository", default="")
+    parser.add_argument("--subject-commit", default="")
     args = parser.parse_args()
+    stamp, stamp_error = subject_stamp(args.subject_repository, args.subject_commit)
+    if stamp_error:
+        print(f"error: {stamp_error}", file=sys.stderr)
+        return 2
     try:
         check = build_check(
             _load(args.input),
@@ -146,6 +156,7 @@ def main() -> int:
             check_id=args.check_id,
             producer_revision=args.producer_revision,
             required_module=args.required_module,
+            subject=stamp,
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(check, indent=2, sort_keys=True) + "\n", encoding="utf-8")
