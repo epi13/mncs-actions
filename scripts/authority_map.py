@@ -7,6 +7,16 @@ to its provider string and semantic authority, plus the producer
 repository for attribution. The promotion evaluator consumes the derived
 map; transport never invents bindings.
 
+Duplicate ``check_id`` policy (mechanical, owns nothing):
+
+- a repeated declaration that is field-identical (provider, authority,
+  and repository attribution, including its absence) is deduplicated
+  deterministically: first declaration wins, repeats are no-ops;
+- any repeated declaration that differs in *any* field -- provider,
+  semantic authority, or repository attribution (changed, added, or
+  removed) -- is rejected with exit 2. Repository attribution can
+  neither silently change nor silently disappear through deduplication.
+
 Usage:
   authority_map.py --descriptors family-producer-descriptors.json
       --output authority-map.json
@@ -65,18 +75,25 @@ def main() -> int:
                     file=sys.stderr,
                 )
                 return 2
-            if check_id in authorities and authorities[check_id] != {
-                "provider": provider,
-                "authority": authority,
-            }:
-                print(
-                    f"error: conflicting authority bindings for {check_id}",
-                    file=sys.stderr,
-                )
-                return 2
             entry: dict[str, str] = {"provider": provider, "authority": authority}
             if isinstance(repository, str) and repository:
                 entry["repository"] = repository
+            if check_id in authorities:
+                if authorities[check_id] == entry:
+                    continue
+                existing = authorities[check_id]
+                if existing.get("provider") != provider:
+                    reason = "conflicting provider"
+                elif existing.get("authority") != authority:
+                    reason = "conflicting semantic authority"
+                else:
+                    reason = "conflicting repository attribution"
+                print(
+                    f"error: {reason} for duplicate check_id {check_id}: "
+                    f"{existing!r} vs {entry!r}",
+                    file=sys.stderr,
+                )
+                return 2
             authorities[check_id] = entry
 
     output = Path(args.output)
