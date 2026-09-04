@@ -86,6 +86,28 @@ uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@<40-hex-sha>
   are pinned in `requirements-dev.txt`; the hosted runner image remains
   mutable and is recorded as provenance rather than misrepresented as pinned.
 
+## Cross-repository two-step pin procedure
+
+Downstream pins cannot name upstream revisions that do not exist yet, so
+coordinated promotion work lands in two steps with no floating refs at any
+point:
+
+1. Upstream owner repositories merge first (MNCDS, MNCS, Commons). Their
+   merge commits are immutable the moment they land.
+2. `mncs-actions` then advances `family-contracts.json` and any hardcoded
+   canary checkout refs to those merge SHAs, in the same branch that
+   consumes the new contracts, before its own merge.
+3. Repositories that pin `mncs-actions` transport (for example the MNCDS
+   CI transport job, or a promotion-dogfood reusable-workflow pin) advance
+   to the `mncs-actions` merge SHA in a fast follow-up. The previously
+   pinned commit remains immutable and valid; the follow-up only moves to
+   newer transport.
+
+At every step each repository references one coherent immutable graph of
+exact revisions. There is no self-referential loop: `mncs-actions` never
+pins a revision of itself that does not exist yet, and consumers never
+float.
+
 ## Future evolution
 
 If GitHub ever provides the reusable workflow's own ref to its steps

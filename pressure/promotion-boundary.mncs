@@ -68,3 +68,38 @@ record ScopedObservation { boundary: Status, optional: Status }
 fn observe_optional(state: ScopedObservation) -> (result: Status) {
     return state.boundary;
 }
+
+enum AuthorityBinding { Bound, Unbound }
+
+// Authority standing. A check whose authority is not established through
+// the pinned map is incomplete (UNKNOWN), never PASS. Wrong-producer
+// substitution never reaches this function: the host establishes no claim
+// (it cannot be expressed as a verdict arm).
+fn authority_standing(binding: AuthorityBinding) -> (result: Status) {
+    return match binding {
+        AuthorityBinding.Bound => Status.PASS,
+        AuthorityBinding.Unbound => Status.UNKNOWN,
+    };
+}
+
+enum RevisionStanding { Exact, Missing, Mismatched }
+
+// Revision standing. An omitted or different contract revision is
+// incomplete (UNKNOWN), never PASS. A malformed revision carrier never
+// reaches this function: the host establishes no claim.
+fn revision_standing(standing: RevisionStanding) -> (result: Status) {
+    return match standing {
+        RevisionStanding.Exact => Status.PASS,
+        RevisionStanding.Missing => Status.UNKNOWN,
+        RevisionStanding.Mismatched => Status.UNKNOWN,
+    };
+}
+
+record EvidenceEligibility { authority: Status, revision: Status, verdict: Status }
+
+// Required-check eligibility. Authority, revision, and verdict combine
+// through the same lattice join: any non-PASS input can only weaken the
+// outcome, and no arm turns UNKNOWN into PASS or deletes FAIL.
+fn eligible(evidence: EvidenceEligibility) -> (result: Status) {
+    return dominate(dominate(evidence.authority, evidence.revision), evidence.verdict);
+}

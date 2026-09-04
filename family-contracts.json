@@ -33,7 +33,7 @@
     {
       "name": "commons",
       "repository": "epi13/MNCS-Commons",
-      "revision": "ead5366fa4700657ef246df88ca17e206dd62845",
+      "revision": "b0cdbe0d7bf5b5076000dd81e718f7cdb3987eb4",
       "checkout_path": "family/commons",
       "artifacts": ["compat/family-record-producers.json"]
     },
