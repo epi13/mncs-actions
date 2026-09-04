@@ -27,6 +27,7 @@ jobs:
       fail-on-unknown: true
       project-command: >-
         mkdir -p .mncs;
+        python3 -m pip install -q pytest > /tmp/pip.log 2>&1;
         python3 -m pytest tests/test_promotion_transport.py tests/test_mncs_pressure.py -q > /tmp/project-tests.log 2>&1;
         rc=$?;
         PROJECT_RC=$rc python3 -c "import json, os; verdict = 'PASS' if os.environ['PROJECT_RC'] == '0' else 'FAIL'; json.dump({'schema_version': 'mncs.check-result/1', 'id': 'project-tests', 'provider': 'project-verifier', 'verdict': verdict, 'summary': 'dogfood project evidence ' + verdict, 'subject': {'repository': os.environ['GITHUB_REPOSITORY'], 'commit': os.environ['GITHUB_SHA']}}, open('.mncs/project-check.json', 'w'), indent=2, sort_keys=True)";
@@ -36,8 +37,8 @@ jobs:
       promotion-command: >-
         rm -rf /tmp/mncs-standard;
         git clone -q --filter=blob:none --no-checkout https://github.com/epi13/machine-native-complexity-standard /tmp/mncs-standard;
-        git -C /tmp/mncs-standard fetch -q --depth 1 origin 5f5cafcbfe26a72cc327ba4837c21a99fed273ec;
-        git -C /tmp/mncs-standard checkout -q 5f5cafcbfe26a72cc327ba4837c21a99fed273ec -- scripts/mncs_promotion_evaluate.py;
+        git -C /tmp/mncs-standard fetch -q --depth 1 origin 688445783971db9027dc7fc44224bd63acd7a08a;
+        git -C /tmp/mncs-standard checkout -q 688445783971db9027dc7fc44224bd63acd7a08a -- scripts/mncs_promotion_evaluate.py;
         python3 /tmp/mncs-standard/scripts/mncs_promotion_evaluate.py --boundary promotion/boundary.json --authority-map promotion/authority-map.json --checks .mncs/project-check.json --subject-repository "$GITHUB_REPOSITORY" --subject-commit "$GITHUB_SHA" --output .mncs/promotion-check.json;
         python3 -c "import sys, os; sys.path.insert(0, 'lib'); import mncs_actions, json; errors = mncs_actions.validate_promotion_claim(json.load(open('.mncs/promotion-check.json')), boundary_id='mncs-actions-promotion', subject_repository=os.environ['GITHUB_REPOSITORY'], subject_commit=os.environ['GITHUB_SHA']); assert not errors, errors; print('promotion claim shape valid')"
       promotion-boundary: mncs-actions-promotion

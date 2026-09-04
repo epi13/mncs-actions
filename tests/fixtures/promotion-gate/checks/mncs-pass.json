@@ -7,7 +7,7 @@
   "claim": "candidate satisfies applicable MNCS validation",
   "summary": "gate fixture: MNCS validation PASS",
   "contract_revision": "0.2",
-  "producer_revision": "5f5cafcbfe26a72cc327ba4837c21a99fed273ec",
+  "producer_revision": "688445783971db9027dc7fc44224bd63acd7a08a",
   "subject": {
     "repository": "epi13/mncs-actions",
     "commit": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"

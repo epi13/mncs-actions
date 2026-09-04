@@ -67,7 +67,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/machine-native-complexity-standard
-          ref: 76855d2c9902bc1c7ef09e8e83a8fc35d602ca47
+          ref: 688445783971db9027dc7fc44224bd63acd7a08a
           path: family/mncs-standard
           persist-credentials: false
           fetch-depth: 1
