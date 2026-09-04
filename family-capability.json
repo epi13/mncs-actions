@@ -59,7 +59,7 @@
       {"paths": ["schemas/", "family-producer-descriptors.json"], "impact": "contract"},
       {"paths": ["scripts/", "pressure/", "promotion/", "family-capability.json", ".github/workflows/family-graph-advance.yml", "requirements-dev.lock", "requirements-dev.txt"], "impact": "evidence"},
       {"paths": ["docs/", "examples/", "README.md", "CONTRIBUTING.md", "SECURITY.md"], "impact": "docs"},
-      {"paths": ["tests/", ".github/workflows/ci.yml", ".github/workflows/family-contract-canary.yml", ".github/workflows/family-contract-advance.yml", ".github/workflows/moving-head-family-drift.yml", ".github/workflows/promotion-dogfood.yml", "family-contracts.json", "revision-binding.json", ".gitignore", "LICENSE"], "impact": "none"}
+      {"paths": ["tests/", ".github/workflows/ci.yml", ".github/workflows/family-contract-canary.yml", ".github/workflows/family-contract-advance.yml", ".github/workflows/moving-head-family-drift.yml", ".github/workflows/promotion-dogfood.yml", "family-contracts.json", "family-graph-accepted.json", "revision-binding.json", ".gitignore", "LICENSE"], "impact": "none"}
     ],
     "epi13/machine-native-complexity-standard": [
       {"paths": ["scripts/mncs_promotion_evaluate.py"], "impact": "executable"},
