@@ -7,6 +7,8 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 import mncs_actions as lib
 
@@ -121,3 +123,36 @@ def test_badge_schema_matches_lib():
     assert set(schema["required"]) == {"schema_version", "label", "verdict"}
     assert schema["properties"]["label"]["maxLength"] == lib.BADGE_LABEL_MAX_LEN
     assert schema["additionalProperties"] is True
+
+
+def test_family_protocol_schemas_cover_runtime_contracts():
+    descriptor = load_schema("family-producer-descriptor.schema.json")
+    assert descriptor["properties"]["schema_version"]["const"] == "mncs-actions.family-producer-descriptors/1"
+    assert descriptor["additionalProperties"] is False
+    producer = load_schema("family-producer-output.schema.json")
+    assert producer["properties"]["schema_version"]["const"] == "mncs-actions.family-producer-output/1"
+    assert set(producer["required"]) >= {"producer", "revision", "descriptor_digest", "files", "check_results"}
+    integration = load_schema("family-integration-evidence.schema.json")
+    assert integration["properties"]["schema_version"]["const"] == "mncs-actions.family-integration-evidence/1"
+    assert set(integration["required"]) >= {
+        "mode", "contract_document", "contract_digest", "family_revisions",
+        "checks", "unresolved_obligations", "authority", "promotion",
+        "execution", "development_pressure",
+    }
+    pressure = load_schema("development-pressure-evidence.schema.json")
+    assert pressure["properties"]["schema_version"]["const"] == "mncs-actions.development-pressure-evidence/1"
+    assert set(pressure["$defs"]["obligation"]["required"]) >= {
+        "pressure_id", "obligation_key", "owner", "current_limitation",
+        "reproducer", "history",
+    }
+
+
+def test_family_protocol_fixtures_validate_against_published_schemas():
+    jsonschema = pytest.importorskip("jsonschema")
+    for fixture, schema_name in (
+        ("producer-output.json", "family-producer-output.schema.json"),
+        ("integration-evidence.json", "family-integration-evidence.schema.json"),
+        ("development-pressure-evidence.json", "development-pressure-evidence.schema.json"),
+    ):
+        value = json.loads((REPO / "tests/fixtures/family" / fixture).read_text(encoding="utf-8"))
+        jsonschema.validate(value, load_schema(schema_name))

@@ -1,0 +1,22 @@
+{
+  "schema_version": "mncs-actions.family-producer-output/1",
+  "mode": "fixed",
+  "producer": "fixture-producer",
+  "repository": "owner/fixture",
+  "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "descriptor_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "files": [
+    {
+      "path": "checks/fixture.json",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "kind": "check-result"
+    }
+  ],
+  "check_results": [
+    {
+      "id": "fixture-check",
+      "path": "checks/fixture.json",
+      "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+    }
+  ]
+}

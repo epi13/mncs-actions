@@ -34,6 +34,15 @@ Primitives:
   the revisions recorded in `family-contracts.json`. Required canary tests
   fail if a checkout or test is skipped. This is compatibility evidence for
   fixed revisions, not proof about moving repository heads.
+- `family-producer-descriptors.json`: a versioned, data-only registry of the
+  six bounded owner operations. Descriptors select allowlisted adapters and
+  inputs; they cannot contain executable shell or Python.
+- `scripts/family_producer.py` and `scripts/assemble_family_evidence.py`:
+  producer-job and artifact-only aggregation stages. The latter verifies
+  content-addressed outputs and never checks out or executes a family repo.
+- `schemas/family-integration-evidence.schema.json` and
+  `schemas/development-pressure-evidence.schema.json`: public machine
+  contracts for family observations and unresolved MNCDS-shaped obligations.
 - `.github/workflows/moving-head-family-drift.yml`: a scheduled/manual
   observation that resolves each family `main` head to an exact candidate SHA,
   runs owner-native contracts, and never edits the fixed contract.

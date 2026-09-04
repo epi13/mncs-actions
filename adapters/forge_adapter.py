@@ -28,6 +28,7 @@ def build_check(
     record_path: Path,
     expected_nonce: str,
     producer_revision: str = "",
+    contract_revision: str = "0.1",
 ) -> dict[str, Any]:
     try:
         from mncs_forge.forge_cell import (  # type: ignore[import-not-found]
@@ -62,6 +63,7 @@ def build_check(
         "verdict": assessment.status,
         "scope": "forge-cell-schema-and-assurance-boundary",
         "claim": "Forge-owned Forge Cell validation and assurance projection were executed",
+        "contract_revision": contract_revision,
         "summary": (
             f"Forge execution result={record.get('result')}; "
             f"assurance={assessment.status}; enforced={list(assessment.enforced)}; "
@@ -87,6 +89,7 @@ def main() -> int:
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--expected-nonce", required=True)
     parser.add_argument("--producer-revision", default="")
+    parser.add_argument("--contract-revision", default="0.1")
     args = parser.parse_args()
     try:
         # The Forge package is loaded from the exact checked-out family head.
@@ -98,6 +101,7 @@ def main() -> int:
             record_path=args.forge_root / "examples/forge-cell/execution-record.json",
             expected_nonce=args.expected_nonce,
             producer_revision=args.producer_revision,
+            contract_revision=args.contract_revision,
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(check, indent=2, sort_keys=True) + "\n", encoding="utf-8")

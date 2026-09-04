@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/epi13/mncs-actions/blob/main/schemas/family-producer-descriptor.schema.json",
+  "title": "MNCS Actions family producer descriptors",
+  "description": "Versioned data-only declarations for bounded family producer jobs. A descriptor selects an allowlisted adapter and operation; it cannot supply shell code or executable paths outside the operation registry.",
+  "type": "object",
+  "required": ["schema_version", "descriptors"],
+  "properties": {
+    "schema_version": { "const": "mncs-actions.family-producer-descriptors/1" },
+    "descriptors": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/descriptor" }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "safePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?!^[A-Za-z]:)(?!.*(^|/)(?:\\.|\\.\\.)(/|$))(?!.*//)(?!.*\\/$)(?!.*\\\\)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "output": {
+      "type": "object",
+      "required": ["check_id", "provider", "contract_revision"],
+      "properties": {
+        "check_id": { "type": "string", "minLength": 1 },
+        "provider": { "type": "string", "minLength": 1 },
+        "contract_revision": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "descriptor": {
+      "type": "object",
+      "required": [
+        "producer",
+        "repository",
+        "artifact_paths",
+        "contract",
+        "adapter_id",
+        "required_capabilities",
+        "execution",
+        "outputs"
+      ],
+      "properties": {
+        "producer": { "type": "string", "minLength": 1 },
+        "repository": { "type": "string", "pattern": "^[^/\\s]+/[^/\\s]+$" },
+        "artifact_paths": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/safePath" }
+        },
+        "contract": {
+          "type": "object",
+          "required": ["id", "revision"],
+          "properties": {
+            "id": { "type": "string", "minLength": 1 },
+            "revision": { "type": "string", "minLength": 1 }
+          },
+          "additionalProperties": false
+        },
+        "adapter_id": {
+          "enum": [
+            "validator-json-v1",
+            "rights-json-v1",
+            "commons-family-v1",
+            "language-study-v1",
+            "forge-cell-v1"
+          ]
+        },
+        "required_capabilities": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "enum": ["python", "mncs-language-binary", "owner-python-package", "owner-compatibility-script", "owner-forge-package"]
+          }
+        },
+        "execution": {
+          "type": "object",
+          "required": ["mode", "operation", "input_paths"],
+          "properties": {
+            "mode": { "const": "owner-native" },
+            "operation": {
+              "enum": [
+                "mncs-standard-validate",
+                "rights-provenance-validate",
+                "mncds-development-record-validate",
+                "commons-compatibility-validate",
+                "language-source-study",
+                "forge-cell-validate"
+              ]
+            },
+            "input_paths": {
+              "type": "object",
+              "additionalProperties": { "$ref": "#/$defs/safePath" }
+            },
+            "cases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["name", "source_path", "check_id"],
+                "properties": {
+                  "name": { "type": "string", "minLength": 1 },
+                  "source_path": { "$ref": "#/$defs/safePath" },
+                  "check_id": { "type": "string", "minLength": 1 }
+                },
+                "additionalProperties": false
+              }
+            },
+            "expected_nonce": { "type": "string", "minLength": 1, "maxLength": 128 }
+          },
+          "additionalProperties": false
+        },
+        "outputs": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/output" }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
