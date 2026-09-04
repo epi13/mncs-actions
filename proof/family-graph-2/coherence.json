@@ -1,0 +1,172 @@
+{
+  "blockers": [],
+  "cycles": {
+    "findings": [
+      "independent evidence present: commons-family-compatibility, mncds-development-record, mncs-validation",
+      "authority closure holds over described providers",
+      "transport executes evidence; no transport provider holds semantic authority"
+    ],
+    "unsafe": false,
+    "unsafe_findings": []
+  },
+  "edges": [
+    {
+      "edge": "transport",
+      "from": "mncds",
+      "target": "4b132651d50b31ae12f5f00c749ee1f32adb6322",
+      "to": "mncs-actions"
+    },
+    {
+      "edge": "evaluator",
+      "from": "mncds",
+      "target": "688445783971db9027dc7fc44224bd63acd7a08a",
+      "to": "mncs-standard"
+    },
+    {
+      "edge": "contract",
+      "from": "mncs-standard",
+      "target": "702013444d9b5d482b3f3df671564efcf6347fb5",
+      "to": "mncds"
+    },
+    {
+      "edge": "transport",
+      "from": "mncs-standard",
+      "target": "4b132651d50b31ae12f5f00c749ee1f32adb6322",
+      "to": "mncs-actions"
+    }
+  ],
+  "floors": [
+    {
+      "id": "evaluator.graph-mode",
+      "reason": "graph promotion needs --subject-graph member binding",
+      "repo": "epi13/machine-native-complexity-standard",
+      "status": "satisfied"
+    },
+    {
+      "id": "mncds.evaluate-obligations",
+      "reason": "graph obligations need the owner-native obligation evaluator",
+      "repo": "epi13/machine-native-complexity-development-specification",
+      "status": "satisfied"
+    }
+  ],
+  "graph_digest": "659dc7f1e61eb35812512b7636049aeaf9424a4d98dc3907da7b357426627d3f",
+  "graph_id": "family-graph-2",
+  "movements": [
+    {
+      "changed_paths": [
+        ".github/workflows/family-contract-advance.yml",
+        ".github/workflows/family-contract-canary.yml",
+        ".github/workflows/family-graph-advance.yml",
+        ".github/workflows/moving-head-family-drift.yml",
+        "adapters/commons_adapter.py",
+        "adapters/forge_adapter.py",
+        "adapters/language_adapter.py",
+        "docs/family-acceptance-proof.md",
+        "docs/promotion-pattern.md",
+        "family-capability.json",
+        "family-contracts.json",
+        "family-graph-accepted.json",
+        "family-producer-descriptors.json",
+        "lib/mncs_actions.py",
+        "pressure/README.md",
+        "pressure/family-acceptance.mncs",
+        "pressure/family-graph-coherence.mncs",
+        "promotion/family-advancement.boundary.json",
+        "schemas/family-acceptance-proof.schema.json",
+        "schemas/family-candidate-graph.schema.json",
+        "scripts/family_coherence.py",
+        "scripts/family_commons_record.py",
+        "scripts/family_contracts.py",
+        "scripts/family_graph.py",
+        "scripts/family_producer.py"
+      ],
+      "classification": "REQUIRED",
+      "edge": "transport",
+      "from": "mncds",
+      "member_commit": "f9a28b36dce3d4588bf591d8dec3bfe6f7b6e875",
+      "satisfied": false,
+      "target": "4b132651d50b31ae12f5f00c749ee1f32adb6322",
+      "to": "mncs-actions"
+    },
+    {
+      "changed_paths": [
+        ".github/workflows/promotion.yml",
+        ".gitignore",
+        "docs/promotion-boundary.md",
+        "docs/promotion.md",
+        "promotion/authority-map.json",
+        "promotion/candidate.json",
+        "promotion/capability-map.json",
+        "promotion/mncs-promotion.boundary.json",
+        "promotion/obligations/promotion-adoption.obligation.json",
+        "promotion/obligations/promotion-self-reference.obligation.json",
+        "schemas/mncs-promotion-boundary-0.1.schema.json",
+        "scripts/assert-promotion-vectors.sh",
+        "scripts/mncds-obligations-check.sh",
+        "scripts/mncs-check.sh",
+        "scripts/mncs_promotion_evaluate.py",
+        "src/mncs_validator/resources/schemas/mncs-promotion-boundary-0.1.schema.json",
+        "tests/test_capability_map.py",
+        "tests/test_mncs_promotion_adoption.py",
+        "tests/test_promotion_graph.py"
+      ],
+      "classification": "REQUIRED",
+      "edge": "evaluator",
+      "from": "mncds",
+      "member_commit": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+      "satisfied": false,
+      "target": "688445783971db9027dc7fc44224bd63acd7a08a",
+      "to": "mncs-standard"
+    },
+    {
+      "changed_paths": [
+        "promotion/candidate.json",
+        "promotion/obligations/adopt-repository-owned-promotion.obligation.json"
+      ],
+      "classification": "OPTIONAL",
+      "edge": "contract",
+      "from": "mncs-standard",
+      "member_commit": "ec6232fe35de541639c13068addc10bfa18c3aa9",
+      "satisfied": true,
+      "target": "702013444d9b5d482b3f3df671564efcf6347fb5",
+      "to": "mncds"
+    },
+    {
+      "changed_paths": [
+        ".github/workflows/family-contract-advance.yml",
+        ".github/workflows/family-contract-canary.yml",
+        ".github/workflows/family-graph-advance.yml",
+        ".github/workflows/moving-head-family-drift.yml",
+        "adapters/commons_adapter.py",
+        "adapters/forge_adapter.py",
+        "adapters/language_adapter.py",
+        "docs/family-acceptance-proof.md",
+        "docs/promotion-pattern.md",
+        "family-capability.json",
+        "family-contracts.json",
+        "family-graph-accepted.json",
+        "family-producer-descriptors.json",
+        "lib/mncs_actions.py",
+        "pressure/README.md",
+        "pressure/family-acceptance.mncs",
+        "pressure/family-graph-coherence.mncs",
+        "promotion/family-advancement.boundary.json",
+        "schemas/family-acceptance-proof.schema.json",
+        "schemas/family-candidate-graph.schema.json",
+        "scripts/family_coherence.py",
+        "scripts/family_commons_record.py",
+        "scripts/family_contracts.py",
+        "scripts/family_graph.py",
+        "scripts/family_producer.py"
+      ],
+      "classification": "REQUIRED",
+      "edge": "transport",
+      "from": "mncs-standard",
+      "member_commit": "f9a28b36dce3d4588bf591d8dec3bfe6f7b6e875",
+      "satisfied": false,
+      "target": "4b132651d50b31ae12f5f00c749ee1f32adb6322",
+      "to": "mncs-actions"
+    }
+  ],
+  "schema_version": "mncs-actions.family-coherence/1"
+}

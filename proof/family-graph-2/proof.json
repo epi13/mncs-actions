@@ -1,0 +1,276 @@
+{
+  "acceptance": {
+    "obligations_open_required": [],
+    "optional": [
+      {
+        "check_id": "rights-provenance",
+        "verdict": "UNKNOWN"
+      },
+      {
+        "check_id": "mncs-language-family-boundary",
+        "verdict": "UNKNOWN"
+      },
+      {
+        "check_id": "mncs-language-rights-projection",
+        "verdict": "UNKNOWN"
+      },
+      {
+        "check_id": "mncs-language-changeset-boundary",
+        "verdict": "UNKNOWN"
+      },
+      {
+        "check_id": "mncs-language-artifact-envelope",
+        "verdict": "UNKNOWN"
+      },
+      {
+        "check_id": "mncs-language-promotion-boundary",
+        "verdict": "UNKNOWN"
+      },
+      {
+        "check_id": "mncs-language-graph-coherence",
+        "verdict": "UNKNOWN"
+      },
+      {
+        "check_id": "mncs-language-acceptance",
+        "verdict": "UNKNOWN"
+      },
+      {
+        "check_id": "forge-cell-contract",
+        "verdict": "UNKNOWN"
+      }
+    ],
+    "policy": "family-advancement core boundary: required owner evidence decides; optional observations never decide. 'core' crossed the required boundary; 'full' additionally has every boundary-listed optional authority at PASS with no open required obligations.",
+    "required": {
+      "passed": 3,
+      "total": 3
+    },
+    "tier": "core"
+  },
+  "accepted_graph_digest": "c89be8c2d95da3d0aa114fee86d5adb330f72437e3293f4e29009110e1f87c76",
+  "artifacts": [
+    {
+      "digest": "sha256:52740178a2a31ac35c95ec182395cbfe449bf200fc2514c7770cadc04f76d887",
+      "ref": "authority-map.json",
+      "role": "authority-map"
+    },
+    {
+      "digest": "sha256:9819ccbe2a0830592e8b63b74b0eba80b298ba7a3c2c858bd3e34effd0344086",
+      "ref": "boundary-template.json",
+      "role": "boundary-template"
+    },
+    {
+      "digest": "sha256:dbcbd8e7b1485b9c3cc922ffcce28eac0ca91aa0d436c75aefbca382f5c537e4",
+      "ref": "boundary.json",
+      "role": "materialized-boundary"
+    },
+    {
+      "digest": "sha256:acdf834a07be5211c65f6c2557cde7545bf2e057581708f064d927e58088f06d",
+      "ref": "capability.json",
+      "role": "coherence-capability"
+    },
+    {
+      "digest": "sha256:13dc4a20c3778142729ed4fd11ce96c18236fe55a0ae17869fe253badb6463e1",
+      "ref": "checks/commons-family-compatibility.json",
+      "role": "check-result"
+    },
+    {
+      "digest": "sha256:8b9507735e2f97fa573f7f96323c1becc3b1fce5f8b86159375a4c7ed286aa21",
+      "ref": "checks/forge-cell-contract.json",
+      "role": "check-result"
+    },
+    {
+      "digest": "sha256:d2293f834e18be0dcfc77bd14933582ab9a22315aeda56687b5519355110b9cc",
+      "ref": "checks/mncds-development-record.json",
+      "role": "check-result"
+    },
+    {
+      "digest": "sha256:dd9794b79744559836a408a88eb63c3d1d0d0c968aa320ed8fca882cfac7c724",
+      "ref": "checks/mncs-language-acceptance.json",
+      "role": "check-result"
+    },
+    {
+      "digest": "sha256:7e88cb5a507bccd4c9bf03470a7d013fe76b8832cb63666dc62d51f46d4ef256",
+      "ref": "checks/mncs-language-artifact-envelope.json",
+      "role": "check-result"
+    },
+    {
+      "digest": "sha256:58bb723c93cda95bc6d3ec412cb1b0dce18aa58e3954137275fcc051176b9d98",
+      "ref": "checks/mncs-language-changeset-boundary.json",
+      "role": "check-result"
+    },
+    {
+      "digest": "sha256:c43ec898d090b74026f39fc91cf29e748f2b65a0096b1125aaa9b6c89dbf1079",
+      "ref": "checks/mncs-language-family-boundary.json",
+      "role": "check-result"
+    },
+    {
+      "digest": "sha256:dd4effa5f3171c0e5d52cae29c5d637b8812be2a146c5fa1d8e888186dc2be6f",
+      "ref": "checks/mncs-language-graph-coherence.json",
+      "role": "check-result"
+    },
+    {
+      "digest": "sha256:369a1b4b5a7a10691a3a84ee954f5fedf4cbca5f52d1783ccc209957a7652672",
+      "ref": "checks/mncs-language-promotion-boundary.json",
+      "role": "check-result"
+    },
+    {
+      "digest": "sha256:a22c53d6a809cc08bf7f80edf1181fa981d4c8c93effbbbb900554da8ddaa0ff",
+      "ref": "checks/mncs-language-rights-projection.json",
+      "role": "check-result"
+    },
+    {
+      "digest": "sha256:58171759c43d09eee6cbb40bb568f786adaeb80263f7968ef7decaaa1518e1a6",
+      "ref": "checks/mncs-validation.json",
+      "role": "check-result"
+    },
+    {
+      "digest": "sha256:08a073994435b740924b73f1925320febb062d10e0fc1f6f54d3a7995c495145",
+      "ref": "checks/rights-provenance.json",
+      "role": "check-result"
+    },
+    {
+      "digest": "sha256:4c24d1740c72b73635f6e4fda8dba68b6caa98e1fa29155d8fc39730641c3f14",
+      "ref": "coherence.json",
+      "role": "coherence-report"
+    },
+    {
+      "digest": "sha256:541ee4d6b6a79b2b4610a579b44e56a3a3f0161dc1d39f6e69f99ca835b71654",
+      "ref": "commons-record.json",
+      "role": "commons-changeset"
+    },
+    {
+      "digest": "sha256:096a9f82b56f484a78e9dfbddff242048c3adefb308df099638a43a393c78248",
+      "ref": "contracts-after.json",
+      "role": "contracts-after"
+    },
+    {
+      "digest": "sha256:42d2f29e6f4f2d0ddb3e1001f8ff4acb32503ad6492b68aa4cf753063dc2e68f",
+      "ref": "contracts-before.json",
+      "role": "contracts-before"
+    },
+    {
+      "digest": "sha256:1d5574d0149b18d51d962023aca7d12e2ce674a84b5d6b1dbd71e624ed522c21",
+      "ref": "descriptors.json",
+      "role": "producer-descriptors"
+    },
+    {
+      "digest": "sha256:b02ee9bef8d9caca2a45963b63cdb57aef4897a4453af5022726074a057c0b0d",
+      "ref": "graph.json",
+      "role": "graph-related"
+    },
+    {
+      "digest": "sha256:162822a6b0e9fb041823de6ce43317cc9df7fca362fecaa63c18a936273a9005",
+      "ref": "obligations/mncds--adopt-repository-owned-promotion.obligation.json",
+      "role": "obligation"
+    },
+    {
+      "digest": "sha256:5bf4fe0bc449a64dbf245a3d889191375a5c6416f7e761dd9b397617118df966",
+      "ref": "obligations/mncs-standard--promotion-adoption.obligation.json",
+      "role": "obligation"
+    },
+    {
+      "digest": "sha256:417c99a182b2af7fd06ef993d6f9034156fb6005d9abb85eedb501218b3fa6c6",
+      "ref": "obligations/mncs-standard--promotion-self-reference.obligation.json",
+      "role": "obligation"
+    },
+    {
+      "digest": "sha256:2aeefa3b0810fd870cf38f98cae95f461dc64b3832a90a04b4fb560d6613acf7",
+      "ref": "promotion-check.json",
+      "role": "promotion-claim"
+    }
+  ],
+  "authority_map_digest": "sha256:52740178a2a31ac35c95ec182395cbfe449bf200fc2514c7770cadc04f76d887",
+  "boundary": {
+    "boundary_id": "family-advancement",
+    "contract_revision": "mncs-promotion-boundary/0.1",
+    "digest": "sha256:dbcbd8e7b1485b9c3cc922ffcce28eac0ca91aa0d436c75aefbca382f5c537e4",
+    "template_digest": "sha256:9819ccbe2a0830592e8b63b74b0eba80b298ba7a3c2c858bd3e34effd0344086"
+  },
+  "coherence": {
+    "blockers": 0,
+    "digest": "sha256:4c24d1740c72b73635f6e4fda8dba68b6caa98e1fa29155d8fc39730641c3f14",
+    "movements": 4
+  },
+  "commons": {
+    "changeset_id": "changeset.family-graph-2",
+    "content_digest": "sha256:a17c3c6903537bf41e4d80b58aca37bc774102c0d065206da2222cf82ddc6693"
+  },
+  "contracts": {
+    "after_digest": "053b560372beeb3e78846a9b37cf1ab59518c1ec8e23ec8449da1613f7ebefd7",
+    "before_digest": "e08e1418951deb6346bf40ee0d256957579d5130f7d4ac1cd869c539bcf14b33"
+  },
+  "generators": {
+    "commons_validator": {
+      "commit": "422540a4d50a763be3dbeeb0a88fd2ee4c272ce9",
+      "repository": "epi13/MNCS-Commons"
+    },
+    "evaluator": {
+      "commit": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+      "contract_revision": "mncs-promotion-boundary/0.1",
+      "repository": "epi13/machine-native-complexity-standard"
+    },
+    "orchestrator": {
+      "commit": "f9a28b36dce3d4588bf591d8dec3bfe6f7b6e875",
+      "repository": "epi13/mncs-actions"
+    },
+    "tool_digests": {
+      "commons_family": "sha256:25f9349b8d4aaddf8e7f3ede5c5ca4ed65da7a8ecddd6f18eadf3d3697e7debc",
+      "commons_validation": "sha256:bfbe7bf285e48da49db07395cb0f623f4992c5e1593ec3d2332d1160208a317f",
+      "family_coherence": "sha256:99b21dc0d2b481b4fcd23b451d84d58a303d863d1b4693db1e887069d11c0111",
+      "family_graph": "sha256:390d1c03cd3b984c842a85288ac5805ab9fc4feb4e11624b733a9cfa079ed852",
+      "mncs_actions_lib": "sha256:cc32ad63d1580167f1c6b5c988ae6713964e0390650904a44be29c4590ec619d",
+      "promotion_evaluator": "sha256:b8086e0f5bd975a57e00a1c2227e426f3de3ba7c5cab275195d9176d0d951877"
+    }
+  },
+  "graph_digest": "659dc7f1e61eb35812512b7636049aeaf9424a4d98dc3907da7b357426627d3f",
+  "graph_id": "family-graph-2",
+  "predecessor": {
+    "graph_digest": "fdcb32134e82404e3b9c2fcb187732487e586fb70f6c941b566d3655c6de7956",
+    "graph_id": "family-graph-1",
+    "note": "predecessor family-graph-1 accepted before the proof model existed; no prior bundle to chain",
+    "proof_digest": null
+  },
+  "promotion": {
+    "digest": "sha256:2aeefa3b0810fd870cf38f98cae95f461dc64b3832a90a04b4fb560d6613acf7",
+    "verdict": "PASS"
+  },
+  "proof_digest": "ece7462c98e1bf0c7b0cf711cedb49f07693ae660bed4fcef737d3171cb2eaa5",
+  "schema_version": "mncs-actions.family-acceptance-proof/1",
+  "subject_members": [
+    {
+      "commit": "422540a4d50a763be3dbeeb0a88fd2ee4c272ce9",
+      "name": "commons",
+      "repository": "epi13/MNCS-Commons"
+    },
+    {
+      "commit": "805f821f4eea457c3940274750b21774c487d9a1",
+      "name": "forge",
+      "repository": "epi13/mncs-forge-mcp"
+    },
+    {
+      "commit": "ec6232fe35de541639c13068addc10bfa18c3aa9",
+      "name": "mncds",
+      "repository": "epi13/machine-native-complexity-development-specification"
+    },
+    {
+      "commit": "f9a28b36dce3d4588bf591d8dec3bfe6f7b6e875",
+      "name": "mncs-actions",
+      "repository": "epi13/mncs-actions"
+    },
+    {
+      "commit": "4f3146a97f92389490d3e8dffdf08266e3390968",
+      "name": "mncs-language",
+      "repository": "epi13/mncs-language"
+    },
+    {
+      "commit": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+      "name": "mncs-standard",
+      "repository": "epi13/machine-native-complexity-standard"
+    },
+    {
+      "commit": "2b43fcf9555a55d4635d343f0d2d9c7191c1dab2",
+      "name": "rights-provenance",
+      "repository": "epi13/mncs-rights-provenance"
+    }
+  ]
+}

@@ -1,0 +1,238 @@
+{
+  "claim": "candidate revision carries sufficient authoritative evidence to cross the declared boundary",
+  "contract_revision": "mncs-promotion-boundary/0.1",
+  "id": "promotion-boundary",
+  "producer_revision": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+  "promotion": {
+    "blockers": [],
+    "boundary_id": "family-advancement",
+    "boundary_revision": "mncs-promotion-boundary/0.1",
+    "graph_digest": "659dc7f1e61eb35812512b7636049aeaf9424a4d98dc3907da7b357426627d3f",
+    "graph_members": [
+      {
+        "commit": "422540a4d50a763be3dbeeb0a88fd2ee4c272ce9",
+        "repository": "epi13/MNCS-Commons"
+      },
+      {
+        "commit": "805f821f4eea457c3940274750b21774c487d9a1",
+        "repository": "epi13/mncs-forge-mcp"
+      },
+      {
+        "commit": "ec6232fe35de541639c13068addc10bfa18c3aa9",
+        "repository": "epi13/machine-native-complexity-development-specification"
+      },
+      {
+        "commit": "f9a28b36dce3d4588bf591d8dec3bfe6f7b6e875",
+        "repository": "epi13/mncs-actions"
+      },
+      {
+        "commit": "4f3146a97f92389490d3e8dffdf08266e3390968",
+        "repository": "epi13/mncs-language"
+      },
+      {
+        "commit": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+        "repository": "epi13/machine-native-complexity-standard"
+      },
+      {
+        "commit": "2b43fcf9555a55d4635d343f0d2d9c7191c1dab2",
+        "repository": "epi13/mncs-rights-provenance"
+      }
+    ],
+    "required_passed": 3,
+    "required_total": 3,
+    "subject": {
+      "commit": "graph:659dc7f1e61eb35812512b7636049aeaf9424a4d98dc3907da7b357426627d3f",
+      "repository": "mncs-family/graph"
+    }
+  },
+  "provider": "mncs-promotion-boundary",
+  "references": [
+    {
+      "authority": "MNCS-Commons",
+      "check_id": "commons-family-compatibility",
+      "contract_revision": "0.1",
+      "digest": "sha256:13dc4a20c3778142729ed4fd11ce96c18236fe55a0ae17869fe253badb6463e1",
+      "kind": "check-result",
+      "producer": "MNCS-Commons",
+      "producer_revision": "422540a4d50a763be3dbeeb0a88fd2ee4c272ce9",
+      "verdict": "PASS"
+    },
+    {
+      "authority": "mncs-forge-mcp",
+      "check_id": "forge-cell-contract",
+      "contract_revision": "0.1",
+      "digest": "sha256:8b9507735e2f97fa573f7f96323c1becc3b1fce5f8b86159375a4c7ed286aa21",
+      "kind": "check-result",
+      "producer": "mncs-forge-mcp",
+      "producer_revision": "805f821f4eea457c3940274750b21774c487d9a1",
+      "verdict": "UNKNOWN"
+    },
+    {
+      "authority": "machine-native-complexity-development-specification",
+      "check_id": "mncds-development-record",
+      "contract_revision": "0.2-alpha.1",
+      "digest": "sha256:d2293f834e18be0dcfc77bd14933582ab9a22315aeda56687b5519355110b9cc",
+      "kind": "check-result",
+      "producer": "mncds",
+      "producer_revision": "ec6232fe35de541639c13068addc10bfa18c3aa9",
+      "verdict": "PASS"
+    },
+    {
+      "authority": "mncs-language",
+      "check_id": "mncs-language-acceptance",
+      "contract_revision": "mncs:language:compilation-study-result:0.1",
+      "digest": "sha256:dd9794b79744559836a408a88eb63c3d1d0d0c968aa320ed8fca882cfac7c724",
+      "kind": "check-result",
+      "producer": "mncs-language",
+      "producer_revision": "4f3146a97f92389490d3e8dffdf08266e3390968",
+      "verdict": "UNKNOWN"
+    },
+    {
+      "authority": "mncs-language",
+      "check_id": "mncs-language-artifact-envelope",
+      "contract_revision": "mncs:language:compilation-study-result:0.1",
+      "digest": "sha256:7e88cb5a507bccd4c9bf03470a7d013fe76b8832cb63666dc62d51f46d4ef256",
+      "kind": "check-result",
+      "producer": "mncs-language",
+      "producer_revision": "4f3146a97f92389490d3e8dffdf08266e3390968",
+      "verdict": "UNKNOWN"
+    },
+    {
+      "authority": "mncs-language",
+      "check_id": "mncs-language-changeset-boundary",
+      "contract_revision": "mncs:language:compilation-study-result:0.1",
+      "digest": "sha256:58bb723c93cda95bc6d3ec412cb1b0dce18aa58e3954137275fcc051176b9d98",
+      "kind": "check-result",
+      "producer": "mncs-language",
+      "producer_revision": "4f3146a97f92389490d3e8dffdf08266e3390968",
+      "verdict": "UNKNOWN"
+    },
+    {
+      "authority": "mncs-language",
+      "check_id": "mncs-language-family-boundary",
+      "contract_revision": "mncs:language:compilation-study-result:0.1",
+      "digest": "sha256:c43ec898d090b74026f39fc91cf29e748f2b65a0096b1125aaa9b6c89dbf1079",
+      "kind": "check-result",
+      "producer": "mncs-language",
+      "producer_revision": "4f3146a97f92389490d3e8dffdf08266e3390968",
+      "verdict": "UNKNOWN"
+    },
+    {
+      "authority": "mncs-language",
+      "check_id": "mncs-language-graph-coherence",
+      "contract_revision": "mncs:language:compilation-study-result:0.1",
+      "digest": "sha256:dd4effa5f3171c0e5d52cae29c5d637b8812be2a146c5fa1d8e888186dc2be6f",
+      "kind": "check-result",
+      "producer": "mncs-language",
+      "producer_revision": "4f3146a97f92389490d3e8dffdf08266e3390968",
+      "verdict": "UNKNOWN"
+    },
+    {
+      "authority": "mncs-language",
+      "check_id": "mncs-language-promotion-boundary",
+      "contract_revision": "mncs:language:compilation-study-result:0.1",
+      "digest": "sha256:369a1b4b5a7a10691a3a84ee954f5fedf4cbca5f52d1783ccc209957a7652672",
+      "kind": "check-result",
+      "producer": "mncs-language",
+      "producer_revision": "4f3146a97f92389490d3e8dffdf08266e3390968",
+      "verdict": "UNKNOWN"
+    },
+    {
+      "authority": "mncs-language",
+      "check_id": "mncs-language-rights-projection",
+      "contract_revision": "mncs:language:compilation-study-result:0.1",
+      "digest": "sha256:a22c53d6a809cc08bf7f80edf1181fa981d4c8c93effbbbb900554da8ddaa0ff",
+      "kind": "check-result",
+      "producer": "mncs-language",
+      "producer_revision": "4f3146a97f92389490d3e8dffdf08266e3390968",
+      "verdict": "UNKNOWN"
+    },
+    {
+      "authority": "machine-native-complexity-standard",
+      "check_id": "mncs-validation",
+      "contract_revision": "0.2",
+      "digest": "sha256:58171759c43d09eee6cbb40bb568f786adaeb80263f7968ef7decaaa1518e1a6",
+      "kind": "check-result",
+      "producer": "mncs-validator-rs",
+      "producer_revision": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+      "verdict": "PASS"
+    },
+    {
+      "authority": "mncs-rights-provenance",
+      "check_id": "rights-provenance",
+      "contract_revision": "0.3.0",
+      "digest": "sha256:08a073994435b740924b73f1925320febb062d10e0fc1f6f54d3a7995c495145",
+      "kind": "check-result",
+      "producer": "mncs-rights-provenance",
+      "producer_revision": "2b43fcf9555a55d4635d343f0d2d9c7191c1dab2",
+      "verdict": "UNKNOWN"
+    },
+    {
+      "authority": "mncs-family-promotion",
+      "contract_revision": "mncds-obligation-record/0.2",
+      "digest": "sha256:162822a6b0e9fb041823de6ce43317cc9df7fca362fecaa63c18a936273a9005",
+      "kind": "mncds-obligation-record",
+      "obligation_key": "pressure.mncds.promotion-integration.required",
+      "status": "resolved",
+      "subject": {
+        "commit": "ec6232fe35de541639c13068addc10bfa18c3aa9",
+        "repository": "epi13/machine-native-complexity-development-specification"
+      }
+    },
+    {
+      "authority": "mncs-family-promotion",
+      "contract_revision": "mncds-obligation-record/0.2",
+      "digest": "sha256:5bf4fe0bc449a64dbf245a3d889191375a5c6416f7e761dd9b397617118df966",
+      "kind": "mncds-obligation-record",
+      "obligation_key": "pressure.mncs.promotion-adoption.optional",
+      "status": "open",
+      "subject": {
+        "commit": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+        "repository": "epi13/machine-native-complexity-standard"
+      }
+    },
+    {
+      "authority": "mncs-family-promotion",
+      "contract_revision": "mncds-obligation-record/0.2",
+      "digest": "sha256:417c99a182b2af7fd06ef993d6f9034156fb6005d9abb85eedb501218b3fa6c6",
+      "kind": "mncds-obligation-record",
+      "obligation_key": "pressure.mncs.promotion-self-reference.required",
+      "status": "resolved",
+      "subject": {
+        "commit": "882ac4a82fb340087c52792e88e51ca2a8d8b3e0",
+        "repository": "epi13/machine-native-complexity-standard"
+      }
+    },
+    {
+      "boundary_id": "family-advancement",
+      "contract_revision": "mncs-promotion-boundary/0.1",
+      "digest": "sha256:dbcbd8e7b1485b9c3cc922ffcce28eac0ca91aa0d436c75aefbca382f5c537e4",
+      "kind": "promotion-boundary"
+    },
+    {
+      "contract_revision": "mncs-authority-map/0.1",
+      "digest": "sha256:52740178a2a31ac35c95ec182395cbfe449bf200fc2514c7770cadc04f76d887",
+      "kind": "authority-map"
+    }
+  ],
+  "schema_version": "mncs.check-result/1",
+  "scope": "promotion boundary family-advancement",
+  "subject": {
+    "commit": "graph:659dc7f1e61eb35812512b7636049aeaf9424a4d98dc3907da7b357426627d3f",
+    "repository": "mncs-family/graph"
+  },
+  "summary": "boundary family-advancement over 3 required (3 PASS) -> PASS; no blockers",
+  "unresolved": [
+    "optional check rights-provenance UNKNOWN: visible, not deciding",
+    "optional check mncs-language-family-boundary UNKNOWN: visible, not deciding",
+    "optional check mncs-language-rights-projection UNKNOWN: visible, not deciding",
+    "optional check mncs-language-changeset-boundary UNKNOWN: visible, not deciding",
+    "optional check mncs-language-artifact-envelope UNKNOWN: visible, not deciding",
+    "optional check mncs-language-promotion-boundary UNKNOWN: visible, not deciding",
+    "optional check mncs-language-graph-coherence UNKNOWN: visible, not deciding",
+    "optional check mncs-language-acceptance UNKNOWN: visible, not deciding",
+    "optional check forge-cell-contract UNKNOWN: visible, not deciding",
+    "obligation pressure.mncs.promotion-adoption.optional open (optional): visible, not deciding"
+  ],
+  "verdict": "PASS"
+}

@@ -1,0 +1,28 @@
+{
+  "claim": "Commons registry and compatibility fixtures were checked by Commons-owned code",
+  "contract_revision": "0.1",
+  "digest": "ceea0b0a49974d1f809fd63004933100fce02540651ad0d391142fa2640f5203",
+  "id": "commons-family-compatibility",
+  "producer_revision": "422540a4d50a763be3dbeeb0a88fd2ee4c272ce9",
+  "provider": "MNCS-Commons",
+  "references": [
+    {
+      "authority": "MNCS-Commons",
+      "digest": "ceea0b0a49974d1f809fd63004933100fce02540651ad0d391142fa2640f5203",
+      "kind": "commons-producer-registry",
+      "path": "family/commons/compat/family-record-producers.json",
+      "producer": "MNCS-Commons",
+      "producer_revision": "422540a4d50a763be3dbeeb0a88fd2ee4c272ce9"
+    }
+  ],
+  "schema_version": "mncs.check-result/1",
+  "scope": "producer-registry-and-owner-compatibility-validator",
+  "subject": {
+    "commit": "422540a4d50a763be3dbeeb0a88fd2ee4c272ce9",
+    "repository": "epi13/MNCS-Commons"
+  },
+  "summary": "Commons owner compatibility validator exit=0; registry producers=6",
+  "unresolved": [],
+  "validator_output": "all compatibility fixtures valid",
+  "verdict": "PASS"
+}

@@ -1,51 +1,4 @@
 {
-  "acceptance": {
-    "obligations_open_required": [],
-    "optional": [
-      {
-        "check_id": "rights-provenance",
-        "verdict": "UNKNOWN"
-      },
-      {
-        "check_id": "mncs-language-family-boundary",
-        "verdict": "UNKNOWN"
-      },
-      {
-        "check_id": "mncs-language-rights-projection",
-        "verdict": "UNKNOWN"
-      },
-      {
-        "check_id": "mncs-language-changeset-boundary",
-        "verdict": "UNKNOWN"
-      },
-      {
-        "check_id": "mncs-language-artifact-envelope",
-        "verdict": "UNKNOWN"
-      },
-      {
-        "check_id": "mncs-language-promotion-boundary",
-        "verdict": "UNKNOWN"
-      },
-      {
-        "check_id": "mncs-language-graph-coherence",
-        "verdict": "UNKNOWN"
-      },
-      {
-        "check_id": "mncs-language-acceptance",
-        "verdict": "UNKNOWN"
-      },
-      {
-        "check_id": "forge-cell-contract",
-        "verdict": "UNKNOWN"
-      }
-    ],
-    "policy": "family-advancement core boundary: required owner evidence decides; optional observations never decide. 'core' crossed the required boundary; 'full' additionally has every boundary-listed optional authority at PASS with no open required obligations.",
-    "required": {
-      "passed": 3,
-      "total": 3
-    },
-    "tier": "core"
-  },
   "base": {
     "contract_digest": "e08e1418951deb6346bf40ee0d256957579d5130f7d4ac1cd869c539bcf14b33",
     "digest": "fdcb32134e82404e3b9c2fcb187732487e586fb70f6c941b566d3655c6de7956",
@@ -278,14 +231,10 @@
     "ref": "promotion-check.json",
     "verdict": "PASS"
   },
-  "proof": {
-    "digest": "ece7462c98e1bf0c7b0cf711cedb49f07693ae660bed4fcef737d3171cb2eaa5",
-    "ref": "proof.json"
-  },
   "provenance": {
     "generated_at": "2026-09-04T20:08:53.788194Z",
     "generator": "family_graph.py build"
   },
   "schema_version": "mncs-actions.family-candidate-graph/1",
-  "status": "accepted"
+  "status": "related"
 }

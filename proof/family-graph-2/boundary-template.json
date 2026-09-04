@@ -1,0 +1,77 @@
+{
+  "schema_version": "mncs-promotion-boundary/0.1",
+  "boundary_id": "family-advancement",
+  "subject_repository": "mncs-family/graph",
+  "required_evidence": [
+    {
+      "check_id": "mncs-validation",
+      "authority": "machine-native-complexity-standard",
+      "contract_revision": "0.2"
+    },
+    {
+      "check_id": "mncds-development-record",
+      "authority": "machine-native-complexity-development-specification",
+      "contract_revision": "0.2-alpha.1"
+    },
+    {
+      "check_id": "commons-family-compatibility",
+      "authority": "MNCS-Commons",
+      "contract_revision": "0.1"
+    }
+  ],
+  "optional_evidence": [
+    {
+      "check_id": "rights-provenance",
+      "authority": "mncs-rights-provenance",
+      "contract_revision": "0.3.0"
+    },
+    {
+      "check_id": "mncs-language-family-boundary",
+      "authority": "mncs-language",
+      "contract_revision": "mncs:language:compilation-study-result:0.1"
+    },
+    {
+      "check_id": "mncs-language-rights-projection",
+      "authority": "mncs-language",
+      "contract_revision": "mncs:language:compilation-study-result:0.1"
+    },
+    {
+      "check_id": "mncs-language-changeset-boundary",
+      "authority": "mncs-language",
+      "contract_revision": "mncs:language:compilation-study-result:0.1"
+    },
+    {
+      "check_id": "mncs-language-artifact-envelope",
+      "authority": "mncs-language",
+      "contract_revision": "mncs:language:compilation-study-result:0.1"
+    },
+    {
+      "check_id": "mncs-language-promotion-boundary",
+      "authority": "mncs-language",
+      "contract_revision": "mncs:language:compilation-study-result:0.1"
+    },
+    {
+      "check_id": "mncs-language-graph-coherence",
+      "authority": "mncs-language",
+      "contract_revision": "mncs:language:compilation-study-result:0.1"
+    },
+    {
+      "check_id": "mncs-language-acceptance",
+      "authority": "mncs-language",
+      "contract_revision": "mncs:language:compilation-study-result:0.1"
+    },
+    {
+      "check_id": "forge-cell-contract",
+      "authority": "mncs-forge-mcp",
+      "contract_revision": "0.1"
+    }
+  ],
+  "require_subject_binding": true,
+  "obligation_check_id": "mncds-obligations",
+  "tolerated_obligations": [],
+  "extensions": {
+    "io.github.epi13:mncs-actions": {
+      "policy": "Family advancement boundary. Content is MNCS promotion semantics applied to graphs; the file lives with the orchestration like producer descriptors. Required: decisive owner evidence (validation, development record, Commons compatibility) plus member obligations (raw, bound per member). Optional: capability observations (rights, language studies, Forge) -- visible, never deciding. The graph declaration (digest + members) is injected per run; the template carries none."
+    }
+  }
+}
