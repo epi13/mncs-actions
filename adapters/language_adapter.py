@@ -100,6 +100,7 @@ def build_check(
     reference: dict[str, Any] = {
         "kind": "language-compilation-study",
         "producer": "mncs-language",
+        "authority": "mncs-language",
         "contract_revision": CONTRACT_ID,
         "path": source_path,
         "digest": raw_digest,

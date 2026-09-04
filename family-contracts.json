@@ -16,7 +16,8 @@
       "checkout_path": "family/rights-provenance",
       "artifacts": [
         "schemas/v0.3/lineage-record.schema.json",
-        "examples/v0.3/lineage-record-example.json"
+        "examples/v0.3/lineage-record-example.json",
+        "dogfood/human-specification.json"
       ]
     },
     {

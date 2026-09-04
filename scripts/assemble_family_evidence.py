@@ -22,11 +22,15 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from family_contracts import ContractError, _read, validate_against_fixed, validate_candidate, validate_fixed  # noqa: E402
 from family_protocol import (  # noqa: E402
+    MAX_TRANSPORT_BYTES,
     ProtocolError,
     descriptor_map,
     descriptor_outputs,
     document_digest,
+    ensure_clean_directory,
     load_json,
+    load_json_bytes,
+    validate_transport_tree,
     validate_family_integration_evidence,
     validate_producer_output,
     write_json,
@@ -70,13 +74,28 @@ def _implementation_revision(actions_root: Path, asserted: str) -> str:
 
 
 def _envelopes(root: Path) -> list[tuple[Path, dict[str, Any]]]:
+    if root.is_symlink() or not root.is_dir():
+        raise AssemblyError(f"producer artifact root must be a real directory: {root}")
     found = []
+    envelope_dirs: set[Path] = set()
     for path in sorted(root.rglob("producer-execution.json")):
-        if not path.is_file():
-            continue
-        found.append((path.parent, load_json(path)))
+        if path.is_symlink() or not path.is_file():
+            raise AssemblyError(f"producer envelope must be a regular file: {path}")
+        directory = path.parent.resolve()
+        envelope_dirs.add(directory)
+        found.append((directory, load_json(path)))
     if not found:
         raise AssemblyError("producer artifact transport contains no envelopes")
+    # Do not silently ignore files that are outside a producer envelope. This
+    # catches stale downloads and artifact-name/path tricks before aggregation.
+    for path in root.rglob("*"):
+        if path.is_symlink():
+            raise AssemblyError(f"symlink is not permitted in producer artifact root: {path}")
+        if path.is_file():
+            resolved = path.resolve()
+            if any(directory == resolved.parent or directory in resolved.parents for directory in envelope_dirs):
+                continue
+            raise AssemblyError(f"file is outside a producer envelope: {path}")
     return found
 
 
@@ -119,11 +138,14 @@ def run(args: argparse.Namespace) -> int:
                 "producer": producer,
             }
 
-    if output_dir.exists() and any(output_dir.glob("*.json")):
-        raise AssemblyError(f"output directory contains stale JSON evidence: {output_dir}")
+    try:
+        ensure_clean_directory(output_dir, label="assembly output directory")
+    except ProtocolError as exc:
+        raise AssemblyError(str(exc)) from exc
     output_dir.mkdir(parents=True, exist_ok=True)
     check_values: list[dict[str, Any]] = []
     check_records: list[dict[str, Any]] = []
+    provenance_bindings: list[dict[str, Any]] = []
     seen_producers: set[str] = set()
     for producer_dir, envelope in _envelopes(producer_root):
         producer = envelope.get("producer")
@@ -140,7 +162,15 @@ def run(args: argparse.Namespace) -> int:
             family_entry=family_entry,
             mode=mode,
             expected_descriptor_digest=descriptor_digest,
+            expected_contract_digest=contract_digest,
         )
+        try:
+            validate_transport_tree(producer_dir, [item["path"] for item in envelope["files"]])
+        except ProtocolError as exc:
+            raise AssemblyError(str(exc)) from exc
+        for binding in envelope.get("provenance_bindings", []):
+            provenance_bindings.append({"producer": producer, **binding})
+        transport_bytes = 0
         # Verify every transported byte, including native reports that are
         # not themselves aggregate inputs. A producer cannot record one
         # digest and upload another file after its job finishes.
@@ -148,7 +178,13 @@ def run(args: argparse.Namespace) -> int:
             transported = _inside(producer_dir, file_entry["path"])
             if not transported.is_file():
                 raise AssemblyError(f"declared producer file does not exist: {file_entry['path']}")
-            if sha256_hex(transported.read_bytes()) != file_entry["sha256"]:
+            raw_transport = transported.read_bytes()
+            transport_bytes += len(raw_transport)
+            if len(raw_transport) != file_entry["size"]:
+                raise AssemblyError(f"producer file size changed after digest recording: {file_entry['path']}")
+            if transport_bytes > MAX_TRANSPORT_BYTES:
+                raise AssemblyError(f"producer transport exceeds {MAX_TRANSPORT_BYTES} bytes")
+            if sha256_hex(raw_transport) != file_entry["sha256"]:
                 raise AssemblyError(
                     f"producer file changed after digest recording: {file_entry['path']}"
                 )
@@ -161,9 +197,9 @@ def run(args: argparse.Namespace) -> int:
             if actual_digest != item["sha256"]:
                 raise AssemblyError(f"producer file changed after digest recording: {item['path']}")
             try:
-                value = json.loads(raw.decode("utf-8"))
-            except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-                raise AssemblyError(f"producer check is not UTF-8 JSON: {item['path']}: {exc}") from exc
+                value = load_json_bytes(raw, label=f"producer check {item['path']}")
+            except ProtocolError as exc:
+                raise AssemblyError(f"producer check is not bounded UTF-8 JSON: {item['path']}: {exc}") from exc
             errors = validate_check_result(value)
             if errors:
                 raise AssemblyError(f"invalid transported check {item['path']}: {'; '.join(errors)}")
@@ -180,6 +216,20 @@ def run(args: argparse.Namespace) -> int:
             ):
                 if value.get(field) != expected_value:
                     raise AssemblyError(f"transported check {value.get('id')} has wrong {field}")
+            for reference in value.get("references", []):
+                if not isinstance(reference, dict):
+                    continue
+                reference_path = reference.get("path")
+                reference_digest = reference.get("digest")
+                if reference_path in {item["path"] for item in envelope["files"]}:
+                    if not isinstance(reference_digest, str):
+                        raise AssemblyError(f"transported check reference lacks digest: {reference_path}")
+                    normalized_digest = reference_digest.removeprefix("sha256:")
+                    declared_digest = next(
+                        item["sha256"] for item in envelope["files"] if item["path"] == reference_path
+                    )
+                    if normalized_digest != declared_digest:
+                        raise AssemblyError(f"transported check reference digest mismatch: {reference_path}")
             destination = output_dir / "checks" / f"{value['id']}.json"
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(raw)
@@ -189,6 +239,7 @@ def run(args: argparse.Namespace) -> int:
                 "path": evidence_path,
                 "digest": actual_digest,
                 "producer": producer,
+                **expected["roles"],
             })
             check_records.append(
                 {
@@ -200,6 +251,7 @@ def run(args: argparse.Namespace) -> int:
                     "verdict": value["verdict"],
                     "path": evidence_path,
                     "digest": actual_digest,
+                    **expected["roles"],
                 }
             )
     if seen_producers != set(by_name):
@@ -234,14 +286,20 @@ def run(args: argparse.Namespace) -> int:
             "owner": item["owner"],
             "producer": item["reproducer"]["source"]["producer"],
             "producer_revision": item["reproducer"]["source"]["producer_revision"],
-            "category": item["affected_surfaces"][0],
+            "category": item["category"],
             "claim": item["requested_capability"],
             "current_limitation": item["current_limitation"],
-        }
+            "evidence_provider": item["evidence_provider"],
+            "semantic_authority": item["semantic_authority"],
+            "remediation_owner": item["remediation_owner"],
+            "transport_authority": item["transport_authority"],
+            "originating_project": item["originating_project"],
+            "lifecycle": item["lifecycle"],
+            }
         for item in pressure["obligations"]
     ]
     evidence = {
-        "schema_version": "mncs-actions.family-integration-evidence/1",
+        "schema_version": "mncs-actions.family-integration-evidence/2",
         "mode": mode,
         "contract_document": _relative(contract_path, actions_root),
         "contract_digest": contract_digest,
@@ -249,6 +307,7 @@ def run(args: argparse.Namespace) -> int:
         "descriptor_digest": descriptor_digest,
         "family_revisions": expected_revisions,
         "checks": check_records,
+        "provenance_bindings": provenance_bindings,
         "unresolved_obligations": unresolved,
         "authority": {
             "mncs": "machine-native-complexity-standard",
@@ -261,7 +320,7 @@ def run(args: argparse.Namespace) -> int:
         },
         "promotion": "observation-only; this document cannot update family-contracts.json",
         "execution": {
-            "protocol": "mncs-actions.family-producer-output/1",
+            "protocol": "mncs-actions.family-producer-output/2",
             "producer_jobs": True,
             "aggregator_executes_producer_code": False,
             "artifact_transport": "content-addressed",
@@ -273,6 +332,7 @@ def run(args: argparse.Namespace) -> int:
             "obligation_count": len(pressure["obligations"]),
             "not_reproduced_count": len(pressure["not_reproduced"]),
         },
+        "observation": pressure["observation"],
     }
     errors = validate_family_integration_evidence(
         evidence,

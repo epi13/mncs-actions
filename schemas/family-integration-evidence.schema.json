@@ -2,16 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/epi13/mncs-actions/blob/main/schemas/family-integration-evidence.schema.json",
   "title": "MNCS Actions family integration evidence",
-  "description": "Public v1 evidence contract for a fixed or moving-head family observation. The six family revisions, producer/check membership, exact bytes, authority map, bounded execution topology, and development-pressure binding are explicit.",
+  "description": "Public v2 evidence contract for a fixed or moving-head family observation. The six family revisions, producer/check membership, exact bytes, explicit authority roles, bounded execution topology, typed provenance bindings, and development-pressure lifecycle are explicit. Runtime validation additionally compares membership, role projections, revisions, and binding relationships against the executed descriptors and contracts.",
   "type": "object",
   "required": [
     "schema_version", "mode", "contract_document", "contract_digest",
     "descriptor_document", "descriptor_digest", "family_revisions", "checks",
-    "unresolved_obligations", "authority", "promotion", "execution",
-    "development_pressure"
+    "provenance_bindings", "unresolved_obligations", "authority", "promotion", "execution",
+    "development_pressure", "observation"
   ],
   "properties": {
-    "schema_version": { "const": "mncs-actions.family-integration-evidence/1" },
+    "schema_version": { "const": "mncs-actions.family-integration-evidence/2" },
     "mode": { "enum": ["fixed", "moving-head"] },
     "contract_document": { "$ref": "#/$defs/safePath" },
     "contract_digest": { "$ref": "#/$defs/digest" },
@@ -20,15 +20,23 @@
     "family_revisions": {
       "type": "object",
       "minProperties": 1,
+      "maxProperties": 128,
       "additionalProperties": { "$ref": "#/$defs/familyRevision" }
     },
     "checks": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 128,
       "items": { "$ref": "#/$defs/check" }
+    },
+    "provenance_bindings": {
+      "type": "array",
+      "maxItems": 128,
+      "items": { "$ref": "#/$defs/provenanceBinding" }
     },
     "unresolved_obligations": {
       "type": "array",
+      "maxItems": 128,
       "items": { "$ref": "#/$defs/unresolved" }
     },
     "authority": {
@@ -50,7 +58,7 @@
       "type": "object",
       "required": ["protocol", "producer_jobs", "aggregator_executes_producer_code", "artifact_transport", "candidate_isolation"],
       "properties": {
-        "protocol": { "const": "mncs-actions.family-producer-output/1" },
+        "protocol": { "const": "mncs-actions.family-producer-output/2" },
         "producer_jobs": { "const": true },
         "aggregator_executes_producer_code": { "const": false },
         "artifact_transport": { "const": "content-addressed" },
@@ -68,6 +76,18 @@
         "not_reproduced_count": { "type": "integer", "minimum": 0 }
       },
       "additionalProperties": false
+    },
+    "observation": {
+      "type": "object",
+      "required": ["observation_id", "kind", "resolution_status", "semantic_resolution_authority", "promotion_status"],
+      "properties": {
+        "observation_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+        "kind": { "const": "family-evaluation" },
+        "resolution_status": { "const": "NOT_ESTABLISHED" },
+        "semantic_resolution_authority": { "type": "string", "minLength": 1 },
+        "promotion_status": { "const": "INDEPENDENT_REVIEW_REQUIRED" }
+      },
+      "additionalProperties": false
     }
   },
   "$defs": {
@@ -76,6 +96,7 @@
     "safePath": {
       "type": "string",
       "minLength": 1,
+      "maxLength": 512,
       "pattern": "^(?!/)(?!^[A-Za-z]:)(?!.*(^|/)(?:\\.|\\.\\.)(/|$))(?!.*//)(?!.*\\/$)(?!.*\\\\)[^\\u0000-\\u001f\\u007f]+$"
     },
     "familyRevision": {
@@ -90,10 +111,15 @@
     },
     "check": {
       "type": "object",
-      "required": ["id", "provider", "producer", "producer_revision", "contract_revision", "verdict", "path", "digest"],
+      "required": ["id", "provider", "evidence_provider", "semantic_authority", "remediation_owner", "transport_authority", "originating_project", "producer", "producer_revision", "contract_revision", "verdict", "path", "digest"],
       "properties": {
         "id": { "type": "string", "minLength": 1 },
         "provider": { "type": "string", "minLength": 1 },
+        "evidence_provider": { "type": "string", "minLength": 1 },
+        "semantic_authority": { "type": "string", "minLength": 1 },
+        "remediation_owner": { "type": "string", "minLength": 1 },
+        "transport_authority": { "const": "mncs-actions" },
+        "originating_project": { "type": "string", "minLength": 1 },
         "producer": { "type": "string", "minLength": 1 },
         "producer_revision": { "$ref": "#/$defs/sha" },
         "contract_revision": { "type": "string", "minLength": 1 },
@@ -105,17 +131,50 @@
     },
     "unresolved": {
       "type": "object",
-      "required": ["obligation_key", "pressure_id", "check_id", "owner", "producer", "producer_revision", "category", "claim", "current_limitation"],
+      "required": ["obligation_key", "pressure_id", "check_id", "owner", "evidence_provider", "semantic_authority", "remediation_owner", "transport_authority", "originating_project", "producer", "producer_revision", "category", "claim", "current_limitation", "lifecycle"],
       "properties": {
         "obligation_key": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
         "pressure_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
         "check_id": { "type": "string", "minLength": 1 },
         "owner": { "type": "string", "minLength": 1 },
+        "evidence_provider": { "type": "string", "minLength": 1 },
+        "semantic_authority": { "type": "string", "minLength": 1 },
+        "remediation_owner": { "type": "string", "minLength": 1 },
+        "transport_authority": { "const": "mncs-actions" },
+        "originating_project": { "type": "string", "minLength": 1 },
         "producer": { "type": "string", "minLength": 1 },
         "producer_revision": { "$ref": "#/$defs/sha" },
         "category": { "type": "string", "minLength": 1 },
         "claim": { "type": "string", "minLength": 1 },
-        "current_limitation": { "type": "string", "minLength": 1 }
+        "current_limitation": { "type": "string", "minLength": 1 },
+        "lifecycle": { "$ref": "#/$defs/lifecycle" }
+      },
+      "additionalProperties": false
+    },
+    "lifecycle": {
+      "type": "object",
+      "required": ["state", "reproduction", "resolution_status", "semantic_resolution", "promotion_status", "correlation_key"],
+      "properties": {
+        "state": { "const": "OPEN" },
+        "reproduction": { "enum": ["NEW", "REPRODUCED"] },
+        "resolution_status": { "const": "NOT_ESTABLISHED" },
+        "semantic_resolution": { "const": "NOT_ESTABLISHED" },
+        "promotion_status": { "const": "INDEPENDENT_REVIEW_REQUIRED" },
+        "correlation_key": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+      },
+      "additionalProperties": false
+    },
+    "provenanceBinding": {
+      "type": "object",
+      "required": ["producer", "kind", "authority", "path", "sha256", "authority_status", "revision"],
+      "properties": {
+        "producer": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "minLength": 1 },
+        "authority": { "type": "string", "minLength": 1 },
+        "path": { "$ref": "#/$defs/safePath" },
+        "sha256": { "$ref": "#/$defs/digest" },
+        "authority_status": { "enum": ["PASS", "FAIL", "UNKNOWN"] },
+        "revision": { "$ref": "#/$defs/sha" }
       },
       "additionalProperties": false
     }

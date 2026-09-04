@@ -2,25 +2,28 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/epi13/mncs-actions/blob/main/schemas/family-producer-output.schema.json",
   "title": "MNCS Actions family producer output",
-  "description": "Content-addressed transport envelope emitted by one bounded producer job. It has no aggregation or promotion authority.",
+  "description": "Version 2 content-addressed transport envelope emitted by one bounded producer job. Exact contract bytes, file membership, sizes, and optional typed authority-context bindings are explicit; runtime validation additionally verifies actual filesystem membership, aliases, links, and check one-to-one identity. It has no aggregation or promotion authority.",
   "type": "object",
-  "required": ["schema_version", "mode", "producer", "repository", "revision", "descriptor_digest", "files", "check_results"],
+  "required": ["schema_version", "mode", "producer", "repository", "revision", "descriptor_digest", "contract_digest", "files", "check_results"],
   "properties": {
-    "schema_version": { "const": "mncs-actions.family-producer-output/1" },
+    "schema_version": { "const": "mncs-actions.family-producer-output/2" },
     "mode": { "enum": ["fixed", "moving-head"] },
-    "producer": { "type": "string", "minLength": 1 },
+    "producer": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
     "repository": { "type": "string", "pattern": "^[^/\\s]+/[^/\\s]+$" },
     "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
     "descriptor_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "contract_digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "files": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 128,
       "items": {
         "type": "object",
-        "required": ["path", "sha256", "kind"],
+        "required": ["path", "sha256", "size", "kind"],
         "properties": {
           "path": { "$ref": "#/$defs/safePath" },
           "sha256": { "$ref": "#/$defs/digest" },
+          "size": { "type": "integer", "minimum": 0, "maximum": 8388608 },
           "kind": { "enum": ["native", "check-result"] }
         },
         "additionalProperties": false
@@ -29,16 +32,22 @@
     "check_results": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 128,
       "items": {
         "type": "object",
         "required": ["id", "path", "sha256"],
         "properties": {
-          "id": { "type": "string", "minLength": 1 },
+          "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$" },
           "path": { "$ref": "#/$defs/safePath" },
           "sha256": { "$ref": "#/$defs/digest" }
         },
         "additionalProperties": false
       }
+    },
+    "provenance_bindings": {
+      "type": "array",
+      "maxItems": 128,
+      "items": { "$ref": "#/$defs/provenanceBinding" }
     }
   },
   "$defs": {
@@ -46,7 +55,21 @@
     "safePath": {
       "type": "string",
       "minLength": 1,
+      "maxLength": 512,
       "pattern": "^(?!/)(?!^[A-Za-z]:)(?!.*(^|/)(?:\\.|\\.\\.)(/|$))(?!.*//)(?!.*\\/$)(?!.*\\\\)[^\\u0000-\\u001f\\u007f]+$"
+    },
+    "provenanceBinding": {
+      "type": "object",
+      "required": ["kind", "authority", "path", "sha256", "authority_status", "revision"],
+      "properties": {
+        "kind": { "type": "string", "minLength": 1 },
+        "authority": { "type": "string", "minLength": 1 },
+        "path": { "$ref": "#/$defs/safePath" },
+        "sha256": { "$ref": "#/$defs/digest" },
+        "authority_status": { "enum": ["PASS", "FAIL", "UNKNOWN"] },
+        "revision": { "type": "string", "pattern": "^[0-9a-f]{40}$" }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

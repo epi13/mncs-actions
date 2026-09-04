@@ -61,3 +61,32 @@ The independent revision binding and artifact validation detect substitution
 and malformed transport, but they do not establish semantic truth or
 attestation. Moving-head results therefore remain observations and never gain
 fixed-contract or promotion authority.
+
+### What the membrane does and does not establish
+
+A participant does not gain authoritative MNCS standing merely by running
+code. What crosses the family boundary must conform to a bounded protocol,
+carry exact identity/revision/descriptor/contract and raw-byte evidence
+bindings, survive independent validation, and remain subject to domain
+authority and promotion rules. The v2 transport rejects undeclared files,
+duplicate or case/Unicode-alias paths, kind substitutions, traversal, links,
+special files, malformed/deep JSON, oversized artifacts, digest changes,
+foreign checks, and stale nested assembly output.
+
+These are transport/conformance guarantees, not semantic or host-security
+guarantees:
+
+- execution success is not semantic `PASS`;
+- content integrity is not semantic truth;
+- revision binding is not authorization;
+- provenance is not correctness;
+- owner-native execution is not sandboxing;
+- moving-head evidence is not promotion authority;
+- `NOT_REPRODUCED` is not resolved.
+
+Rights/provenance bindings therefore carry the owner authority, record
+identity, exact digest/revision, and `PASS`/`FAIL`/`UNKNOWN` authority status
+when available. Forge assurance preserves policy-bound and unmet isolation
+properties, but does not infer kernel isolation or attestation. Unknown
+authority or assurance remains `UNKNOWN` and is routed through
+DevelopmentPressure for the appropriate owner.

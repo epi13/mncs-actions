@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/epi13/mncs-actions/schemas/family-contract-candidate.schema.json",
   "title": "MNCS family moving-head candidate",
-  "description": "A moving-head observation tied to an existing fixed family contract. This document has no promotion authority.",
+  "description": "A bounded moving-head observation tied to an existing fixed family contract. This document has no promotion authority; runtime validation additionally rejects case/Unicode aliases and validates the exact fixed-family inventory.",
   "type": "object",
   "required": [
     "schema_version",
@@ -34,6 +34,7 @@
     "repositories": {
       "type": "array",
       "minItems": 1,
+      "maxItems": 128,
       "items": {
         "$ref": "#/$defs/repository"
       }
@@ -47,7 +48,8 @@
     "safePath": {
       "type": "string",
       "minLength": 1,
-      "pattern": "^(?![./])[^\\\\\\u0000-\\u001f\\u007f]+$"
+      "maxLength": 512,
+      "pattern": "^(?!/)(?!^[A-Za-z]:)(?!.*(^|/)(?:\\.|\\.\\.)(/|$))(?!.*//)(?!.*\\/$)(?!.*\\\\)[^\\u0000-\\u001f\\u007f]+$"
     },
     "repository": {
       "type": "object",
@@ -63,15 +65,17 @@
       "properties": {
         "name": {
           "type": "string",
-          "minLength": 1
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
         },
         "repository": {
           "type": "string",
+          "maxLength": 512,
           "pattern": "^[^/\\s]+/[^/\\s]+$"
         },
         "branch": {
           "type": "string",
           "minLength": 1,
+          "maxLength": 512,
           "pattern": "^\\S+$"
         },
         "base_revision": {
@@ -86,6 +90,8 @@
         "artifacts": {
           "type": "array",
           "minItems": 1,
+          "maxItems": 128,
+          "uniqueItems": true,
           "items": {
             "$ref": "#/$defs/safePath"
           }

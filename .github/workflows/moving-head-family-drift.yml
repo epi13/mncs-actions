@@ -173,16 +173,29 @@ jobs:
           checks="$(find .mncs/moving-head/checks -maxdepth 1 -type f -name '*.json' | sort | tr '\n' ' ')"
           actions/aggregate/aggregate.sh \
             --checks "$checks" \
-            --required "mncs-validation,rights-provenance,mncds-development-record,commons-family-compatibility,mncs-language-family-boundary,mncs-language-rights-projection,mncs-language-changeset-boundary,forge-cell-contract" \
+            --required "mncs-validation,rights-provenance,mncds-development-record,commons-family-compatibility,mncs-language-family-boundary,mncs-language-rights-projection,mncs-language-changeset-boundary,mncs-language-artifact-envelope,forge-cell-contract" \
             --boundary "family-moving-head-drift" \
             --working-dir . \
             --evidence-dir .mncs/moving-head/aggregate-evidence \
             --carrier-revision "$GITHUB_SHA" \
             --strict-membership true
           verdict="$(grep '^verdict=' "$GITHUB_OUTPUT" | tail -1 | cut -d= -f2-)"
+          evidence_file=.mncs/moving-head/family-contract-evidence.json
+          pressure_file=.mncs/moving-head/development-pressure/development-pressure-evidence.json
+          pass_count="$(jq '[.checks[] | select(.verdict == "PASS")] | length' "$evidence_file")"
+          fail_count="$(jq '[.checks[] | select(.verdict == "FAIL")] | length' "$evidence_file")"
+          unknown_count="$(jq '[.checks[] | select(.verdict == "UNKNOWN")] | length' "$evidence_file")"
+          unresolved_count="$(jq '.obligations | length' "$pressure_file")"
+          new_count="$(jq '[.obligations[] | select(.lifecycle.reproduction == "NEW")] | length' "$pressure_file")"
+          repeated_count="$(jq '[.obligations[] | select(.lifecycle.reproduction == "REPRODUCED")] | length' "$pressure_file")"
+          not_reproduced_count="$(jq '.not_reproduced | length' "$pressure_file")"
           echo "## Moving-head family observation" >> "$GITHUB_STEP_SUMMARY"
           echo "- Workflow execution: SUCCESS" >> "$GITHUB_STEP_SUMMARY"
           echo "- MNCS evidence verdict: $verdict" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Mode: $(jq -r '.mode' "$evidence_file")" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Checks: PASS=$pass_count FAIL=$fail_count UNKNOWN=$unknown_count" >> "$GITHUB_STEP_SUMMARY"
+          echo "- DevelopmentPressure: unresolved=$unresolved_count new=$new_count repeated=$repeated_count not-reproduced=$not_reproduced_count" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Observation only: this result has no fixed-contract or promotion authority." >> "$GITHUB_STEP_SUMMARY"
           if [[ "$verdict" == "FAIL" ]]; then
             echo "::error::moving-head family observation established FAIL"
             exit 1

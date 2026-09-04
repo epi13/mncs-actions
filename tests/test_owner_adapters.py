@@ -97,6 +97,11 @@ def test_forge_native_validator_preserves_unknown_assurance():
     )
     assert check["verdict"] == "UNKNOWN"
     assert "process-isolated" in " ".join(check["unresolved"])
+    projection = check["assurance_projection"]
+    assert projection["policy_binding"] is True
+    assert projection["process_isolation"] is False
+    assert projection["scope"].endswith("no kernel or attestation inference")
+    assert any("No operating-system sandbox" in item for item in check["unresolved"])
 
 
 def test_forge_wrong_nonce_is_fail_and_malformed_record_is_rejected(tmp_path):

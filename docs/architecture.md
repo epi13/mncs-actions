@@ -78,6 +78,25 @@ mncs-language source studies, and Forge Cell checks each produce an independent
 in the evidence bundle. PASS/FAIL/UNKNOWN remains explicit; malformed or
 unavailable execution is not rewritten as a positive claim.
 
+## The family security membrane
+
+A participant does not gain authoritative MNCS standing merely by running
+code. What crosses the family boundary must conform to the bounded v2
+producer envelope, carry exact producer/revision/descriptor/contract and
+file bindings, survive independent assembler validation, and remain subject
+to domain authority and promotion rules. This establishes transport
+integrity and reproducibility of the observation; it does not establish
+semantic truth, authorization, rights correctness, or runner isolation.
+
+The envelope validator rejects undeclared files, duplicate or alias paths,
+kind substitutions, traversal, links and special files, digest/size changes,
+foreign check identities, and pathological JSON. Owner-native execution is
+therefore constrained at the conformance membrane, but it is not a sandbox:
+producer code can still alter its own workspace or lie about domain facts.
+Forge's assurance projection keeps policy binding, nonce/record evidence, and
+unmet isolation visible without claiming kernel-level isolation or
+attestation. `UNKNOWN` remains evidence; it is not silently upgraded.
+
 ## Extensible family composition
 
 The three convenience provider inputs in the reusable workflow are retained

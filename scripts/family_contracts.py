@@ -14,6 +14,7 @@ import json
 import re
 import subprocess
 import sys
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,10 @@ FIXED_SCHEMA = "mncs-actions.family-contracts/1"
 CANDIDATE_SCHEMA = "mncs-actions.family-contract-candidate/1"
 FULL_SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 SAFE_PATH_RE = re.compile(r"^[^/\\\x00-\x1f\x7f][^\\\x00-\x1f\x7f]*$")
+IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+MAX_CONTRACT_DOCUMENT_BYTES = 8 * 1024 * 1024
+MAX_CONTRACT_JSON_DEPTH = 64
+MAX_CONTRACT_PATH_LENGTH = 512
 
 
 class ContractError(ValueError):
@@ -33,8 +38,45 @@ class ContractError(ValueError):
 
 def _read(path: Path) -> dict[str, Any]:
     try:
-        value = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raw = path.read_bytes()
+        if len(raw) > MAX_CONTRACT_DOCUMENT_BYTES:
+            raise ContractError(
+                f"contract document exceeds protocol JSON limit of {MAX_CONTRACT_DOCUMENT_BYTES} bytes"
+            )
+        depth = 0
+        maximum = 0
+        in_string = False
+        escaped = False
+        for byte in raw:
+            char = chr(byte)
+            if in_string:
+                if escaped:
+                    escaped = False
+                elif char == "\\":
+                    escaped = True
+                elif char == '"':
+                    in_string = False
+                continue
+            if char == '"':
+                in_string = True
+            elif char in "[{":
+                depth += 1
+                maximum = max(maximum, depth)
+            elif char in "]}":
+                depth -= 1
+        if maximum > MAX_CONTRACT_JSON_DEPTH:
+            raise ContractError(
+                f"contract document exceeds protocol JSON depth limit of {MAX_CONTRACT_JSON_DEPTH}"
+            )
+        value = json.loads(
+            raw.decode("utf-8"),
+            parse_constant=lambda token: (_ for _ in ()).throw(
+                ValueError(f"non-standard JSON constant {token}")
+            ),
+        )
+    except ContractError:
+        raise
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, RecursionError, ValueError) as exc:
         raise ContractError(f"cannot read contract document {path}: {exc}") from exc
     if not isinstance(value, dict):
         raise ContractError(f"contract document must be an object: {path}")
@@ -45,10 +87,12 @@ def _safe_relative_path(value: Any, label: str) -> None:
     if (
         not isinstance(value, str)
         or not value
+        or len(value) > MAX_CONTRACT_PATH_LENGTH
         or value.startswith(("/", "\\"))
         or value.startswith(".")
         or "\\" in value
         or ".." in value.split("/")
+        or unicodedata.normalize("NFC", value) != value
         or not SAFE_PATH_RE.match(value)
     ):
         raise ContractError(f"{label} must be a safe relative path")
@@ -66,6 +110,10 @@ def _digest(value: Any, label: str) -> str:
     return value
 
 
+def _portable_identity(value: str) -> str:
+    return unicodedata.normalize("NFC", value).casefold()
+
+
 def _common_entry(entry: Any, index: int) -> dict[str, Any]:
     label = f"repositories[{index}]"
     if not isinstance(entry, dict):
@@ -73,18 +121,23 @@ def _common_entry(entry: Any, index: int) -> dict[str, Any]:
     for field in ("name", "repository", "checkout_path", "artifacts"):
         if field not in entry:
             raise ContractError(f"{label}.{field} is required")
-    if not isinstance(entry["name"], str) or not entry["name"]:
-        raise ContractError(f"{label}.name must be non-empty text")
-    if not isinstance(entry["repository"], str) or "/" not in entry["repository"]:
+    if not isinstance(entry["name"], str) or not IDENTIFIER_RE.fullmatch(entry["name"]):
+        raise ContractError(f"{label}.name must be a bounded identifier")
+    if not isinstance(entry["repository"], str) or len(entry["repository"]) > MAX_CONTRACT_PATH_LENGTH or not re.fullmatch(
+        r"[^/\s]+/[^/\s]+", entry["repository"]
+    ):
         raise ContractError(f"{label}.repository must be an owner/repository slug")
     _safe_relative_path(entry["checkout_path"], f"{label}.checkout_path")
     artifacts = entry["artifacts"]
-    if not isinstance(artifacts, list) or not artifacts or not all(
+    if not isinstance(artifacts, list) or not artifacts or len(artifacts) > 128 or not all(
         isinstance(item, str) and item for item in artifacts
     ):
         raise ContractError(f"{label}.artifacts must be a non-empty string array")
     for artifact in artifacts:
         _safe_relative_path(artifact, f"{label}.artifacts[]")
+    identities = [unicodedata.normalize("NFC", artifact).casefold() for artifact in artifacts]
+    if len(set(identities)) != len(identities):
+        raise ContractError(f"{label}.artifacts contains ambiguous duplicate paths")
     return entry
 
 
@@ -97,19 +150,28 @@ def validate_fixed(document: dict[str, Any]) -> list[dict[str, Any]]:
     names: set[str] = set()
     repositories: set[str] = set()
     paths: set[str] = set()
+    name_identities: set[str] = set()
+    repository_identities: set[str] = set()
+    path_identities: set[str] = set()
     normalized: list[dict[str, Any]] = []
     for index, raw in enumerate(entries):
         entry = _common_entry(raw, index)
         _sha(entry.get("revision"), f"repositories[{index}].revision")
-        if entry["name"] in names:
+        name_identity = _portable_identity(entry["name"])
+        repository_identity = _portable_identity(entry["repository"])
+        path_identity = _portable_identity(entry["checkout_path"])
+        if entry["name"] in names or name_identity in name_identities:
             raise ContractError(f"duplicate family repository name: {entry['name']}")
-        if entry["repository"] in repositories:
+        if entry["repository"] in repositories or repository_identity in repository_identities:
             raise ContractError(f"duplicate family repository slug: {entry['repository']}")
-        if entry["checkout_path"] in paths:
+        if entry["checkout_path"] in paths or path_identity in path_identities:
             raise ContractError(f"duplicate family checkout path: {entry['checkout_path']}")
         names.add(entry["name"])
         repositories.add(entry["repository"])
         paths.add(entry["checkout_path"])
+        name_identities.add(name_identity)
+        repository_identities.add(repository_identity)
+        path_identities.add(path_identity)
         normalized.append(entry)
     return normalized
 
@@ -123,12 +185,22 @@ def validate_candidate(document: dict[str, Any]) -> list[dict[str, Any]]:
         raise ContractError(f"base_schema_version must be {FIXED_SCHEMA}")
     _digest(document.get("base_contract_digest"), "base_contract_digest")
     branch = document.get("branch")
-    if not isinstance(branch, str) or not branch or any(ch.isspace() for ch in branch):
+    if (
+        not isinstance(branch, str)
+        or not branch
+        or len(branch) > MAX_CONTRACT_PATH_LENGTH
+        or any(ch.isspace() for ch in branch)
+    ):
         raise ContractError("branch must be non-empty text without whitespace")
     entries = document.get("repositories")
     if not isinstance(entries, list) or not entries:
         raise ContractError("repositories must be a non-empty array")
     names: set[str] = set()
+    repositories: set[str] = set()
+    paths: set[str] = set()
+    name_identities: set[str] = set()
+    repository_identities: set[str] = set()
+    path_identities: set[str] = set()
     normalized: list[dict[str, Any]] = []
     for index, raw in enumerate(entries):
         entry = _common_entry(raw, index)
@@ -136,9 +208,21 @@ def validate_candidate(document: dict[str, Any]) -> list[dict[str, Any]]:
         _sha(entry.get("candidate_revision"), f"repositories[{index}].candidate_revision")
         if entry.get("branch") != branch:
             raise ContractError(f"repositories[{index}].branch differs from document branch")
-        if entry["name"] in names:
+        name_identity = _portable_identity(entry["name"])
+        repository_identity = _portable_identity(entry["repository"])
+        path_identity = _portable_identity(entry["checkout_path"])
+        if entry["name"] in names or name_identity in name_identities:
             raise ContractError(f"duplicate family repository name: {entry['name']}")
+        if entry["repository"] in repositories or repository_identity in repository_identities:
+            raise ContractError(f"duplicate family repository slug: {entry['repository']}")
+        if entry["checkout_path"] in paths or path_identity in path_identities:
+            raise ContractError(f"duplicate family checkout path: {entry['checkout_path']}")
         names.add(entry["name"])
+        repositories.add(entry["repository"])
+        paths.add(entry["checkout_path"])
+        name_identities.add(name_identity)
+        repository_identities.add(repository_identity)
+        path_identities.add(path_identity)
         normalized.append(entry)
     return normalized
 

@@ -19,7 +19,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from family_contracts import ContractError, _read, validate_against_fixed, validate_candidate, validate_fixed  # noqa: E402
-from family_protocol import ProtocolError, descriptor_map, load_json  # noqa: E402
+from family_protocol import (  # noqa: E402
+    MAX_PRODUCER_JOB_SECONDS,
+    ProtocolError,
+    descriptor_map,
+    ensure_clean_directory,
+    load_json,
+)
 
 
 class IntegrationError(RuntimeError):
@@ -32,6 +38,8 @@ def run(args: argparse.Namespace) -> int:
     contracts_path = args.contracts.resolve()
     fixed_path = args.fixed_contracts.resolve()
     output_dir = args.output_dir.resolve()
+    if actions_root != output_dir and actions_root not in output_dir.parents:
+        raise IntegrationError("local family output directory must be under actions root")
     contract = _read(contracts_path)
     if contract.get("schema_version") == "mncs-actions.family-contracts/1":
         entries = validate_fixed(contract)
@@ -42,11 +50,17 @@ def run(args: argparse.Namespace) -> int:
 
     # Never reuse producer output from an earlier run. This prevents a stale
     # envelope from silently filling a newly resolved candidate set.
-    if output_dir.exists() and any(output_dir.iterdir()):
-        raise IntegrationError(f"output directory must be empty for a new run: {output_dir}")
+    try:
+        ensure_clean_directory(output_dir, label="local family output directory")
+    except ProtocolError as exc:
+        raise IntegrationError(str(exc)) from exc
     output_dir.mkdir(parents=True, exist_ok=True)
-    producer_root = output_dir / "producer-artifacts"
-    producer_root.mkdir()
+    producer_root = output_dir.with_name(output_dir.name + "-producer-artifacts")
+    try:
+        ensure_clean_directory(producer_root, label="local producer transport directory")
+    except ProtocolError as exc:
+        raise IntegrationError(str(exc)) from exc
+    producer_root.mkdir(parents=True, exist_ok=True)
     for producer in sorted(descriptors):
         producer_output = producer_root / producer
         command = [
@@ -62,7 +76,13 @@ def run(args: argparse.Namespace) -> int:
         ]
         if args.language_binary:
             command.extend(["--language-binary", str(args.language_binary.resolve())])
-        process = subprocess.run(command, cwd=actions_root, text=True, capture_output=True)
+        process = subprocess.run(
+            command,
+            cwd=actions_root,
+            text=True,
+            capture_output=True,
+            timeout=MAX_PRODUCER_JOB_SECONDS,
+        )
         if process.returncode:
             raise IntegrationError(
                 f"producer {producer} failed ({process.returncode}): {process.stderr.strip()}"
@@ -79,7 +99,13 @@ def run(args: argparse.Namespace) -> int:
     ]
     if args.previous_pressure:
         assemble.extend(["--previous-pressure", str(args.previous_pressure.resolve())])
-    process = subprocess.run(assemble, cwd=actions_root, text=True, capture_output=True)
+    process = subprocess.run(
+        assemble,
+        cwd=actions_root,
+        text=True,
+        capture_output=True,
+        timeout=MAX_PRODUCER_JOB_SECONDS,
+    )
     if process.returncode:
         raise IntegrationError(f"family assembly failed ({process.returncode}): {process.stderr.strip()}")
     print(process.stdout, end="")

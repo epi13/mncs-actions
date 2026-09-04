@@ -32,7 +32,13 @@ FAIL vs NOT_ESTABLISHED (never conflated):
 
 The native `outcome`, `severity`, `findings`, `issues`, and manifest
 identity are preserved in `summary`/`unresolved`/`references`
-(`kind: rights-manifest`). `legal_conclusion` remains `NOT_MADE` upstream.
+(`kind: rights-manifest`). The reference carries the rights authority,
+authority record identity when the owner report provides one, exact digest
+and `authority_status`; missing authority status remains `UNKNOWN`.
+`legal_conclusion` remains `NOT_MADE` upstream. The family producer also
+copies the pinned rights manifest into its native transport and binds its
+raw digest/revision, so the assembler can verify that a rights reference
+points at the exact transported record.
 
 Fixtures: `rights PASS`, `review-required -> UNKNOWN`, `blocked -> FAIL`,
 `invalid -> FAIL`, malformed input -> adapter exit 2 (caller emits
@@ -113,6 +119,17 @@ The current source studies report unresolved compiler obligations and the
 reference Forge Cell reports unmet process isolation, so those projections are
 `UNKNOWN` until their owning repositories establish more. That is deliberate
 pressure evidence rather than an Actions-level waiver.
+
+## Forge assurance projection
+
+The Forge adapter preserves Forge's requested, enforced, and unmet assurance
+sets, policy binding, process-isolation status, attestation record, and
+declared limitations in an `assurance_projection`. This is a typed projection
+of the Forge-owned assessor, not a second assurance implementation. In
+particular, a policy-bound record with unmet process isolation stays
+`UNKNOWN`; a transport digest cannot turn it into a sandbox or attestation
+claim. The projection scope explicitly excludes kernel and attestation
+inference.
 
 ## Capability gaps and promotion boundaries
 
