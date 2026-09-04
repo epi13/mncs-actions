@@ -179,6 +179,7 @@ jobs:
             --boundary promotion/family-advancement.boundary.json \
             --graph-id "${{ steps.graph-id.outputs.graph_id }}" \
             --actions-revision "${{ github.sha }}" \
+            --accepted-graph family-graph-accepted.json \
             --output .mncs/graph/graph-candidate.json
           echo "digest=$(python3 -c "import json; print(json.load(open('.mncs/graph/graph-candidate.json'))['digest'])")" >> "$GITHUB_OUTPUT"
 
@@ -269,6 +270,7 @@ jobs:
             --boundary promotion/family-advancement.boundary.json \
             --graph-id "${{ steps.graph-id.outputs.graph_id }}" \
             --actions-revision "${{ github.sha }}" \
+            --accepted-graph family-graph-accepted.json \
             --coherence .mncs/graph/coherence.json \
             --evidence-dir .mncs/graph/checks \
             --output .mncs/graph/graph-validated.json
@@ -319,6 +321,7 @@ jobs:
             --boundary promotion/family-advancement.boundary.json \
             --graph-id "${{ steps.graph-id.outputs.graph_id }}" \
             --actions-revision "${{ github.sha }}" \
+            --accepted-graph family-graph-accepted.json \
             --coherence .mncs/graph/coherence.json \
             --evidence-dir .mncs/graph/checks \
             --promotion-result .mncs/graph/promotion-check.json \
@@ -348,6 +351,7 @@ jobs:
             --boundary promotion/family-advancement.boundary.json \
             --graph-id "${{ steps.graph-id.outputs.graph_id }}" \
             --actions-revision "${{ github.sha }}" \
+            --accepted-graph family-graph-accepted.json \
             --coherence .mncs/graph/coherence.json \
             --evidence-dir .mncs/graph/checks \
             --promotion-result .mncs/graph/promotion-check.json \
