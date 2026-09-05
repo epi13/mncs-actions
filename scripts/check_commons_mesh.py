@@ -8,7 +8,9 @@ joining any network:
 2. execution corpora are drift-free against their generator;
 3. the golden capsule digest is stable (no silent protocol migration);
 4. every mesh kernel completes ``source-study`` (toolchain-gated UNKNOWN);
-5. a fresh node's descriptor round-trips and negotiates with itself.
+5. a fresh node's descriptor round-trips and negotiates with itself;
+6. every corpus case targets a pinned kernel entry point with the
+   contracted arity (the family boundary covers the MNCS-owned law).
 
 Output is one JSON verdict on stdout.  Exit 0 always carries the verdict;
 exit 2 means the check itself could not run (missing checkout).
@@ -42,7 +44,32 @@ KERNELS = [
     "commons/mesh/outcome.mncs",
     "commons/mesh/interest.mncs",
     "commons/mesh/lattice_check.mncs",
+    "commons/mesh/lifecycle.mncs",
 ]
+
+# Kernel entry points the family boundary covers, with contracted
+# argument arity per entry.  A corpus case targeting anything else (or
+# the wrong arity) fails the law-contract check: the boundary proves
+# real language-owned behavior, not workflow existence.
+LAW_CONTRACT = {
+    "commons.mesh.availability": {
+        "candidate_rank": 1,
+        "candidate_merge_rank": 2,
+        "candidate_should_fetch": 2,
+    },
+    "commons.mesh.outcome": {
+        "candidate_combine": 2,
+        "candidate_agrees": 2,
+        "candidate_is_settled": 1,
+    },
+    "commons.mesh.interest": {
+        "candidate_matches": 13,
+        "candidate_matches_named": 16,
+        "candidate_matches_full": 27,
+    },
+    "commons.mesh.lattice_check": {"candidate_lattice_agrees": 2},
+    "commons.mesh.lifecycle": {"transition_allowed": 2, "transition_check": 4},
+}
 
 
 def check(name: str, passed: bool, detail: str = "") -> dict:
@@ -102,7 +129,9 @@ def main() -> int:
         "commons-outcome-corpus.json",
         "commons-interest-corpus.json",
         "commons-interest-named-corpus.json",
+        "commons-interest-full-corpus.json",
         "commons-lattice-corpus.json",
+        "commons-lifecycle-corpus.json",
     }
     corpora_dir = commons / "src" / "mncs_commons" / "mesh" / "mncs" / "corpora"
     present = (
@@ -176,6 +205,36 @@ def main() -> int:
         )
     except (OSError, ValueError, UnicodeDecodeError) as error:
         results.append(check("table-authority", False, str(error)))
+
+    try:
+        contracts = 0
+        offenders: list[str] = []
+        for corpus_path in sorted(corpora_dir.glob("*.json")):
+            corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
+            cases = corpus.get("cases", [])
+            if not cases:
+                offenders.append(f"{corpus_path.name}: no cases")
+                continue
+            for case in cases:
+                target = case.get("request", {}).get("target", {})
+                module = target.get("module", "")
+                function = target.get("function", "")
+                arity = len(case.get("request", {}).get("arguments", []))
+                contracted = LAW_CONTRACT.get(module, {}).get(function)
+                if contracted is None or contracted != arity:
+                    offenders.append(f"{corpus_path.name}:{case.get('id')}")
+                    break
+            else:
+                contracts += 1
+        results.append(
+            check(
+                "law-contract",
+                not offenders and contracts == len(expected_corpora),
+                f"corpora={contracts} offenders={offenders[:3]}",
+            )
+        )
+    except (OSError, ValueError, UnicodeDecodeError) as error:
+        results.append(check("law-contract", False, str(error)))
 
     golden_path = commons / "tests" / "fixtures" / "mesh_capsule_golden.json"
     try:
