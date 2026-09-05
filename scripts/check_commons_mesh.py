@@ -97,6 +97,85 @@ def main() -> int:
     results.append(
         check("corpora-drift-free", completed.returncode == 0, completed.stdout[-300:])
     )
+    expected_corpora = {
+        "commons-availability-corpus.json",
+        "commons-outcome-corpus.json",
+        "commons-interest-corpus.json",
+        "commons-interest-named-corpus.json",
+        "commons-lattice-corpus.json",
+    }
+    corpora_dir = commons / "src" / "mncs_commons" / "mesh" / "mncs" / "corpora"
+    present = (
+        {path.name for path in corpora_dir.glob("*.json")} if corpora_dir.is_dir() else set()
+    )
+    results.append(
+        check(
+            "corpora-complete",
+            expected_corpora <= present,
+            f"missing={sorted(expected_corpora - present)}",
+        )
+    )
+
+    # Table authority: the .mncs TABLE literals own name->discriminant
+    # mapping; the host materialization must equal them row for row.
+    try:
+        import re as _re
+
+        interest_source = (
+            commons
+            / "src"
+            / "mncs_commons"
+            / "mesh"
+            / "mncs"
+            / "commons"
+            / "mesh"
+            / "interest.mncs"
+        ).read_text(encoding="utf-8")
+        row_pattern = _re.compile(
+            r"textmap\.Coded16 \{ key: \[([0-9 as byte,]+)\], key_length: (\d+), code: (-?\d+) \}"
+        )
+        section_pattern = _re.compile(r"// TABLE (\w+)")
+        section_fallback = _re.compile(
+            r"lookup16<\d+>\(table, \w+, \w+_length, (-?\d+)\)"
+        )
+        parsed: dict[str, dict[str, int]] = {}
+        fallbacks: dict[str, int] = {}
+        current: str | None = None
+        for line in interest_source.splitlines():
+            section = section_pattern.match(line.strip())
+            if section:
+                current = section.group(1)
+                parsed[current] = {}
+                continue
+            if current is None:
+                continue
+            row = row_pattern.search(line)
+            if row:
+                raw = [
+                    int(p.strip().removesuffix("as byte"))
+                    for p in row.group(1).split(",")
+                ]
+                length = int(row.group(2))
+                name = bytes(raw[:length]).decode("ascii")
+                parsed[current][name] = int(row.group(3))
+            fallback = section_fallback.search(line)
+            if fallback and current is not None:
+                fallbacks[current] = int(fallback.group(1))
+        host_tables = {
+            "kind": dict(mesh.KIND_DISCRIMINANTS),
+            "outcome": dict(mesh.OUTCOME_DISCRIMINANTS),
+            "state": dict(mesh.LIFECYCLE_DISCRIMINANTS),
+        }
+        authority_ok = (
+            set(parsed) == {"kind", "outcome", "state"}
+            and all(parsed[name] == host_tables[name] for name in parsed)
+            and all(fallbacks[name] not in parsed[name].values() for name in parsed)
+        )
+        results.append(
+            check("table-authority", authority_ok, f"tables={sorted(parsed)}")
+        )
+    except (OSError, ValueError, UnicodeDecodeError) as error:
+        results.append(check("table-authority", False, str(error)))
 
     golden_path = commons / "tests" / "fixtures" / "mesh_capsule_golden.json"
     try:

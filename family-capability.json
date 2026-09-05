@@ -55,7 +55,7 @@
   },
   "capabilities": {
     "epi13/mncs-actions": [
-      {"paths": ["actions/", ".github/workflows/mncs-family-verify.yml", "adapters/", "lib/"], "impact": "executable"},
+      {"paths": ["actions/", ".github/workflows/mncs-family-verify.yml", ".github/workflows/mncs-family.yml", "adapters/", "lib/"], "impact": "executable"},
       {"paths": ["schemas/", "family-producer-descriptors.json"], "impact": "contract"},
       {"paths": ["scripts/", "pressure/", "promotion/", "family-capability.json", ".github/workflows/family-graph-advance.yml", "requirements-dev.lock", "requirements-dev.txt"], "impact": "evidence"},
       {"paths": ["docs/", "examples/", "README.md", "CONTRIBUTING.md", "SECURITY.md"], "impact": "docs"},
