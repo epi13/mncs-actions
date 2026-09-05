@@ -47,4 +47,4 @@ def test_commons_mesh_conformance():
     verdict = json.loads(completed.stdout)
     failures = [item for item in verdict["checks"] if not item["passed"]]
     assert verdict["verdict"] == "PASS", json.dumps(failures, indent=2)
-    assert len(verdict["checks"]) >= 10
+    assert len(verdict["checks"]) >= 12

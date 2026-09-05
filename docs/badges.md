@@ -28,3 +28,13 @@ revision. These are transport annotations only and carry no policy authority.
 The aggregate action exposes `aggregate-digest` in addition to its existing
 `manifest-digest` output so a badge can bind to both the aggregate document
 and its evidence manifest.
+
+## Badge-carrier commit semantics
+
+When a caller publishes the rendered badge back into its repository, the
+publishing commit is a *descendant* of the tested revision, never the
+revision itself: the sidecar's `subject-commit` names the tested parent,
+while the carrier commit only transports the presentation files. Evidence
+about revision R therefore always lives at a descendant of R. Consumers
+must resolve the claim through the sidecar's subject binding, never by
+assuming the carrier commit was itself verified.
