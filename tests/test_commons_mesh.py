@@ -40,9 +40,11 @@ def test_commons_mesh_conformance():
     )
     if mncs_bin:
         command += ["--mncs-bin", mncs_bin]
-    completed = subprocess.run(command, capture_output=True, text=True, check=False, timeout=300)
+    completed = subprocess.run(
+        command, capture_output=True, text=True, check=False, timeout=300
+    )
     assert completed.returncode == 0, completed.stderr[-2000:]
     verdict = json.loads(completed.stdout)
     failures = [item for item in verdict["checks"] if not item["passed"]]
     assert verdict["verdict"] == "PASS", json.dumps(failures, indent=2)
-    assert len(verdict["checks"]) >= 8
+    assert len(verdict["checks"]) >= 10

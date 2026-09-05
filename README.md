@@ -1,5 +1,7 @@
 # mncs-actions
 
+![MNCS badge](docs/mncs-badge.svg)
+
 Machine-native GitHub Actions and reusable automation primitives for verification, evidence, provenance, coordination, and language-pressure workflows across the MNCS ecosystem.
 
 > **Status:** experimental foundation. The contracts in this repository are versioned, but they are not yet presented as a completed MNCS standard.
@@ -158,6 +160,18 @@ examples/             Consumer workflow examples
 docs/                 Architecture and integration notes
 .github/workflows/    Repository self-tests + reusable family workflow
 ~~~
+
+## Self-hosted family verification
+
+This repository consumes its own reusable workflow
+(`.github/workflows/mncs-family.yml`) on every push to `main` and every pull
+request. The declared boundary is
+`mncs-actions-orchestration-boundary`: the owner-native pytest suite
+(`project-tests`, via `scripts/mncs_project_check.py`) and immutable
+action-ref hygiene (`action-pins`, via `scripts/mncs_pins_check.py`) are
+required; semantic truth stays with the owner repositories. The aggregate
+verdict renders the badge above (`docs/mncs-badge.svg` plus the
+machine-readable `docs/mncs-badge.json` sidecar) on `main` pushes.
 
 ## Ecosystem boundary
 
