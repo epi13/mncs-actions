@@ -19,6 +19,8 @@ jobs:
       project-check-id: project-tests
       project-provider: mncs-actions-pytest
       project-command: >-
+        python3 -m pip install -q --break-system-packages --require-hashes
+        -r requirements-dev.lock &&
         python3 scripts/mncs_project_check.py --result-file
         .mncs/checks/project-tests.json --revision ${{ github.sha }} &&
         python3 scripts/mncs_pins_check.py --result-file
