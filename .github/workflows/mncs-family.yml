@@ -13,7 +13,7 @@ jobs:
   mncs:
     uses: epi13/mncs-actions/.github/workflows/mncs-family-verify.yml@20a18e94eeb5053a16cd1ba4b371736a676e16ce
     with:
-      required-checks: '["project-tests", "action-pins"]'
+      required-checks: 'project-tests,action-pins'
       boundary: mncs-actions-orchestration-boundary
       fail-on-unknown: true
       project-check-id: project-tests
