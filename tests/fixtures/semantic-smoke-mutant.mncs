@@ -1,0 +1,18 @@
+mncs 0.9;
+
+// Fixture: deliberately wrong add (off by one). The provider must FAIL.
+module fixtures.semantic_smoke_mutant;
+
+fn add(a: i64, b: i64) -> (result: i64)
+    property prop_roundtrip
+{
+    return (a +% b) +% 1;
+}
+
+fn sub(a: i64, b: i64) -> (result: i64) {
+    return a -% b;
+}
+
+fn prop_roundtrip(x: i64, y: i64) -> (result: bool) {
+    return sub(add(x, y), y) == x;
+}

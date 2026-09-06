@@ -1193,6 +1193,65 @@ def classify_rights_report(report: Any) -> Tuple[Optional[str], List[str], Optio
     return verdict, unresolved, None
 
 
+CONFORMANCE_REPORT_SCHEMA = "mncs.conformance-report/1"
+
+
+def classify_conformance_report(report: Any) -> Tuple[Optional[str], List[str], Optional[str]]:
+    """Classify an ``mncs.conformance-report/1`` document for check projection.
+
+    Pure verdict mirror of ``pressure/semantic-conformance.mncs`` gate plus
+    has_followups. Returns (verdict, unresolved, error). ``error`` non-None
+    means the report establishes no claim: the caller must emit no
+    check-result so the execution layer records NOT_ESTABLISHED instead of
+    fabricating a verdict.
+
+    Rules (arm-for-arm with the MNCS gate):
+    - malformed report (not a dict, wrong schema, non-integer summary)
+      -> error (no claim).
+    - fail > 0 -> FAIL.
+    - zero tested predicates -> FAIL (a PASS with no evidence is a defect).
+    - unknown > 0 -> UNKNOWN (lowering/toolchain/reference errors need a human).
+    - otherwise PASS; unsupported > 0 surfaces as capability obligations in
+      ``unresolved`` without changing the verdict (absence of capability is
+      pressure evidence, not counter-evidence).
+    """
+    unresolved: List[str] = []
+    if not isinstance(report, dict):
+        return None, [], "conformance report must be a JSON object"
+    if report.get("schema_version") != CONFORMANCE_REPORT_SCHEMA:
+        return None, [], (
+            f"conformance report schema must be {CONFORMANCE_REPORT_SCHEMA}"
+        )
+    summary = report.get("summary")
+    if not isinstance(summary, dict):
+        return None, [], "conformance report has no summary (malformed report)"
+    counts = {}
+    for key in ("pass", "fail", "unknown", "unsupported"):
+        value = summary.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            return None, [], f"conformance summary field {key!r} must be a non-negative integer"
+        counts[key] = value
+    predicates = report.get("predicates")
+    if not isinstance(predicates, list):
+        return None, [], "conformance report has no predicates list (malformed report)"
+    tested = sum(1 for entry in predicates if isinstance(entry, dict) and entry.get("status") == "tested")
+    if counts["fail"] > 0:
+        return "FAIL", unresolved, None
+    if tested == 0:
+        unresolved.append("no tested predicates: PASS with no evidence is a defect")
+        return "FAIL", unresolved, None
+    if counts["unknown"] > 0:
+        unresolved.append(
+            f"{counts['unknown']} unknown observations need human review (lowering/toolchain/reference errors)"
+        )
+        return "UNKNOWN", unresolved, None
+    if counts["unsupported"] > 0:
+        unresolved.append(
+            f"{counts['unsupported']} unsupported outcomes recorded as capability obligations, not counter-evidence"
+        )
+    return "PASS", unresolved, None
+
+
 def check_revision_token(field: str, value: Any) -> Optional[str]:
     """Validate an opaque revision label carried verbatim (or None if ok).
 

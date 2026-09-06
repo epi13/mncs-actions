@@ -1,0 +1,52 @@
+mncs 0.6;
+
+// mncs-actions pressure: semantic-conformance gate in MNCS.
+//
+// This module expresses the pure verdict core the host enforces in
+// lib/mncs_actions.py::classify_conformance_report over an
+// mncs.conformance-report/1 document, using the authoritative lattice from
+// mncs.core.status.v1 (FAIL > UNKNOWN > PASS).
+//
+// Purpose is language pressure, not replacement: verdict combination over
+// bounded tallies CAN be expressed in MNCS today; process execution (`mncs
+// conformance`), filesystem access (report/evidence files), JSON
+// canonicalization, and GitHub environment capture CANNOT (no safe
+// observable MNCS surface yet), so those remain explicit host escape in
+// scripts/semantic_conformance.py + lib/mncs_actions.py.
+//
+// Gate policy (pinned arm-for-arm with the host):
+// - any failed observation is FAIL;
+// - zero tested predicates is FAIL (a PASS with no evidence is a defect,
+//   never a success);
+// - unknown execution outcomes (lowering/toolchain/reference errors) are
+//   UNKNOWN;
+// - unsupported backends or capabilities do NOT downgrade an otherwise
+//   clean run: absence of capability is pressure evidence, not
+//   counter-evidence. They surface separately through has_followups so the
+//   host records them as capability obligations instead of verdicts.
+
+module mncs.actions.semantic_conformance.v01;
+
+use mncs.core.status.v1;
+
+record ConformanceTally { failed: u64, unknown: u64, unsupported: u64, tested: u64 }
+
+fn gate(tally: ConformanceTally) -> (result: Status) {
+    if tally.failed > 0 {
+        return Status.FAIL;
+    }
+    if tally.tested == 0 {
+        return Status.FAIL;
+    }
+    if tally.unknown > 0 {
+        return Status.UNKNOWN;
+    }
+    return Status.PASS;
+}
+
+// Unsupported outcomes are follow-up obligations, never verdicts: a clean
+// run with unsupported backends stays PASS while the host records what was
+// not exercised.
+fn has_followups(tally: ConformanceTally) -> (result: bool) {
+    return tally.unsupported > 0;
+}
