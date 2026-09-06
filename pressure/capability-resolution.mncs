@@ -1,0 +1,102 @@
+mncs 0.6;
+
+// mncs-actions pressure: capability-resolution core in MNCS.
+//
+// This module expresses the pure pre-execution eligibility relation the
+// Fabric host enforces in capability_resolution.py::resolve_code (owned
+// by mncs-fabric, specified in mncs/worker_capability.mncs): liveness,
+// freshness, provenance trust, environment eligibility, and
+// policy/intent compatibility, in that fixed order, with one
+// machine-readable reason code per outcome.
+//
+// Purpose is language pressure, not replacement: the pure decision
+// relation CAN be expressed in MNCS today; process execution
+// (capability probes), filesystem access (worker descriptions, ledgers),
+// string classification (platform names into finite enums), clock reads
+// (observation ages), hashing, and network transport CANNOT (no safe
+// observable MNCS surface yet), so those remain explicit host escape in
+// mncs-fabric (platform_probe.py, controller.py) and are pinned only by
+// their boundary contracts, never reimplemented here.
+//
+// Ordering policy (pinned arm-for-arm with the host):
+// - reachability before freshness, freshness before provenance,
+//   provenance before environment, environment before policy;
+// - consumer-declared observations never prove capability;
+// - experimental status alone grants nothing: mutating work needs the
+//   toolchain permission, privileged work needs the root permission;
+// - normal work is allowed by every policy.
+
+module mncs.actions.capability_resolution.v01;
+
+// Provenance of a capability claim. Only the first two classes prove.
+enum Provenance { WorkerObserved, OperatorAsserted, ConsumerDeclared }
+
+// Declared administrative policy: composable booleans, never inferred.
+record WorkerPolicy {
+    experimental: bool,
+    disposable: bool,
+    allow_root_mutation: bool,
+    allow_reboot: bool,
+    allow_toolchain_install: bool,
+    resource_constrained: bool
+}
+
+enum WorkloadIntent { Normal, Mutating, Privileged }
+
+enum Liveness { Available, Unavailable, Disconnected }
+
+enum Freshness { Fresh, Stale }
+
+enum Resolution { Eligible, CapabilityUnsatisfied, PolicyDenied, ProvenanceUnverified, WorkerStale, WorkerUnavailable, WorkerDisconnected }
+
+fn provenance_trusted(provenance: Provenance) -> (result: bool) {
+    return match provenance {
+        WorkerObserved => true,
+        OperatorAsserted => true,
+        ConsumerDeclared => false,
+    };
+}
+
+fn intent_allowed(policy: WorkerPolicy, intent: WorkloadIntent) -> (result: bool) {
+    return match intent {
+        Normal => true,
+        Mutating => policy.experimental && policy.allow_toolchain_install,
+        Privileged => policy.experimental && policy.allow_root_mutation,
+    };
+}
+
+fn decide_fresh(provenance_ok: bool, env_ok: bool, intent_ok: bool) -> (result: Resolution) {
+    if provenance_ok {
+        if env_ok {
+            if intent_ok {
+                return Resolution.Eligible;
+            }
+            return Resolution.PolicyDenied;
+        }
+        return Resolution.CapabilityUnsatisfied;
+    }
+    return Resolution.ProvenanceUnverified;
+}
+
+fn resolve(liveness: Liveness, freshness: Freshness, provenance_ok: bool, env_ok: bool, intent_ok: bool) -> (result: Resolution) {
+    return match liveness {
+        Unavailable => Resolution.WorkerUnavailable,
+        Disconnected => Resolution.WorkerDisconnected,
+        Available => match freshness {
+            Stale => Resolution.WorkerStale,
+            Fresh => decide_fresh(provenance_ok, env_ok, intent_ok),
+        },
+    };
+}
+
+fn is_eligible(code: Resolution) -> (result: bool) {
+    return match code {
+        Eligible => true,
+        CapabilityUnsatisfied => false,
+        PolicyDenied => false,
+        ProvenanceUnverified => false,
+        WorkerStale => false,
+        WorkerUnavailable => false,
+        WorkerDisconnected => false,
+    };
+}

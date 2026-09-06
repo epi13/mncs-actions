@@ -75,3 +75,16 @@ computation, JSON parsing, evidence evaluation, and result emission
 remain explicit host escape (no safe MNCS surface yet). There is no arm
 mapping Unknown advancement to satisfied and no arm letting a sole
 self-authority pass; novelty can only block automatic advancement.
+
+`pressure/capability-resolution.mncs` expresses the pure pre-execution
+eligibility core the Fabric host enforces
+(`mncs_fabric/capability_resolution.py::resolve_code`, specified by
+`mncs/worker_capability.mncs` in mncs-fabric): liveness, freshness,
+provenance trust, environment eligibility, and policy/intent
+compatibility, in that fixed order. `tests/test_capability_pressure.py`
+pins all 48 (liveness, freshness, provenance, env, intent) arms plus
+intent/provenance behavior against the Fabric implementation and
+lex/parses the source through the real compiler. Process execution
+(probes), filesystem access (descriptions, ledgers), string
+classification, clock reads, hashing, and transport remain explicit
+host escape in mncs-fabric.
