@@ -30,6 +30,14 @@ inputs:
     description: Colon-separated MNCS library roots passed to the provider.
     required: false
     default: ""
+  embed-library:
+    description: Optional mncs-embed shared library used for one retained session and batch execution.
+    required: false
+    default: ""
+  test-filter:
+    description: Optional comma- or space-separated test identity/name fragments passed to the provider.
+    required: false
+    default: ""
   working-directory:
     description: Directory in which the manifest and provider run.
     required: false
@@ -51,7 +59,7 @@ inputs:
     required: false
     default: .mncs/mncs-test-evidence
   timeout-seconds:
-    description: Optional wall-clock timeout override for each native test process.
+    description: Optional wall-clock timeout override for the inventory/compile/session run.
     required: false
     default: ""
   step-budget:
@@ -123,6 +131,8 @@ runs:
         MNCS_BUILD: ${{ inputs.build-mncs }}
         MNCS_MANIFEST: ${{ inputs.manifest }}
         MNCS_LIBRARY_PATH_INPUT: ${{ inputs.library-path }}
+        MNCS_EMBED_LIBRARY_INPUT: ${{ inputs.embed-library }}
+        MNCS_TEST_FILTER: ${{ inputs.test-filter }}
         MNCS_RESULT_FILE: ${{ inputs.result-file }}
         MNCS_TEST_RESULT_FILE: ${{ inputs.test-result-file }}
         MNCS_ARTIFACTS_DIRECTORY: ${{ inputs.artifacts-directory }}

@@ -40,6 +40,8 @@ def test_mncs_test_action_shape():
         "mncs-source",
         "build-mncs",
         "library-path",
+        "embed-library",
+        "test-filter",
         "result-file",
         "test-result-file",
         "artifacts-directory",

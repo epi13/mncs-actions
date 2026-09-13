@@ -20,11 +20,19 @@ REPO = Path(__file__).resolve().parents[1]
 MNCS_TEST = Path(os.environ.get("MNCS_TEST_REPO", REPO.parent / "mncs-test"))
 MNCS_LANGUAGE = Path(os.environ.get("MNCS_LANGUAGE_REPO", REPO.parent / "mncs-language"))
 MNCS = Path(os.environ.get("MNCS", MNCS_LANGUAGE / "target" / "debug" / "mncs"))
+EMBED_LIBRARY = Path(
+    os.environ.get(
+        "MNCS_EMBED_LIBRARY",
+        MNCS_LANGUAGE / "target" / "debug" / "libmncs_embed.so",
+    )
+)
 
 
 @pytest.mark.skipif(
-    not (MNCS_TEST / "bin" / "mncs-test").is_file() or not MNCS.is_file(),
-    reason="sibling mncs-test checkout and built mncs compiler are required",
+    not (MNCS_TEST / "bin" / "mncs-test").is_file()
+    or not MNCS.is_file()
+    or not EMBED_LIBRARY.is_file(),
+    reason="sibling mncs-test checkout and built compiler/embed library are required",
 )
 def test_native_provider_and_run_check_packaging(tmp_path: Path):
     result = tmp_path / "mncs-test-check.json"
@@ -44,6 +52,7 @@ def test_native_provider_and_run_check_packaging(tmp_path: Path):
             "MNCS_LIBRARY_PATH_INPUT": os.pathsep.join(
                 (str(MNCS_TEST / "native"), str(MNCS_LANGUAGE / "library"))
             ),
+            "MNCS_EMBED_LIBRARY_INPUT": str(EMBED_LIBRARY),
             "MNCS_RESULT_FILE": str(result),
             "MNCS_TEST_RESULT_FILE": str(test_result),
             "MNCS_ARTIFACTS_DIRECTORY": str(artifacts),
@@ -87,6 +96,8 @@ def test_native_provider_and_run_check_packaging(tmp_path: Path):
     )
     assert package.returncode == 0, package.stderr + package.stdout
     assert json.loads(result.read_text(encoding="utf-8"))["verdict"] == "PASS"
-    assert json.loads(test_result.read_text(encoding="utf-8"))["summary"]["total"] == 6
+    detailed = json.loads(test_result.read_text(encoding="utf-8"))
+    assert detailed["summary"]["total"] == 6
+    assert detailed["execution"]["mode"] == "retained-embed-batch"
     assert json.loads((evidence / "evidence-manifest.json").read_text(encoding="utf-8"))["verdict"] == "PASS"
     assert "verdict=PASS" in output.read_text(encoding="utf-8")

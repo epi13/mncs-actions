@@ -9,6 +9,8 @@ mncs_bin="${MNCS_BIN:-mncs}"
 mncs_source="${MNCS_SOURCE:-}"
 manifest="${MNCS_MANIFEST:-}"
 library_path="${MNCS_LIBRARY_PATH_INPUT:-}"
+embed_library="${MNCS_EMBED_LIBRARY_INPUT:-}"
+test_filter="${MNCS_TEST_FILTER:-}"
 result_file="${MNCS_RESULT_FILE:-.mncs/mncs-test-check.json}"
 test_result_file="${MNCS_TEST_RESULT_FILE:-.mncs/mncs-test-result.json}"
 artifacts_dir="${MNCS_ARTIFACTS_DIRECTORY:-.mncs/mncs-test-artifacts}"
@@ -96,6 +98,12 @@ if [[ "${MNCS_BUILD:-false}" == "true" ]]; then
     write_start_failure "mncs-language toolchain build failed with exit $build_status"
     exit 3
   fi
+  cargo build --locked --manifest-path "$mncs_source/Cargo.toml" -p mncs-embed >>"$build_log/stdout.log" 2>>"$build_log/stderr.log"
+  build_status=$?
+  if [[ "$build_status" != "0" ]]; then
+    write_start_failure "mncs-embed build failed with exit $build_status"
+    exit 3
+  fi
   mncs_bin="$mncs_source/target/debug/mncs"
 fi
 
@@ -104,6 +112,16 @@ if [[ -n "$library_path" ]]; then
   IFS=':' read -r -a libraries <<< "$library_path"
   for library in "${libraries[@]}"; do
     [[ -n "$library" ]] && provider+=(--library "$library")
+  done
+fi
+if [[ -n "$embed_library" ]]; then
+  provider+=(--embed-library "$embed_library")
+fi
+if [[ -n "$test_filter" ]]; then
+  normalized_filters="${test_filter//,/ }"
+  read -r -a filters <<< "$normalized_filters"
+  for filter in "${filters[@]}"; do
+    [[ -n "$filter" ]] && provider+=(--filter "$filter")
   done
 fi
 [[ -n "$timeout_seconds" ]] && provider+=(--timeout-seconds "$timeout_seconds")

@@ -17,6 +17,10 @@ Primitives:
   established (`PASS`/`FAIL`/`UNKNOWN`, else `INVALID`).
 - `actions/run-check`: run one family-owned provider and package its
   `check-result` plus receipt for later aggregation.
+- `actions/mncs-test`: invoke the canonical `mncs-test` provider. For ordinary
+  Profile 0.17 source, the compiler supplies the first-class test inventory;
+  the action transports the provider result and does not duplicate test
+  semantics.
 - `actions/aggregate`: compose validated check-results into one
   aggregate verdict with explicit required/optional policy.
 - `actions/render-badge`: render a deterministic SVG presentation badge and
