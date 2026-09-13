@@ -28,6 +28,7 @@ jobs:
           bash -n actions/run-check/run_check.sh
           bash -n actions/aggregate/aggregate.sh
           bash -n actions/render-badge/render_badge.sh
+          bash -n actions/mncs-test/test.sh
 
       - name: Validate JSON contracts
         run: |

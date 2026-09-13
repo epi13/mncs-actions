@@ -1,0 +1,216 @@
+name: MNCS Native Test
+description: Run an MNCS-native test manifest and package its structured result for family automation.
+author: epi13
+
+branding:
+  color: green
+  icon: check-circle
+
+inputs:
+  manifest:
+    description: Path to an mncs.test-manifest/1 TOML manifest, relative to working-directory.
+    required: true
+  mncs-test-bin:
+    description: Executable mncs-test launcher. It must be a checked-out provider, not a shell command string.
+    required: false
+    default: mncs-test
+  mncs-bin:
+    description: Current mncs compiler/runtime executable, unless build-mncs is enabled.
+    required: false
+    default: mncs
+  mncs-source:
+    description: Path to a checked-out mncs-language source tree when build-mncs is true.
+    required: false
+    default: ""
+  build-mncs:
+    description: Build the mncs binary from mncs-source with cargo before running tests.
+    required: false
+    default: "false"
+  library-path:
+    description: Colon-separated MNCS library roots passed to the provider.
+    required: false
+    default: ""
+  working-directory:
+    description: Directory in which the manifest and provider run.
+    required: false
+    default: .
+  result-file:
+    description: Path, relative to working-directory, of the check-result/1 wrapper.
+    required: false
+    default: .mncs/mncs-test-check.json
+  test-result-file:
+    description: Path, relative to working-directory, of the detailed test-result/1 document.
+    required: false
+    default: .mncs/mncs-test-result.json
+  artifacts-directory:
+    description: Directory, relative to working-directory, for raw provider artifacts.
+    required: false
+    default: .mncs/mncs-test-artifacts
+  evidence-directory:
+    description: Directory, relative to working-directory, for action evidence.
+    required: false
+    default: .mncs/mncs-test-evidence
+  timeout-seconds:
+    description: Optional wall-clock timeout override for each native test process.
+    required: false
+    default: ""
+  step-budget:
+    description: Optional MNCS execution step-budget override.
+    required: false
+    default: ""
+  fail-on-unknown:
+    description: Fail the action when the provider reports UNKNOWN/unsupported.
+    required: false
+    default: "true"
+  fail-on-fail:
+    description: Fail the action when the provider reports FAIL.
+    required: false
+    default: "true"
+  allow-unsupported:
+    description: Let the provider use exit 0 for an UNKNOWN result while retaining UNKNOWN in the result document.
+    required: false
+    default: "false"
+  upload-artifact:
+    description: Upload result, evidence, and raw artifacts as one workflow artifact.
+    required: false
+    default: "true"
+  artifact-name:
+    description: Name of the uploaded test evidence artifact.
+    required: false
+    default: mncs-test-evidence
+
+outputs:
+  verdict:
+    description: PASS, FAIL, or UNKNOWN from the provider check-result.
+    value: ${{ steps.package.outputs.verdict }}
+  claim-status:
+    description: ESTABLISHED or NOT_ESTABLISHED from run-check packaging.
+    value: ${{ steps.package.outputs.claim-status }}
+  evidence-path:
+    description: Absolute path to the action evidence manifest.
+    value: ${{ steps.package.outputs.evidence-path }}
+  check-path:
+    description: Absolute path to the packaged check-result.
+    value: ${{ steps.package.outputs.check-path }}
+  test-result-path:
+    description: Absolute path to the detailed mncs.test-result/1 document.
+    value: ${{ steps.run-test.outputs.test-result-path }}
+  execution-receipt-path:
+    description: Absolute path to the execution receipt.
+    value: ${{ steps.package.outputs.execution-receipt-path }}
+  manifest-digest:
+    description: SHA-256 digest of the packaged evidence manifest.
+    value: ${{ steps.package.outputs.manifest-digest }}
+  command-exit-code:
+    description: Exit code returned by mncs-test.
+    value: ${{ steps.package.outputs.command-exit-code }}
+  failure-class:
+    description: Provider failure classification, including compile/timeout/unsupported distinctions.
+    value: ${{ steps.run-test.outputs.failure-class }}
+
+runs:
+  using: composite
+  steps:
+    - name: Run native MNCS tests
+      id: run-test
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      continue-on-error: true
+      env:
+        MNCS_TEST_BIN: ${{ inputs.mncs-test-bin }}
+        MNCS_BIN: ${{ inputs.mncs-bin }}
+        MNCS_SOURCE: ${{ inputs.mncs-source }}
+        MNCS_BUILD: ${{ inputs.build-mncs }}
+        MNCS_MANIFEST: ${{ inputs.manifest }}
+        MNCS_LIBRARY_PATH_INPUT: ${{ inputs.library-path }}
+        MNCS_RESULT_FILE: ${{ inputs.result-file }}
+        MNCS_TEST_RESULT_FILE: ${{ inputs.test-result-file }}
+        MNCS_ARTIFACTS_DIRECTORY: ${{ inputs.artifacts-directory }}
+        MNCS_TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
+        MNCS_STEP_BUDGET: ${{ inputs.step-budget }}
+        MNCS_ALLOW_UNSUPPORTED: ${{ inputs.allow-unsupported }}
+      run: |
+        set +e
+        "$GITHUB_ACTION_PATH/test.sh"
+        status=$?
+        echo "exit-code=$status" >> "$GITHUB_OUTPUT"
+        exit 0
+
+    - name: Validate and package native test result
+      id: package
+      if: always()
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        MNCS_RESULT_FILE: ${{ inputs.result-file }}
+        MNCS_EVIDENCE_DIRECTORY: ${{ inputs.evidence-directory }}
+        MNCS_COMMAND_EXIT_CODE: ${{ steps.run-test.outputs.exit-code }}
+        MNCS_COMMAND_LABEL: mncs-test run --manifest ${{ inputs.manifest }}
+        MNCS_EXPECTED_ID: mncs-test
+        MNCS_EXPECTED_PROVIDER: mncs-test
+      run: |
+        set -euo pipefail
+        if [[ -z "${MNCS_COMMAND_EXIT_CODE:-}" ]]; then
+          echo "::error::Missing mncs-test exit code."
+          exit 2
+        fi
+        "$GITHUB_ACTION_PATH/../run-check/run_check.sh" \
+          --result-file "$MNCS_RESULT_FILE" \
+          --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" \
+          --command-exit-code "$MNCS_COMMAND_EXIT_CODE" \
+          --command "$MNCS_COMMAND_LABEL" \
+          --expected-id "$MNCS_EXPECTED_ID" \
+          --expected-provider "$MNCS_EXPECTED_PROVIDER"
+
+    - name: Upload native test artifacts
+      if: ${{ always() && inputs.upload-artifact == 'true' }}
+      # actions/upload-artifact v7.0.1
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          ${{ inputs.working-directory }}/${{ inputs.evidence-directory }}
+          ${{ inputs.working-directory }}/${{ inputs.artifacts-directory }}
+          ${{ inputs.working-directory }}/${{ inputs.test-result-file }}
+        if-no-files-found: warn
+
+    - name: Apply native test gate
+      if: always()
+      shell: bash
+      env:
+        MNCS_FAIL_ON_UNKNOWN: ${{ inputs.fail-on-unknown }}
+        MNCS_FAIL_ON_FAIL: ${{ inputs.fail-on-fail }}
+        MNCS_PACKAGE_OUTCOME: ${{ steps.package.outcome }}
+        MNCS_VERDICT: ${{ steps.package.outputs.verdict }}
+        MNCS_CLAIM_STATUS: ${{ steps.package.outputs.claim-status }}
+        MNCS_COMMAND_EXIT_CODE: ${{ steps.package.outputs.command-exit-code }}
+      run: |
+        set -euo pipefail
+        if [[ "$MNCS_PACKAGE_OUTCOME" != "success" || "$MNCS_CLAIM_STATUS" == "NOT_ESTABLISHED" ]]; then
+          echo "::error::mncs-test claim was not established."
+          exit 1
+        fi
+        if [[ "$MNCS_COMMAND_EXIT_CODE" != "0" ]]; then
+          echo "::error::mncs-test exited with $MNCS_COMMAND_EXIT_CODE."
+          exit 1
+        fi
+        case "$MNCS_VERDICT" in
+          PASS) exit 0 ;;
+          FAIL)
+            if [[ "$MNCS_FAIL_ON_FAIL" == "true" ]]; then
+              echo "::error::mncs-test returned FAIL."
+              exit 1
+            fi
+            echo "::warning::mncs-test returned FAIL (deferred)."
+            exit 0
+            ;;
+          UNKNOWN)
+            if [[ "$MNCS_FAIL_ON_UNKNOWN" == "true" ]]; then
+              echo "::error::mncs-test returned UNKNOWN and fail-on-unknown is enabled."
+              exit 1
+            fi
+            echo "::warning::mncs-test returned UNKNOWN."
+            exit 0
+            ;;
+          *) echo "::error::Invalid mncs-test verdict: $MNCS_VERDICT"; exit 1 ;;
+        esac
