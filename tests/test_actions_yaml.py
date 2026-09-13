@@ -31,6 +31,37 @@ def test_run_check_action_shape():
     assert "claim-status" in action["outputs"]
 
 
+def test_mncs_test_action_shape():
+    action = load_action("mncs-test")
+    for key in (
+        "manifest",
+        "mncs-test-bin",
+        "mncs-bin",
+        "mncs-source",
+        "build-mncs",
+        "library-path",
+        "result-file",
+        "test-result-file",
+        "artifacts-directory",
+        "evidence-directory",
+        "fail-on-unknown",
+    ):
+        assert key in action["inputs"], key
+    for key in (
+        "verdict",
+        "claim-status",
+        "evidence-path",
+        "check-path",
+        "test-result-path",
+        "execution-receipt-path",
+        "manifest-digest",
+        "command-exit-code",
+        "failure-class",
+    ):
+        assert key in action["outputs"], key
+    assert "actions/upload-artifact@" in str(action["runs"])
+
+
 def test_aggregate_action_shape():
     action = load_action("aggregate")
     for key in ("checks", "required", "evidence-directory", "fail-on-unknown",
