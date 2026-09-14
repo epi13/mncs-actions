@@ -18,6 +18,7 @@ max_values="${MNCS_DEBUG_MAX_VALUES:-1024}"
 max_value_bytes="${MNCS_DEBUG_MAX_VALUE_BYTES:-4096}"
 selected_operations="${MNCS_DEBUG_SELECTED_OPERATIONS:-}"
 timeout_seconds="${MNCS_DEBUG_TIMEOUT_SECONDS:-30}"
+diagnostic_depth="${MNCS_DEBUG_DIAGNOSTIC_DEPTH:-minimal}"
 check_file="${MNCS_DEBUG_CHECK_FILE:-.mncs/mncs-debug-check.json}"
 witness_file="${MNCS_DEBUG_WITNESS_FILE:-.mncs/mncs-debug-witness.json}"
 artifacts_dir="${MNCS_DEBUG_ARTIFACTS_DIRECTORY:-.mncs/mncs-debug-artifacts}"
@@ -89,6 +90,11 @@ fi
 case "$capture_policy" in
   failure-only|selected|bounded|diagnostic|events) ;;
   *) write_unknown "invalid_invocation" "unsupported capture policy: $capture_policy"; exit 0 ;;
+esac
+
+case "$diagnostic_depth" in
+  minimal|standard|deep) ;;
+  *) write_unknown "invalid_invocation" "diagnostic-depth must be minimal, standard, or deep"; exit 0 ;;
 esac
 
 if ! [[ "$max_events" =~ ^[0-9]+$ ]] || (( max_events < 1 || max_events > 512 )); then
@@ -178,11 +184,17 @@ if [[ "$validation_status" != "0" ]]; then
   exit 0
 fi
 "$debug_bin" inspect "$witness_file" --output "$inspection_file" >/dev/null 2>&1 || true
-"$debug_bin" trace "$witness_file" --limit "$max_events" --output "$trace_file" >/dev/null 2>&1 || true
-"$debug_bin" why "$witness_file" --output "$provenance_file" >/dev/null 2>&1 || true
-"$debug_bin" replay "$witness_file" --mode trace --output "$replay_file" >/dev/null 2>&1 || true
+if [[ "$diagnostic_depth" == "standard" || "$diagnostic_depth" == "deep" ]]; then
+  "$debug_bin" trace "$witness_file" --limit "$max_events" --output "$trace_file" >/dev/null 2>&1 || true
+  "$debug_bin" why "$witness_file" --output "$provenance_file" >/dev/null 2>&1 || true
+fi
+if [[ "$diagnostic_depth" == "deep" ]]; then
+  # replay is a non-executing projection of the captured witness; it never
+  # reruns the originating test or debug provider.
+  "$debug_bin" replay "$witness_file" --mode trace --output "$replay_file" >/dev/null 2>&1 || true
+fi
 
-python3 - "$check_file" "$witness_file" "$validation_file" "$test_result_file" "$inspection_file" "$trace_file" "$provenance_file" "$replay_file" "$debug_status" <<'PY'
+python3 - "$check_file" "$witness_file" "$validation_file" "$test_result_file" "$inspection_file" "$trace_file" "$provenance_file" "$replay_file" "$debug_status" "$diagnostic_depth" <<'PY'
 import hashlib
 import json
 import os
@@ -198,6 +210,7 @@ trace_path = Path(sys.argv[6])
 provenance_path = Path(sys.argv[7])
 replay_path = Path(sys.argv[8])
 debug_status = sys.argv[9]
+diagnostic_depth = sys.argv[10]
 root = Path(os.environ.get("MNCS_DEBUG_WORKING_DIRECTORY", ".")).resolve()
 
 def digest(path: Path) -> str:
@@ -274,6 +287,18 @@ document = {
         "outcome": witness.get("outcome"),
         "integration": integration,
         "provider_exit_code": int(debug_status),
+        "diagnostic": {
+            "depth": diagnostic_depth,
+            "escalation_reason": "insufficient_diagnostic_evidence" if diagnostic_depth != "minimal" else None,
+            "operations": [
+                name for name, path in (
+                    ("inspect", inspection_path),
+                    ("trace", trace_path),
+                    ("why", provenance_path),
+                    ("replay", replay_path),
+                ) if path.is_file()
+            ],
+        },
         "capture_policy": witness.get("trace", {}).get("capture_policy"),
         "observation": observation_metadata,
         "source_map": source_map_metadata,

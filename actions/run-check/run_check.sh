@@ -11,6 +11,7 @@ command_exit_code="0"
 command_label=""
 expected_id=""
 expected_provider=""
+scope_file=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -20,12 +21,13 @@ while [[ $# -gt 0 ]]; do
     --command) command_label="$2"; shift 2 ;;
     --expected-id) expected_id="$2"; shift 2 ;;
     --expected-provider) expected_provider="$2"; shift 2 ;;
+    --scope-file) scope_file="$2"; shift 2 ;;
     *) echo "Unknown argument: $1" >&2; exit 64 ;;
   esac
 done
 
 if [[ -z "$result_file" || -z "$evidence_dir" ]]; then
-  echo "Usage: run_check.sh --result-file PATH --evidence-dir PATH --command-exit-code CODE [--command LABEL] [--expected-id ID] [--expected-provider P]" >&2
+  echo "Usage: run_check.sh --result-file PATH --evidence-dir PATH --command-exit-code CODE [--command LABEL] [--expected-id ID] [--expected-provider P] [--scope-file PLAN]" >&2
   exit 64
 fi
 
@@ -38,6 +40,7 @@ MNCS_COMMAND_EXIT_CODE="$command_exit_code" \
 MNCS_COMMAND_LABEL="$command_label" \
 MNCS_EXPECTED_ID="$expected_id" \
 MNCS_EXPECTED_PROVIDER="$expected_provider" \
+MNCS_SCOPE_FILE="$scope_file" \
 MNCS_LIB_DIR="$LIB_DIR" \
 python3 - <<'PY'
 import json
@@ -64,6 +67,7 @@ evidence_dir = Path(os.environ["MNCS_EVIDENCE_DIR"])
 command_label = os.environ.get("MNCS_COMMAND_LABEL", "")
 expected_id = os.environ.get("MNCS_EXPECTED_ID", "")
 expected_provider = os.environ.get("MNCS_EXPECTED_PROVIDER", "")
+scope_file = os.environ.get("MNCS_SCOPE_FILE", "")
 try:
     command_exit_code = int(os.environ.get("MNCS_COMMAND_EXIT_CODE", "0"))
 except ValueError:
@@ -76,6 +80,142 @@ manifest_path = evidence_dir / "evidence-manifest.json"
 copied_check = evidence_dir / "check-result.json"
 observed_path = evidence_dir / "observed-check.json"
 provenance = github_provenance()
+scope_path = Path(scope_file) if scope_file else None
+scope_document = None
+scope_digest = ""
+scope_errors: list[str] = []
+plan_levels = {
+    "changed_item",
+    "direct_dependents",
+    "affected_subsystem",
+    "repository_canonical",
+    "family",
+}
+plan_reasons = {
+    "direct_dependents_affected",
+    "public_contract_changed",
+    "shared_type_changed",
+    "parser_semantics_changed",
+    "serialization_format_changed",
+    "effect_semantics_changed",
+    "abi_boundary_changed",
+    "canonical_fixture_changed",
+    "high_connectivity_definition_changed",
+    "dependent_targeted_test_failed",
+    "insufficient_diagnostic_evidence",
+    "migration_broad_semantic_surface",
+    "language_profile_changed",
+    "cross_repository_contract_changed",
+    "impact_evidence_truncated",
+    "unknown_changed_identity",
+}
+
+
+def require_strings(value, field: str, *, allow_empty: bool = False) -> None:
+    if not isinstance(value, list) or not all(
+        isinstance(item, str) and (allow_empty or item) for item in value
+    ):
+        raise ValueError(f"{field} must be a list of strings")
+
+
+def require_sha(value, field: str) -> None:
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise ValueError(f"{field} must be a lowercase sha256")
+
+
+def validate_plan_transport(value) -> None:
+    if not isinstance(value.get("plan_id"), str) or not value["plan_id"]:
+        raise ValueError("verification plan plan_id is missing")
+    source = value.get("source")
+    if not isinstance(source, dict) or not isinstance(source.get("path"), str) or not source["path"]:
+        raise ValueError("verification plan source binding is missing")
+    require_sha(source.get("sha256"), "verification plan source.sha256")
+    impact = value.get("impact")
+    if not isinstance(impact, dict):
+        raise ValueError("verification plan impact is missing")
+    if not isinstance(impact.get("graph_identity"), str) or not impact["graph_identity"]:
+        raise ValueError("verification plan impact.graph_identity is missing")
+    require_strings(impact.get("roots"), "verification plan impact.roots")
+    require_strings(impact.get("direct_dependents"), "verification plan impact.direct_dependents")
+    require_strings(impact.get("test_identities"), "verification plan impact.test_identities")
+    require_strings(impact.get("risk_flags"), "verification plan impact.risk_flags")
+    require_strings(impact.get("limitations"), "verification plan impact.limitations", allow_empty=True)
+    if not isinstance(impact.get("affected_count"), int) or isinstance(impact["affected_count"], bool) or impact["affected_count"] < 0:
+        raise ValueError("verification plan impact.affected_count must be non-negative")
+    if not isinstance(impact.get("complete"), bool):
+        raise ValueError("verification plan impact.complete must be boolean")
+    selection = value.get("selection")
+    if not isinstance(selection, dict) or selection.get("level") not in plan_levels:
+        raise ValueError("verification plan selection.level is invalid")
+    require_strings(selection.get("selected_test_identities"), "verification plan selection.selected_test_identities")
+    available = selection.get("available_test_count")
+    if not isinstance(available, int) or isinstance(available, bool) or available < 0:
+        raise ValueError("verification plan selection.available_test_count must be non-negative")
+    reasons = selection.get("escalation_reasons")
+    require_strings(reasons, "verification plan selection.escalation_reasons")
+    unknown_reasons = sorted(set(reasons) - plan_reasons)
+    if unknown_reasons:
+        raise ValueError("verification plan has unknown escalation reasons: " + ", ".join(unknown_reasons))
+    proof = value.get("proof")
+    if not isinstance(proof, dict) or not isinstance(proof.get("sufficient_to_stop"), bool):
+        raise ValueError("verification plan proof.sufficient_to_stop must be boolean")
+    require_strings(proof.get("required_evidence"), "verification plan proof.required_evidence")
+    if not isinstance(value.get("provenance"), dict):
+        raise ValueError("verification plan provenance must be an object")
+
+
+if scope_path is not None:
+    if not scope_path.is_file():
+        scope_errors.append(f"verification plan does not exist: {scope_path}")
+    else:
+        try:
+            scope_digest = sha256_hex(scope_path.read_bytes())
+            scope_document = json.loads(scope_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            scope_errors.append(f"verification plan is not valid JSON: {exc}")
+        if not isinstance(scope_document, dict):
+            scope_errors.append("verification plan must be a JSON object")
+        elif scope_document.get("schema_version") != "mncs.verification-plan/1":
+            scope_errors.append("verification plan schema_version must be mncs.verification-plan/1")
+        else:
+            try:
+                validate_plan_transport(scope_document)
+            except ValueError as exc:
+                scope_errors.append(str(exc))
+
+scope_inputs = {"result_file": str(result_path), "evidence_dir": str(evidence_dir)}
+if scope_path is not None:
+    scope_inputs["verification_plan"] = str(scope_path)
+    if scope_digest:
+        scope_inputs["verification_plan_sha256"] = scope_digest
+scope_boundary = {}
+if scope_path is not None and not scope_errors:
+    selection = scope_document.get("selection", {}) if isinstance(scope_document, dict) else {}
+    impact = scope_document.get("impact", {}) if isinstance(scope_document, dict) else {}
+    scope_boundary = {
+        "verification_plan": {
+            "path": str(scope_path.resolve()),
+            "sha256": scope_digest,
+            "plan_id": scope_document.get("plan_id"),
+            "schema_version": scope_document.get("schema_version"),
+        },
+        "selection": {
+            "level": selection.get("level"),
+            "selected_test_count": len(selection.get("selected_test_identities", [])) if isinstance(selection.get("selected_test_identities"), list) else 0,
+            "available_test_count": selection.get("available_test_count"),
+            "escalation_reasons": selection.get("escalation_reasons", []),
+        },
+        "impact": {
+            "graph_identity": impact.get("graph_identity"),
+            "affected_count": impact.get("affected_count"),
+            "risk_flags": impact.get("risk_flags", []),
+            "complete": impact.get("complete"),
+        },
+    }
 
 
 def write_json(path: Path, obj) -> None:
@@ -108,6 +248,7 @@ def append_summary(lines) -> None:
 parsed, _raw_digest, load_errors = load_result_file(result_path)
 result_present = result_path.is_file()
 errors: list[str] = list(load_errors)
+errors.extend(scope_errors)
 verdict = ""
 if not errors:
     struct_errors = validate_check_result(parsed)
@@ -146,7 +287,7 @@ if errors:
         result_valid=False,
         result_errors=errors,
         produced_files=produced,
-        inputs={"result_file": str(result_path), "evidence_dir": str(evidence_dir)},
+        inputs=scope_inputs,
         error_code="CHECK_NOT_ESTABLISHED",
         provenance=provenance,
     )
@@ -180,7 +321,7 @@ receipt = build_execution_receipt(
     result_valid=True,
     claim_verdict=verdict,
     produced_files=[{"path": copied_check.name, "sha256": check_sha}],
-    inputs={"result_file": str(result_path), "evidence_dir": str(evidence_dir)},
+    inputs=scope_inputs,
     provenance=provenance,
 )
 write_json(receipt_path, receipt)
@@ -194,7 +335,7 @@ manifest = build_evidence_manifest(
     receipt_ref={"path": receipt_path.name, "sha256": receipt_sha},
     references=parsed.get("references"),
     unresolved=parsed.get("unresolved"),
-    boundary={"check_id": parsed.get("id"), "provider": parsed.get("provider")},
+    boundary={"check_id": parsed.get("id"), "provider": parsed.get("provider"), **scope_boundary},
     provenance=provenance,
 )
 write_json(manifest_path, manifest)

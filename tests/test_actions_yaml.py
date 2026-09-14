@@ -42,6 +42,7 @@ def test_mncs_test_action_shape():
         "library-path",
         "embed-library",
         "test-filter",
+        "verification-plan",
         "result-file",
         "test-result-file",
         "artifacts-directory",
@@ -55,6 +56,7 @@ def test_mncs_test_action_shape():
         "debug-max-values",
         "debug-max-value-bytes",
         "debug-selected-operations",
+        "debug-diagnostic-depth",
     ):
         assert key in action["inputs"], key
     for key in (
@@ -102,6 +104,8 @@ def test_mncs_debug_action_shape():
         "max-values",
         "max-value-bytes",
         "selected-operations",
+        "diagnostic-depth",
+        "verification-plan",
         "check-file",
         "witness-file",
         "artifacts-directory",
