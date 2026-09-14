@@ -94,7 +94,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/MNCS-Commons
-          ref: db8b824834619a1d453daa581e870b55ee1f0eee
+          ref: f6fdfc599a68cea9a79ff898d6a09f5e3514bf17
           path: family/MNCS-Commons
           persist-credentials: false
           fetch-depth: 1

@@ -39,7 +39,7 @@
     {
       "name": "MNCS-Commons",
       "repository": "epi13/MNCS-Commons",
-      "revision": "db8b824834619a1d453daa581e870b55ee1f0eee",
+      "revision": "f6fdfc599a68cea9a79ff898d6a09f5e3514bf17",
       "checkout_path": "family/MNCS-Commons",
       "artifacts": ["src/mncs_commons/data/family-registry-v0alpha1.json", "pressures/records/MNCS-VERIFY-54B12B4A78DF.json", "docs/development-pressure-evidence/mncs-debug-integration-2026-09.json"]
     },
