@@ -51,6 +51,10 @@ def test_mncs_test_action_shape():
         "debug-required",
         "mncs-debug-bin",
         "debug-capture-policy",
+        "debug-max-events",
+        "debug-max-values",
+        "debug-max-value-bytes",
+        "debug-selected-operations",
     ):
         assert key in action["inputs"], key
     for key in (
@@ -94,6 +98,10 @@ def test_mncs_debug_action_shape():
         "mncs-debug-bin",
         "mncs-bin",
         "capture-policy",
+        "max-events",
+        "max-values",
+        "max-value-bytes",
+        "selected-operations",
         "check-file",
         "witness-file",
         "artifacts-directory",

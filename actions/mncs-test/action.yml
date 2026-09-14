@@ -87,9 +87,25 @@ inputs:
     required: false
     default: mncs-debug
   debug-capture-policy:
-    description: mncs-debug capture policy for failure-only, bounded, or selected events.
+    description: mncs-debug capture policy for failure-only, selected, bounded, or diagnostic events.
     required: false
     default: failure-only
+  debug-max-events:
+    description: Maximum native debug observation events retained on failure.
+    required: false
+    default: "256"
+  debug-max-values:
+    description: Maximum native debug value observations retained on failure.
+    required: false
+    default: "1024"
+  debug-max-value-bytes:
+    description: Maximum serialized bytes retained for one native debug value observation.
+    required: false
+    default: "4096"
+  debug-selected-operations:
+    description: Newline-separated operation identities for selected debug capture.
+    required: false
+    default: ""
   debug-test-id:
     description: Optional exact test identity to pass to mncs-debug import-test.
     required: false
@@ -233,7 +249,10 @@ runs:
         # actual provider cwd rather than resolving that directory twice.
         MNCS_DEBUG_WORKING_DIRECTORY: .
         MNCS_DEBUG_CAPTURE_POLICY: ${{ inputs.debug-capture-policy }}
-        MNCS_DEBUG_MAX_EVENTS: "256"
+        MNCS_DEBUG_MAX_EVENTS: ${{ inputs.debug-max-events }}
+        MNCS_DEBUG_MAX_VALUES: ${{ inputs.debug-max-values }}
+        MNCS_DEBUG_MAX_VALUE_BYTES: ${{ inputs.debug-max-value-bytes }}
+        MNCS_DEBUG_SELECTED_OPERATIONS: ${{ inputs.debug-selected-operations }}
         MNCS_DEBUG_TIMEOUT_SECONDS: ${{ inputs.timeout-seconds || '30' }}
         MNCS_DEBUG_CHECK_FILE: ${{ inputs.debug-result-file }}
         MNCS_DEBUG_WITNESS_FILE: ${{ inputs.debug-witness-file }}

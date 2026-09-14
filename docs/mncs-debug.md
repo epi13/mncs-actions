@@ -8,6 +8,12 @@ validates `mncs.debug-witness/1`, runs the structured debugger projections,
 and packages `mncs.check-result/1`, an execution receipt, and an evidence
 manifest through `actions/run-check`.
 
+The capture membrane exposes separate event and typed-value bounds:
+`max-events`, `max-values`, and `max-value-bytes`. `selected-operations` is a
+newline-separated list of compiler operation identities and is required when
+`capture-policy` is `selected`. These inputs are passed through unchanged to
+the debugger; Actions does not interpret operation meaning or value content.
+
 The action never parses terminal summaries, selects a test, evaluates an
 assertion, constructs a trace, or claims replay semantics. A valid debug
 evidence claim is explanatory evidence; it does not replace or modify the

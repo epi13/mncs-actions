@@ -93,6 +93,9 @@ def test_failing_test_produces_debug_evidence_with_lineage(tmp_path: Path) -> No
     assert debug["integration"]["run_id"] == json.loads(test_result.read_text(encoding="utf-8"))["run_id"]
     assert debug["integration"]["test_execution"]["execution_identity"]
     assert debug["witness_id"] == json.loads(witness.read_text(encoding="utf-8"))["witness_id"]
+    assert debug["observation"]["schema_revision"] == "mncs.execution-observation/1"
+    assert debug["observation"]["identity"]
+    assert debug["source_map"]["schema_revision"] == "mncs.execution-source-map/1"
 
     evidence = tmp_path / "evidence"
     package = subprocess.run(

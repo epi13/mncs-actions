@@ -47,6 +47,18 @@ inputs:
     description: Maximum trace events accepted by mncs-debug.
     required: false
     default: "256"
+  max-values:
+    description: Maximum typed value observations accepted by mncs-debug.
+    required: false
+    default: "1024"
+  max-value-bytes:
+    description: Maximum serialized bytes retained for one typed value observation.
+    required: false
+    default: "4096"
+  selected-operations:
+    description: Newline-separated semantic operation identities for selected capture.
+    required: false
+    default: ""
   timeout-seconds:
     description: Bounded wall-clock timeout.
     required: false
@@ -123,6 +135,9 @@ runs:
         MNCS_DEBUG_WORKING_DIRECTORY: .
         MNCS_DEBUG_CAPTURE_POLICY: ${{ inputs.capture-policy }}
         MNCS_DEBUG_MAX_EVENTS: ${{ inputs.max-events }}
+        MNCS_DEBUG_MAX_VALUES: ${{ inputs.max-values }}
+        MNCS_DEBUG_MAX_VALUE_BYTES: ${{ inputs.max-value-bytes }}
+        MNCS_DEBUG_SELECTED_OPERATIONS: ${{ inputs.selected-operations }}
         MNCS_DEBUG_TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
         MNCS_DEBUG_CHECK_FILE: ${{ inputs.check-file }}
         MNCS_DEBUG_WITNESS_FILE: ${{ inputs.witness-file }}
