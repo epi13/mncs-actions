@@ -46,6 +46,10 @@ inputs:
     description: Name of the uploaded evidence artifact.
     required: false
     default: mncs-check-evidence
+  commons-root:
+    description: Optional checked-out MNCS-Commons root containing the canonical verification-plan contract.
+    required: false
+    default: ""
 
 outputs:
   verdict:
@@ -100,13 +104,16 @@ runs:
         MNCS_COMMAND_LABEL: ${{ inputs.command }}
         MNCS_EXPECTED_ID: ${{ inputs.check-id }}
         MNCS_EXPECTED_PROVIDER: ${{ inputs.provider }}
+        MNCS_COMMONS_ROOT: ${{ inputs.commons-root }}
       run: |
         set -euo pipefail
         if [[ -z "${MNCS_COMMAND_EXIT_CODE:-}" ]]; then
           echo "::error::Missing provider exit code from run-provider step."
           exit 2
         fi
-        "$GITHUB_ACTION_PATH/run_check.sh" --result-file "$MNCS_RESULT_FILE" --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" --command-exit-code "$MNCS_COMMAND_EXIT_CODE" --command "$MNCS_COMMAND_LABEL" --expected-id "$MNCS_EXPECTED_ID" --expected-provider "$MNCS_EXPECTED_PROVIDER"
+        commons_args=()
+        if [[ -n "${MNCS_COMMONS_ROOT:-}" ]]; then commons_args+=(--commons-root "$MNCS_COMMONS_ROOT"); fi
+        "$GITHUB_ACTION_PATH/run_check.sh" --result-file "$MNCS_RESULT_FILE" --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" --command-exit-code "$MNCS_COMMAND_EXIT_CODE" --command "$MNCS_COMMAND_LABEL" --expected-id "$MNCS_EXPECTED_ID" --expected-provider "$MNCS_EXPECTED_PROVIDER" "${commons_args[@]}"
 
     - name: Upload check evidence
       if: ${{ always() && inputs.upload-artifact == 'true' }}

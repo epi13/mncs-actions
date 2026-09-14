@@ -20,7 +20,7 @@
       "repository": "epi13/mncs-test",
       "revision": "e1caa6a8715b7275dc3a7c4f99755bfbeec63675",
       "checkout_path": "family/mncs-test",
-      "artifacts": ["tools/mncs_test.py", "schemas/test-result.schema.json", "schemas/verification-plan.schema.json", "tests/fixtures/first-class-failing.toml", "tests/fixtures/first_class_failing.mncs"]
+      "artifacts": ["tools/mncs_test.py", "schemas/test-result.schema.json", "tests/fixtures/first-class-failing.toml", "tests/fixtures/first_class_failing.mncs"]
     },
     {
       "name": "mncs-debug",

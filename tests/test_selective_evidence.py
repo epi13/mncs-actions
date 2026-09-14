@@ -6,10 +6,13 @@ import hashlib
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 
 REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(REPO / "lib"))
+from mncs_family_contract import plan_identity  # noqa: E402
 
 
 def test_run_check_binds_verification_plan_to_receipt_and_manifest(tmp_path: Path) -> None:
@@ -27,35 +30,50 @@ def test_run_check_binds_verification_plan_to_receipt_and_manifest(tmp_path: Pat
         encoding="utf-8",
     )
     plan = tmp_path / "verification-plan.json"
+    plan_document = {
+        "schema_version": "mncs.verification-plan/1",
+        "plan_id": "",
+        "source": {"path": str(tmp_path / "source.mncs"), "sha256": "b" * 64},
+        "impact": {
+            "graph_identity": "c" * 64,
+            "roots": ["mncs:function:changed"],
+            "affected_count": 3,
+            "direct_dependents": ["mncs:function:consumer"],
+            "test_identities": ["mncs:test-case:one"],
+            "risk_flags": [],
+            "complete": True,
+            "limitations": ["fixture impact is bounded"],
+            "cross_repository": {
+                "graph_identity": "d" * 64,
+                "edges": [],
+                "selected_repositories": [],
+                "complete": True,
+                "limitations": ["fixture does not exercise family topology"],
+            },
+        },
+        "selection": {
+            "level": "direct_dependents",
+            "selected_test_identities": ["mncs:test-case:one"],
+            "available_test_count": 8,
+            "escalation_reasons": [],
+            "selected_repositories": [],
+            "available_repository_count": 0,
+        },
+        "proof": {
+            "sufficient_to_stop": True,
+            "required_evidence": ["selected_test_cases_pass"],
+            "boundary": {
+                "claimed_scope": "direct_dependents",
+                "established": True,
+                "executor": "mncs-test",
+                "stop_condition": "selected_test_cases_pass",
+            },
+        },
+        "provenance": {"provider": "test-fixture", "policy": "fixture"},
+    }
+    plan_document["plan_id"] = plan_identity(plan_document)
     plan.write_text(
-        json.dumps(
-            {
-                "schema_version": "mncs.verification-plan/1",
-                "plan_id": "a" * 64,
-                "source": {"path": str(tmp_path / "source.mncs"), "sha256": "b" * 64},
-                "impact": {
-                    "graph_identity": "c" * 64,
-                    "roots": ["mncs:function:changed"],
-                    "affected_count": 3,
-                    "direct_dependents": ["mncs:function:consumer"],
-                    "test_identities": ["mncs:test-case:one"],
-                    "risk_flags": [],
-                    "complete": True,
-                    "limitations": [],
-                },
-                "selection": {
-                    "level": "direct_dependents",
-                    "selected_test_identities": ["mncs:test-case:one"],
-                    "available_test_count": 8,
-                    "escalation_reasons": [],
-                },
-                "proof": {
-                    "sufficient_to_stop": True,
-                    "required_evidence": ["selected_test_cases_pass"],
-                },
-                "provenance": {"provider": "test-fixture"},
-            }
-        )
+        json.dumps(plan_document)
         + "\n",
         encoding="utf-8",
     )

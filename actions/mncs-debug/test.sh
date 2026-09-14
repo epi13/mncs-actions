@@ -172,6 +172,8 @@ fi
 
 validation_file="$artifacts_dir/queries/validation.json"
 inspection_file="$artifacts_dir/queries/inspection.json"
+sufficiency_file="$artifacts_dir/queries/sufficiency.json"
+sufficiency_after_file="$artifacts_dir/queries/sufficiency-after.json"
 trace_file="$artifacts_dir/queries/trace.json"
 provenance_file="$artifacts_dir/queries/provenance.json"
 replay_file="$artifacts_dir/queries/replay.json"
@@ -184,6 +186,43 @@ if [[ "$validation_status" != "0" ]]; then
   exit 0
 fi
 "$debug_bin" inspect "$witness_file" --output "$inspection_file" >/dev/null 2>&1 || true
+if [[ "$diagnostic_depth" == "minimal" ]]; then
+  # mncs-debug owns the sufficiency decision.  Actions only transports the
+  # typed result and, when requested, invokes the one named next projection.
+  "$debug_bin" sufficiency "$witness_file" --inspection "$inspection_file" --mncs "$mncs_bin" --output "$sufficiency_file" >/dev/null 2>&1 || true
+  adaptive_operation="$(python3 - "$sufficiency_file" <<'PY'
+import json
+import sys
+try:
+    value = json.loads(open(sys.argv[1], encoding="utf-8").read())
+except (OSError, ValueError):
+    value = {}
+if value.get("sufficient") is False and value.get("next_operation") in {"trace", "provenance", "replay", "minimization"}:
+    print(value["next_operation"])
+PY
+)"
+  case "$adaptive_operation" in
+    trace)
+      "$debug_bin" trace "$witness_file" --limit "$max_events" --output "$artifacts_dir/queries/trace-adaptive.json" >/dev/null 2>&1 || true
+      ;;
+    provenance)
+      "$debug_bin" why "$witness_file" --output "$artifacts_dir/queries/provenance-adaptive.json" >/dev/null 2>&1 || true
+      ;;
+    replay)
+      # Trace replay is a projection of the existing witness; it does not
+      # rerun the failing test.
+      "$debug_bin" replay "$witness_file" --mode trace --output "$artifacts_dir/queries/replay-adaptive.json" >/dev/null 2>&1 || true
+      ;;
+    minimization)
+      "$debug_bin" minimize "$witness_file" --max-attempts 32 --report "$artifacts_dir/queries/minimization-adaptive.json" --mncs "$mncs_bin" --timeout "$timeout_seconds" >/dev/null 2>&1 || true
+      ;;
+  esac
+  if [[ -n "$adaptive_operation" ]]; then
+    "$debug_bin" sufficiency "$witness_file" --inspection "$inspection_file" --evidence-operation "$adaptive_operation" --mncs "$mncs_bin" --output "$sufficiency_after_file" >/dev/null 2>&1 || true
+  fi
+else
+  adaptive_operation=""
+fi
 if [[ "$diagnostic_depth" == "standard" || "$diagnostic_depth" == "deep" ]]; then
   "$debug_bin" trace "$witness_file" --limit "$max_events" --output "$trace_file" >/dev/null 2>&1 || true
   "$debug_bin" why "$witness_file" --output "$provenance_file" >/dev/null 2>&1 || true
@@ -194,7 +233,7 @@ if [[ "$diagnostic_depth" == "deep" ]]; then
   "$debug_bin" replay "$witness_file" --mode trace --output "$replay_file" >/dev/null 2>&1 || true
 fi
 
-python3 - "$check_file" "$witness_file" "$validation_file" "$test_result_file" "$inspection_file" "$trace_file" "$provenance_file" "$replay_file" "$debug_status" "$diagnostic_depth" <<'PY'
+python3 - "$check_file" "$witness_file" "$validation_file" "$test_result_file" "$inspection_file" "$sufficiency_file" "$sufficiency_after_file" "$trace_file" "$provenance_file" "$replay_file" "$artifacts_dir/queries/trace-adaptive.json" "$artifacts_dir/queries/provenance-adaptive.json" "$artifacts_dir/queries/replay-adaptive.json" "$artifacts_dir/queries/minimization-adaptive.json" "$debug_status" "$diagnostic_depth" "$adaptive_operation" <<'PY'
 import hashlib
 import json
 import os
@@ -206,11 +245,18 @@ witness_path = Path(sys.argv[2])
 validation_path = Path(sys.argv[3])
 test_result_path = sys.argv[4]
 inspection_path = Path(sys.argv[5])
-trace_path = Path(sys.argv[6])
-provenance_path = Path(sys.argv[7])
-replay_path = Path(sys.argv[8])
-debug_status = sys.argv[9]
-diagnostic_depth = sys.argv[10]
+sufficiency_path = Path(sys.argv[6])
+sufficiency_after_path = Path(sys.argv[7])
+trace_path = Path(sys.argv[8])
+provenance_path = Path(sys.argv[9])
+replay_path = Path(sys.argv[10])
+trace_adaptive_path = Path(sys.argv[11])
+provenance_adaptive_path = Path(sys.argv[12])
+replay_adaptive_path = Path(sys.argv[13])
+minimization_adaptive_path = Path(sys.argv[14])
+debug_status = sys.argv[15]
+diagnostic_depth = sys.argv[16]
+adaptive_operation = sys.argv[17]
 root = Path(os.environ.get("MNCS_DEBUG_WORKING_DIRECTORY", ".")).resolve()
 
 def digest(path: Path) -> str:
@@ -236,9 +282,15 @@ references = [ref("mncs-debug-witness", witness_path, "mncs.debug-witness/1")]
 for kind, value, schema in (
     ("mncs-debug-validation", validation_path, "mncs.debug-validation/1"),
     ("mncs-debug-inspection", inspection_path, "mncs.debug-inspection/1"),
+    ("mncs-debug-sufficiency", sufficiency_path, "mncs.debug-sufficiency/1"),
+    ("mncs-debug-sufficiency-after", sufficiency_after_path, "mncs.debug-sufficiency/1"),
     ("mncs-debug-trace", trace_path, "mncs.debug-trace/1"),
     ("mncs-debug-provenance", provenance_path, "mncs.debug-provenance/1"),
     ("mncs-debug-replay", replay_path, "mncs.debug-replay/1"),
+    ("mncs-debug-trace-adaptive", trace_adaptive_path, "mncs.debug-trace/1"),
+    ("mncs-debug-provenance-adaptive", provenance_adaptive_path, "mncs.debug-provenance/1"),
+    ("mncs-debug-replay-adaptive", replay_adaptive_path, "mncs.debug-replay/1"),
+    ("mncs-debug-minimization-adaptive", minimization_adaptive_path, "mncs.debug-minimization/1"),
 ):
     path = Path(value)
     if path.is_file():
@@ -289,15 +341,33 @@ document = {
         "provider_exit_code": int(debug_status),
         "diagnostic": {
             "depth": diagnostic_depth,
-            "escalation_reason": "insufficient_diagnostic_evidence" if diagnostic_depth != "minimal" else None,
+            "escalation_reason": (
+                "explicit_user_request" if diagnostic_depth != "minimal"
+                else "insufficient_diagnostic_evidence" if adaptive_operation else None
+            ),
             "operations": [
                 name for name, path in (
                     ("inspect", inspection_path),
+                    ("sufficiency", sufficiency_path),
                     ("trace", trace_path),
                     ("why", provenance_path),
                     ("replay", replay_path),
+                    ("trace-adaptive", trace_adaptive_path),
+                    ("provenance-adaptive", provenance_adaptive_path),
+                    ("replay-adaptive", replay_adaptive_path),
+                    ("minimization-adaptive", minimization_adaptive_path),
                 ) if path.is_file()
             ],
+            "evidence_requested": (
+                {
+                    "operation": adaptive_operation,
+                    "evidence_gap": json.loads(sufficiency_path.read_text(encoding="utf-8")).get("evidence_gap"),
+                    "reused": ["witness", "validation", "inspection"],
+                    "sufficiency_after": str(sufficiency_after_path) if sufficiency_after_path.is_file() else None,
+                }
+                if adaptive_operation and sufficiency_path.is_file()
+                else None
+            ),
         },
         "capture_policy": witness.get("trace", {}).get("capture_policy"),
         "observation": observation_metadata,
