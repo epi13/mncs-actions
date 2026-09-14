@@ -91,12 +91,22 @@ skipped. It is a compatibility observation for those revisions, not a
 moving-head or promotion claim. `ubuntu-latest` remains an explicitly
 documented hosted-runner boundary.
 
+The separate `mncs-development-canary.yml` consumes
+`family-development-contract.json`, which pins the Profile 0.17
+language/test/debug/Forge/Commons/tooling stack. It executes the real
+test-result handoff, bounded debug evidence membrane, and Forge
+diagnose-fix-verify test. `mncs-actions` is the carrier and binds itself to
+the workflow subject SHA to avoid a self-referential contract.
+
 ## Fixed, drift, and advancement boundaries
 
 The family has three deliberately separate revision states:
 
 - fixed: the six full SHAs in `family-contracts.json`, used by the
   deterministic compatibility canary;
+- fixed development loop: the eight non-carrier full SHAs in
+  `family-development-contract.json`, with the Actions carrier bound to the
+  exact workflow subject SHA;
 - moving-head: a scheduled observation that resolves current `main` heads to a
   candidate document and checks out those exact candidate SHAs;
 - advancement: a manually reviewed candidate that may become a new fixed set

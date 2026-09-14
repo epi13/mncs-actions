@@ -14,6 +14,16 @@ jobs:
 
 Pin an immutable commit SHA (see `revision-coherence.md`); never `@main`.
 
+The vertical development-loop canary is separate from this generic family
+workflow. `family-development-contract.json` pins the exact MNCS Language,
+Test, Debug, Forge, Commons, language-service, Doctor, and Atlas revisions.
+`.github/workflows/mncs-development-canary.yml` checks out those revisions,
+builds the pinned compiler/embed runtime, runs passing and failing first-class
+tests, packages bounded debugger evidence, and executes Forge's structured
+failure-loop test. The Actions checkout is the carrier and is bound to the
+workflow subject SHA at runtime; moving-head observations never update this
+contract.
+
 - Each provider (`mncs-command`, `rights-command`, `project-command`,
   `mncds-command`, `promotion-command`) runs via `actions/run-check` and
   emits an independent check plus receipt. `mncds-command` invokes the

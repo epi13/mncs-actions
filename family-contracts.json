@@ -38,7 +38,7 @@
       "checkout_path": "family/commons",
       "name": "commons",
       "repository": "epi13/MNCS-Commons",
-      "revision": "422540a4d50a763be3dbeeb0a88fd2ee4c272ce9"
+      "revision": "40752268ad1c7cae41401cb6b029a2ffabbd2dca"
     },
     {
       "artifacts": [
@@ -47,7 +47,7 @@
       "checkout_path": "family/mncs-language",
       "name": "mncs-language",
       "repository": "epi13/mncs-language",
-      "revision": "4f3146a97f92389490d3e8dffdf08266e3390968"
+      "revision": "1da244a58d656b3058de05d0fc0f799a5e2f0106"
     },
     {
       "artifacts": [
@@ -56,7 +56,7 @@
       "checkout_path": "family/forge",
       "name": "forge",
       "repository": "epi13/mncs-forge-mcp",
-      "revision": "805f821f4eea457c3940274750b21774c487d9a1"
+      "revision": "f96985fe3897c6e80b910f01d07b6e2fab51bb78"
     }
   ],
   "schema_version": "mncs-actions.family-contracts/1"
