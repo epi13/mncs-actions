@@ -84,7 +84,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/mncs-forge-mcp
-          ref: 3aa93ee15a057932e12aaccd1133101e9a2c9209
+          ref: c3dacf19dbdf9ad12bfe3d48c9e6a444dcb02878
           path: family/mncs-forge-mcp
           persist-credentials: false
           fetch-depth: 1
