@@ -6,6 +6,7 @@ on:
   pull_request:
     paths:
       - "family-development-contract.json"
+      - "requirements-forge-canary.lock"
       - "scripts/check_family_development_contract.py"
       - "actions/mncs-test/**"
       - "actions/mncs-debug/**"
@@ -41,6 +42,9 @@ jobs:
 
       - name: Install locked Actions dependencies
         run: python3 -m pip install --require-hashes -r requirements-dev.lock
+
+      - name: Install locked Forge canary dependency
+        run: python3 -m pip install --require-hashes -r requirements-forge-canary.lock
 
       - name: Validate the fixed development contract
         run: python3 scripts/check_family_development_contract.py --contract family-development-contract.json
