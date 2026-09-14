@@ -70,6 +70,22 @@ Primitives:
   evidence review; promotion still requires an explicit reviewed change to
   `family-contracts.json` followed by the fixed canary.
 
+## Selective development evidence
+
+For a source change, Ravel can produce a digest-bound
+`mncs.verification-plan/1`. Pass it to `actions/mncs-test` with
+`verification-plan`; the action forwards the exact identities to mncs-test and
+`run-check` records the plan, selection level, affected surface, and typed
+escalation reasons in the execution receipt and evidence manifest. A malformed
+or incomplete plan is `NOT_ESTABLISHED`, never an implicit broad or narrow
+claim.
+
+`actions/mncs-debug` defaults to `diagnostic-depth: minimal` (validation and
+inspection). Request `standard` for trace/provenance or `deep` for replay and
+minimization. These are bounded queries over the existing failing execution;
+the wrapper does not rerun successful tests. Receipts retain plan and provider
+references so Forge can consume an existing handoff instead of repeating it.
+
 ~~~yaml
 - uses: epi13/mncs-actions/actions/verify@<pinned-sha>
   with:

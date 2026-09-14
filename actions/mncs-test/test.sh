@@ -11,6 +11,7 @@ manifest="${MNCS_MANIFEST:-}"
 library_path="${MNCS_LIBRARY_PATH_INPUT:-}"
 embed_library="${MNCS_EMBED_LIBRARY_INPUT:-}"
 test_filter="${MNCS_TEST_FILTER:-}"
+verification_plan="${MNCS_VERIFICATION_PLAN:-}"
 result_file="${MNCS_RESULT_FILE:-.mncs/mncs-test-check.json}"
 test_result_file="${MNCS_TEST_RESULT_FILE:-.mncs/mncs-test-result.json}"
 artifacts_dir="${MNCS_ARTIFACTS_DIRECTORY:-.mncs/mncs-test-artifacts}"
@@ -71,7 +72,6 @@ check = {
     "classification": "infrastructure_failure",
     "failure_class": "infrastructure_failure",
     "unresolved": [message],
-    "test_result": result,
 }
 check_path.parent.mkdir(parents=True, exist_ok=True)
 check_path.write_text(json.dumps(check, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -82,6 +82,16 @@ PY
 
 if [[ -z "$manifest" ]]; then
   write_start_failure "manifest input is required"
+  exit 2
+fi
+
+if [[ -n "$verification_plan" && ! -f "$verification_plan" ]]; then
+  write_start_failure "verification plan is unavailable: $verification_plan"
+  exit 2
+fi
+
+if [[ -n "$verification_plan" && -n "$test_filter" ]]; then
+  write_start_failure "test-filter cannot be combined with verification-plan; the plan owns exact selection"
   exit 2
 fi
 
@@ -123,6 +133,9 @@ if [[ -n "$test_filter" ]]; then
   for filter in "${filters[@]}"; do
     [[ -n "$filter" ]] && provider+=(--filter "$filter")
   done
+fi
+if [[ -n "$verification_plan" ]]; then
+  provider+=(--verification-plan "$verification_plan")
 fi
 [[ -n "$timeout_seconds" ]] && provider+=(--timeout-seconds "$timeout_seconds")
 [[ -n "$step_budget" ]] && provider+=(--step-budget "$step_budget")

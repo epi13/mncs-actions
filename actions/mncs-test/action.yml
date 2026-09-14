@@ -38,6 +38,10 @@ inputs:
     description: Optional comma- or space-separated test identity/name fragments passed to the provider.
     required: false
     default: ""
+  verification-plan:
+    description: Optional digest-bound mncs.verification-plan/1 emitted by RAVEL; it owns exact test selection.
+    required: false
+    default: ""
   working-directory:
     description: Directory in which the manifest and provider run.
     required: false
@@ -106,6 +110,10 @@ inputs:
     description: Newline-separated operation identities for selected debug capture.
     required: false
     default: ""
+  debug-diagnostic-depth:
+    description: "Progressive failure diagnosis depth: minimal, standard, or deep."
+    required: false
+    default: minimal
   debug-test-id:
     description: Optional exact test identity to pass to mncs-debug import-test.
     required: false
@@ -194,6 +202,7 @@ runs:
         MNCS_LIBRARY_PATH_INPUT: ${{ inputs.library-path }}
         MNCS_EMBED_LIBRARY_INPUT: ${{ inputs.embed-library }}
         MNCS_TEST_FILTER: ${{ inputs.test-filter }}
+        MNCS_VERIFICATION_PLAN: ${{ inputs.verification-plan }}
         MNCS_RESULT_FILE: ${{ inputs.result-file }}
         MNCS_TEST_RESULT_FILE: ${{ inputs.test-result-file }}
         MNCS_ARTIFACTS_DIRECTORY: ${{ inputs.artifacts-directory }}
@@ -217,6 +226,7 @@ runs:
         MNCS_EVIDENCE_DIRECTORY: ${{ inputs.evidence-directory }}
         MNCS_COMMAND_EXIT_CODE: ${{ steps.run-test.outputs.exit-code }}
         MNCS_COMMAND_LABEL: mncs-test run --manifest ${{ inputs.manifest }}
+        MNCS_SCOPE_FILE: ${{ inputs.verification-plan }}
         MNCS_EXPECTED_ID: mncs-test
         MNCS_EXPECTED_PROVIDER: mncs-test
       run: |
@@ -225,13 +235,18 @@ runs:
           echo "::error::Missing mncs-test exit code."
           exit 2
         fi
+        scope_args=()
+        if [[ -n "${MNCS_SCOPE_FILE:-}" ]]; then
+          scope_args=(--scope-file "$MNCS_SCOPE_FILE")
+        fi
         "$GITHUB_ACTION_PATH/../run-check/run_check.sh" \
           --result-file "$MNCS_RESULT_FILE" \
           --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" \
           --command-exit-code "$MNCS_COMMAND_EXIT_CODE" \
           --command "$MNCS_COMMAND_LABEL" \
           --expected-id "$MNCS_EXPECTED_ID" \
-          --expected-provider "$MNCS_EXPECTED_PROVIDER"
+          --expected-provider "$MNCS_EXPECTED_PROVIDER" \
+          "${scope_args[@]}"
 
     - name: Capture bounded debug evidence on failure
       id: debug
@@ -253,6 +268,7 @@ runs:
         MNCS_DEBUG_MAX_VALUES: ${{ inputs.debug-max-values }}
         MNCS_DEBUG_MAX_VALUE_BYTES: ${{ inputs.debug-max-value-bytes }}
         MNCS_DEBUG_SELECTED_OPERATIONS: ${{ inputs.debug-selected-operations }}
+        MNCS_DEBUG_DIAGNOSTIC_DEPTH: ${{ inputs.debug-diagnostic-depth }}
         MNCS_DEBUG_TIMEOUT_SECONDS: ${{ inputs.timeout-seconds || '30' }}
         MNCS_DEBUG_CHECK_FILE: ${{ inputs.debug-result-file }}
         MNCS_DEBUG_WITNESS_FILE: ${{ inputs.debug-witness-file }}
@@ -275,6 +291,7 @@ runs:
         MNCS_EVIDENCE_DIRECTORY: ${{ inputs.debug-evidence-directory }}
         MNCS_COMMAND_EXIT_CODE: ${{ steps.debug.outputs.exit-code }}
         MNCS_COMMAND_LABEL: mncs-debug bounded failure capture
+        MNCS_SCOPE_FILE: ${{ inputs.verification-plan }}
         MNCS_EXPECTED_ID: mncs-debug
         MNCS_EXPECTED_PROVIDER: mncs-debug
       run: |
@@ -289,7 +306,8 @@ runs:
           --command-exit-code "$MNCS_COMMAND_EXIT_CODE" \
           --command "$MNCS_COMMAND_LABEL" \
           --expected-id "$MNCS_EXPECTED_ID" \
-          --expected-provider "$MNCS_EXPECTED_PROVIDER"
+          --expected-provider "$MNCS_EXPECTED_PROVIDER" \
+          $([[ -n "${MNCS_SCOPE_FILE:-}" ]] && printf '%s\n' --scope-file "$MNCS_SCOPE_FILE")
 
     - name: Upload native test artifacts
       if: ${{ always() && inputs.upload-artifact == 'true' }}

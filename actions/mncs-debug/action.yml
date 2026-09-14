@@ -59,6 +59,14 @@ inputs:
     description: Newline-separated semantic operation identities for selected capture.
     required: false
     default: ""
+  diagnostic-depth:
+    description: "Progressive diagnosis after witness validation: minimal, standard, or deep."
+    required: false
+    default: minimal
+  verification-plan:
+    description: Optional mncs.verification-plan/1 to preserve the selected proof boundary in the receipt.
+    required: false
+    default: ""
   timeout-seconds:
     description: Bounded wall-clock timeout.
     required: false
@@ -138,6 +146,7 @@ runs:
         MNCS_DEBUG_MAX_VALUES: ${{ inputs.max-values }}
         MNCS_DEBUG_MAX_VALUE_BYTES: ${{ inputs.max-value-bytes }}
         MNCS_DEBUG_SELECTED_OPERATIONS: ${{ inputs.selected-operations }}
+        MNCS_DEBUG_DIAGNOSTIC_DEPTH: ${{ inputs.diagnostic-depth }}
         MNCS_DEBUG_TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
         MNCS_DEBUG_CHECK_FILE: ${{ inputs.check-file }}
         MNCS_DEBUG_WITNESS_FILE: ${{ inputs.witness-file }}
@@ -159,6 +168,7 @@ runs:
         MNCS_EVIDENCE_DIRECTORY: ${{ inputs.evidence-directory }}
         MNCS_COMMAND_EXIT_CODE: ${{ steps.run-debug.outputs.exit-code }}
         MNCS_COMMAND_LABEL: mncs-debug bounded capture
+        MNCS_SCOPE_FILE: ${{ inputs.verification-plan }}
         MNCS_EXPECTED_ID: mncs-debug
         MNCS_EXPECTED_PROVIDER: mncs-debug
       run: |
@@ -167,13 +177,18 @@ runs:
           echo "::error::Missing mncs-debug provider exit code."
           exit 2
         fi
+        scope_args=()
+        if [[ -n "${MNCS_SCOPE_FILE:-}" ]]; then
+          scope_args=(--scope-file "$MNCS_SCOPE_FILE")
+        fi
         "$GITHUB_ACTION_PATH/../run-check/run_check.sh" \
           --result-file "$MNCS_RESULT_FILE" \
           --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" \
           --command-exit-code "$MNCS_COMMAND_EXIT_CODE" \
           --command "$MNCS_COMMAND_LABEL" \
           --expected-id "$MNCS_EXPECTED_ID" \
-          --expected-provider "$MNCS_EXPECTED_PROVIDER"
+          --expected-provider "$MNCS_EXPECTED_PROVIDER" \
+          "${scope_args[@]}"
 
     - name: Upload debug evidence
       if: ${{ always() && inputs.upload-artifact == 'true' }}
