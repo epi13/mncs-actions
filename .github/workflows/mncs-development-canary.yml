@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/mncs-language
-          ref: 1da244a58d656b3058de05d0fc0f799a5e2f0106
+          ref: dbea90d18b28c8716ab34a8873ba308edba265f7
           path: family/mncs-language
           persist-credentials: false
           fetch-depth: 1
@@ -74,7 +74,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/mncs-debug
-          ref: d134ed702a1be5a1aae32762219b66a1e802e1d6
+          ref: 178f8bfd05b9ecee6aa5edb912baa59ddcc1bfdd
           path: family/mncs-debug
           persist-credentials: false
           fetch-depth: 1
@@ -84,7 +84,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/mncs-forge-mcp
-          ref: dbece72fae723a93e9f7df636ab4ea47245b23be
+          ref: 3aa93ee15a057932e12aaccd1133101e9a2c9209
           path: family/mncs-forge-mcp
           persist-credentials: false
           fetch-depth: 1
@@ -94,7 +94,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/MNCS-Commons
-          ref: f6fdfc599a68cea9a79ff898d6a09f5e3514bf17
+          ref: 47e7987bd672dab8b8a00716c5528854a1026c7f
           path: family/MNCS-Commons
           persist-credentials: false
           fetch-depth: 1
@@ -104,7 +104,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/mncs-language-service
-          ref: ca78edbc32a59971fda3f82ec88c9cfa140d9c77
+          ref: 88b3c275249d119b2af471ea616a22eef1046597
           path: family/mncs-language-service
           persist-credentials: false
           fetch-depth: 1
@@ -192,6 +192,9 @@ jobs:
           MNCS_DEBUG_TEST_RESULT_FILE="$GITHUB_WORKSPACE/.mncs/fail-result.json" \
           MNCS_DEBUG_WORKING_DIRECTORY="$GITHUB_WORKSPACE" \
           MNCS_DEBUG_CAPTURE_POLICY=failure-only \
+          MNCS_DEBUG_MAX_EVENTS=256 \
+          MNCS_DEBUG_MAX_VALUES=1024 \
+          MNCS_DEBUG_MAX_VALUE_BYTES=4096 \
           MNCS_DEBUG_CHECK_FILE="$GITHUB_WORKSPACE/.mncs/debug-check.json" \
           MNCS_DEBUG_WITNESS_FILE="$GITHUB_WORKSPACE/.mncs/debug-witness.json" \
           MNCS_DEBUG_ARTIFACTS_DIRECTORY="$GITHUB_WORKSPACE/.mncs/debug-artifacts" \
@@ -211,6 +214,11 @@ jobs:
           assert debug_check['verdict'] == 'PASS'
           assert debug_check['debug']['integration']['run_id'] == test_result['run_id']
           assert debug_check['debug']['integration']['test_execution']['execution_identity']
+          assert debug_check['debug']['observation']['schema_revision'] == 'mncs.execution-observation/1'
+          assert debug_check['debug']['observation']['identity']
+          assert debug_check['debug']['observation']['completeness']['status'] == 'complete'
+          assert debug_check['debug']['source_map']['schema_revision'] == 'mncs.execution-source-map/1'
+          assert debug_check['debug']['source_map']['identity']
           PY
 
       - name: Run the real Forge diagnose-fix-verify test

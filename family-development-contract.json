@@ -1,6 +1,6 @@
 {
   "schema_version": "mncs-actions.family-development-contract/1",
-  "purpose": "Fixed-revision Profile 0.17 MNCS test-to-debug-to-Forge development loop",
+  "purpose": "Fixed-revision Profile 0.17 MNCS test-to-native-observability-to-debug-to-Forge development loop",
   "mode": "fixed",
   "carrier": {
     "repository": "epi13/mncs-actions",
@@ -11,9 +11,9 @@
     {
       "name": "mncs-language",
       "repository": "epi13/mncs-language",
-      "revision": "1da244a58d656b3058de05d0fc0f799a5e2f0106",
+      "revision": "dbea90d18b28c8716ab34a8873ba308edba265f7",
       "checkout_path": "family/mncs-language",
-      "artifacts": ["Cargo.toml", "library"]
+      "artifacts": ["Cargo.toml", "library", "crates/mncs-model/src/execution.rs", "crates/mncs-compiler/src/source_map.rs"]
     },
     {
       "name": "mncs-test",
@@ -25,28 +25,28 @@
     {
       "name": "mncs-debug",
       "repository": "epi13/mncs-debug",
-      "revision": "d134ed702a1be5a1aae32762219b66a1e802e1d6",
+      "revision": "178f8bfd05b9ecee6aa5edb912baa59ddcc1bfdd",
       "checkout_path": "family/mncs-debug",
-      "artifacts": ["bin/mncs-debug", "schemas/debug-witness.schema.json", "integration/mncs-actions-provider.json"]
+      "artifacts": ["bin/mncs-debug", "schemas/debug-witness.schema.json", "integration/mncs-actions-provider.json", "evidence/native-observability-demonstrations-2026-09.json", "evidence/native-observability-overhead-2026-09.json"]
     },
     {
       "name": "mncs-forge-mcp",
       "repository": "epi13/mncs-forge-mcp",
-      "revision": "dbece72fae723a93e9f7df636ab4ea47245b23be",
+      "revision": "3aa93ee15a057932e12aaccd1133101e9a2c9209",
       "checkout_path": "family/mncs-forge-mcp",
       "artifacts": ["pyproject.toml", "src/mncs_forge/application/mncs_development.py", "tests/test_mncs_development.py"]
     },
     {
       "name": "MNCS-Commons",
       "repository": "epi13/MNCS-Commons",
-      "revision": "f6fdfc599a68cea9a79ff898d6a09f5e3514bf17",
+      "revision": "47e7987bd672dab8b8a00716c5528854a1026c7f",
       "checkout_path": "family/MNCS-Commons",
-      "artifacts": ["src/mncs_commons/data/family-registry-v0alpha1.json", "pressures/records/MNCS-VERIFY-54B12B4A78DF.json", "docs/development-pressure-evidence/mncs-debug-integration-2026-09.json"]
+      "artifacts": ["src/mncs_commons/data/family-registry-v0alpha1.json", "pressures/records/MNCS-VERIFY-54B12B4A78DF.json", "pressures/records/MNCS-COMPILER-E445EECC9F96.json", "docs/development-pressure-evidence/mncs-debug-integration-2026-09.json", "docs/development-pressure-evidence/mncs-native-observability-2026-09.json"]
     },
     {
       "name": "mncs-language-service",
       "repository": "epi13/mncs-language-service",
-      "revision": "ca78edbc32a59971fda3f82ec88c9cfa140d9c77",
+      "revision": "88b3c275249d119b2af471ea616a22eef1046597",
       "checkout_path": "family/mncs-language-service",
       "artifacts": ["Cargo.lock", "crates/service-core/src/debug_binding.rs"]
     },
@@ -67,7 +67,7 @@
   ],
   "verification": {
     "profile": "0.17",
-    "required_stages": ["compiler_inventory", "mncs_test", "mncs_debug", "mncs_actions", "forge_diagnosis", "mncs_test_verification"],
+    "required_stages": ["compiler_inventory", "mncs_test", "native_observability", "mncs_debug", "mncs_actions", "forge_diagnosis", "mncs_test_verification"],
     "test_action": "actions/mncs-test/action.yml",
     "debug_action": "actions/mncs-debug/action.yml",
     "forge_test": "family/mncs-forge-mcp/tests/test_mncs_development.py::test_failure_loop_consumes_actions_handoff_and_verifies_exact_repair"
@@ -76,6 +76,11 @@
     "moving_heads": "observation_only",
     "capture_policy": "failure-only",
     "max_events": 256,
+    "max_values": 1024,
+    "max_value_bytes": 4096,
+    "observation_schema": "mncs.execution-observation/1",
+    "source_map_schema": "mncs.execution-source-map/1",
+    "observation_identity_excludes_capture_policy": true,
     "test_verdict_authority": "mncs-test",
     "debug_semantic_authority": "mncs-debug",
     "transport_authority": "mncs-actions",
