@@ -285,6 +285,7 @@ runs:
           ${{ inputs.working-directory }}/${{ inputs.debug-evidence-directory }}
           ${{ inputs.working-directory }}/${{ inputs.debug-artifacts-directory }}
           ${{ inputs.working-directory }}/${{ inputs.debug-witness-file }}
+        include-hidden-files: true
         if-no-files-found: warn
 
     - name: Apply native test gate
