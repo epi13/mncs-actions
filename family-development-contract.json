@@ -1,0 +1,84 @@
+{
+  "schema_version": "mncs-actions.family-development-contract/1",
+  "purpose": "Fixed-revision Profile 0.17 MNCS test-to-debug-to-Forge development loop",
+  "mode": "fixed",
+  "carrier": {
+    "repository": "epi13/mncs-actions",
+    "revision_binding": "workflow_subject_sha",
+    "exact_at_runtime": true
+  },
+  "repositories": [
+    {
+      "name": "mncs-language",
+      "repository": "epi13/mncs-language",
+      "revision": "1da244a58d656b3058de05d0fc0f799a5e2f0106",
+      "checkout_path": "family/mncs-language",
+      "artifacts": ["Cargo.toml", "library"]
+    },
+    {
+      "name": "mncs-test",
+      "repository": "epi13/mncs-test",
+      "revision": "65c261680c3ee05a16e1caf422b7f9011f1a3e55",
+      "checkout_path": "family/mncs-test",
+      "artifacts": ["tools/mncs_test.py", "schemas/test-result.schema.json", "tests/fixtures/first-class-failing.toml", "tests/fixtures/first_class_failing.mncs"]
+    },
+    {
+      "name": "mncs-debug",
+      "repository": "epi13/mncs-debug",
+      "revision": "b0be3c588e02628aa9b7a42f7524a76edbf38556",
+      "checkout_path": "family/mncs-debug",
+      "artifacts": ["bin/mncs-debug", "schemas/debug-witness.schema.json", "integration/mncs-actions-provider.json"]
+    },
+    {
+      "name": "mncs-forge-mcp",
+      "repository": "epi13/mncs-forge-mcp",
+      "revision": "f96985fe3897c6e80b910f01d07b6e2fab51bb78",
+      "checkout_path": "family/mncs-forge-mcp",
+      "artifacts": ["pyproject.toml", "src/mncs_forge/application/mncs_development.py", "tests/test_mncs_development.py"]
+    },
+    {
+      "name": "MNCS-Commons",
+      "repository": "epi13/MNCS-Commons",
+      "revision": "40752268ad1c7cae41401cb6b029a2ffabbd2dca",
+      "checkout_path": "family/MNCS-Commons",
+      "artifacts": ["src/mncs_commons/data/family-registry-v0alpha1.json", "pressures/records/MNCS-VERIFY-54B12B4A78DF.json", "docs/development-pressure-evidence/mncs-debug-integration-2026-09.json"]
+    },
+    {
+      "name": "mncs-language-service",
+      "repository": "epi13/mncs-language-service",
+      "revision": "ca78edbc32a59971fda3f82ec88c9cfa140d9c77",
+      "checkout_path": "family/mncs-language-service",
+      "artifacts": ["Cargo.lock", "crates/service-core/src/debug_binding.rs"]
+    },
+    {
+      "name": "mncs-doctor",
+      "repository": "epi13/mncs-doctor",
+      "revision": "069223af94ebf92fe8dc06aae81dcb96e3e2cd71",
+      "checkout_path": "family/mncs-doctor",
+      "artifacts": ["Cargo.toml", "src/toolchain.rs"]
+    },
+    {
+      "name": "mncs-atlas",
+      "repository": "epi13/mncs-atlas",
+      "revision": "1864c4a468994bed261a1ed154715828cc3cb0e8",
+      "checkout_path": "family/mncs-atlas",
+      "artifacts": ["registry/config.json", "registry/project-catalog.json", "site/atlas.json"]
+    }
+  ],
+  "verification": {
+    "profile": "0.17",
+    "required_stages": ["compiler_inventory", "mncs_test", "mncs_debug", "mncs_actions", "forge_diagnosis", "mncs_test_verification"],
+    "test_action": "actions/mncs-test/action.yml",
+    "debug_action": "actions/mncs-debug/action.yml",
+    "forge_test": "family/mncs-forge-mcp/tests/test_mncs_development.py::test_failure_loop_preserves_lineage_and_verifies_exact_repair"
+  },
+  "policy": {
+    "moving_heads": "observation_only",
+    "capture_policy": "failure-only",
+    "max_events": 256,
+    "test_verdict_authority": "mncs-test",
+    "debug_semantic_authority": "mncs-debug",
+    "transport_authority": "mncs-actions",
+    "diagnosis_authority": "mncs-forge-mcp"
+  }
+}

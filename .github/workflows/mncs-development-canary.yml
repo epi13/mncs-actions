@@ -1,0 +1,218 @@
+name: MNCS fixed development-loop canary
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "family-development-contract.json"
+      - "scripts/check_family_development_contract.py"
+      - "actions/mncs-test/**"
+      - "actions/mncs-debug/**"
+      - "actions/run-check/**"
+      - "tests/test_family_development_contract.py"
+      - ".github/workflows/mncs-development-canary.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fixed-development-loop:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the Actions carrier
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        # actions/setup-python v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+
+      - name: Install locked Actions dependencies
+        run: python3 -m pip install --require-hashes -r requirements-dev.lock
+
+      - name: Validate the fixed development contract
+        run: python3 scripts/check_family_development_contract.py --contract family-development-contract.json
+
+      - name: Check out pinned mncs-language
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-language
+          ref: 1da244a58d656b3058de05d0fc0f799a5e2f0106
+          path: family/mncs-language
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out pinned mncs-test
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-test
+          ref: 65c261680c3ee05a16e1caf422b7f9011f1a3e55
+          path: family/mncs-test
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out pinned mncs-debug
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-debug
+          ref: b0be3c588e02628aa9b7a42f7524a76edbf38556
+          path: family/mncs-debug
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out pinned Forge
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-forge-mcp
+          ref: f96985fe3897c6e80b910f01d07b6e2fab51bb78
+          path: family/mncs-forge-mcp
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out pinned Commons
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/MNCS-Commons
+          ref: 40752268ad1c7cae41401cb6b029a2ffabbd2dca
+          path: family/MNCS-Commons
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out pinned language-service
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-language-service
+          ref: ca78edbc32a59971fda3f82ec88c9cfa140d9c77
+          path: family/mncs-language-service
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out pinned Doctor
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-doctor
+          ref: 069223af94ebf92fe8dc06aae81dcb96e3e2cd71
+          path: family/mncs-doctor
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out pinned Atlas
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/mncs-atlas
+          ref: 1864c4a468994bed261a1ed154715828cc3cb0e8
+          path: family/mncs-atlas
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Verify every pinned checkout and artifact
+        run: python3 scripts/check_family_development_contract.py --contract family-development-contract.json --workspace-root .
+
+      - name: Build the pinned compiler and embed runtime
+        run: |
+          cargo build --locked --manifest-path family/mncs-language/Cargo.toml --bin mncs
+          cargo build --locked --manifest-path family/mncs-language/Cargo.toml -p mncs-embed
+
+      - name: Demonstrate a passing first-class test through Actions transport
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .mncs
+          MNCS_TEST_BIN="$GITHUB_WORKSPACE/family/mncs-test/bin/mncs-test" \
+          MNCS_BIN="$GITHUB_WORKSPACE/family/mncs-language/target/debug/mncs" \
+          MNCS_MANIFEST="$GITHUB_WORKSPACE/family/mncs-test/mncs-test.toml" \
+          MNCS_LIBRARY_PATH_INPUT="$GITHUB_WORKSPACE/family/mncs-test/native:$GITHUB_WORKSPACE/family/mncs-language/library" \
+          MNCS_EMBED_LIBRARY_INPUT="$GITHUB_WORKSPACE/family/mncs-language/target/debug/libmncs_embed.so" \
+          MNCS_RESULT_FILE="$GITHUB_WORKSPACE/.mncs/pass-check.json" \
+          MNCS_TEST_RESULT_FILE="$GITHUB_WORKSPACE/.mncs/pass-result.json" \
+          MNCS_ARTIFACTS_DIRECTORY="$GITHUB_WORKSPACE/.mncs/pass-artifacts" \
+          bash actions/mncs-test/test.sh
+          bash actions/run-check/run_check.sh \
+            --result-file .mncs/pass-check.json \
+            --evidence-dir .mncs/pass-evidence \
+            --command-exit-code 0 \
+            --command "mncs-test pass fixture" \
+            --expected-id mncs-test \
+            --expected-provider mncs-test
+          python3 -c "import json; assert json.load(open('.mncs/pass-check.json'))['verdict'] == 'PASS'"
+
+      - name: Demonstrate a failing test into bounded debugger evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          MNCS_TEST_BIN="$GITHUB_WORKSPACE/family/mncs-test/bin/mncs-test" \
+          MNCS_BIN="$GITHUB_WORKSPACE/family/mncs-language/target/debug/mncs" \
+          MNCS_MANIFEST="$GITHUB_WORKSPACE/family/mncs-test/tests/fixtures/first-class-failing.toml" \
+          MNCS_LIBRARY_PATH_INPUT="$GITHUB_WORKSPACE/family/mncs-test/native:$GITHUB_WORKSPACE/family/mncs-language/library" \
+          MNCS_EMBED_LIBRARY_INPUT="$GITHUB_WORKSPACE/family/mncs-language/target/debug/libmncs_embed.so" \
+          MNCS_RESULT_FILE="$GITHUB_WORKSPACE/.mncs/fail-check.json" \
+          MNCS_TEST_RESULT_FILE="$GITHUB_WORKSPACE/.mncs/fail-result.json" \
+          MNCS_ARTIFACTS_DIRECTORY="$GITHUB_WORKSPACE/.mncs/fail-artifacts" \
+          bash actions/mncs-test/test.sh
+          test_status=$?
+          set -e
+          test "$test_status" -eq 1
+          bash actions/run-check/run_check.sh \
+            --result-file .mncs/fail-check.json \
+            --evidence-dir .mncs/fail-evidence \
+            --command-exit-code "$test_status" \
+            --command "mncs-test failing first-class fixture" \
+            --expected-id mncs-test \
+            --expected-provider mncs-test
+          python3 -c "import json; assert json.load(open('.mncs/fail-check.json'))['verdict'] == 'FAIL'"
+
+          MNCS_DEBUG_BIN="$GITHUB_WORKSPACE/family/mncs-debug/bin/mncs-debug" \
+          MNCS_BIN="$GITHUB_WORKSPACE/family/mncs-language/target/debug/mncs" \
+          MNCS_LIBRARY_PATH_INPUT="$GITHUB_WORKSPACE/family/mncs-test/native:$GITHUB_WORKSPACE/family/mncs-language/library" \
+          MNCS_DEBUG_TEST_RESULT_FILE="$GITHUB_WORKSPACE/.mncs/fail-result.json" \
+          MNCS_DEBUG_WORKING_DIRECTORY="$GITHUB_WORKSPACE" \
+          MNCS_DEBUG_CAPTURE_POLICY=failure-only \
+          MNCS_DEBUG_CHECK_FILE="$GITHUB_WORKSPACE/.mncs/debug-check.json" \
+          MNCS_DEBUG_WITNESS_FILE="$GITHUB_WORKSPACE/.mncs/debug-witness.json" \
+          MNCS_DEBUG_ARTIFACTS_DIRECTORY="$GITHUB_WORKSPACE/.mncs/debug-artifacts" \
+          bash actions/mncs-debug/test.sh
+          bash actions/run-check/run_check.sh \
+            --result-file .mncs/debug-check.json \
+            --evidence-dir .mncs/debug-evidence \
+            --command-exit-code 0 \
+            --command "mncs-debug bounded failure capture" \
+            --expected-id mncs-debug \
+            --expected-provider mncs-debug
+          python3 - <<'PY'
+          import json
+          test_result = json.load(open('.mncs/fail-result.json', encoding='utf-8'))
+          debug_check = json.load(open('.mncs/debug-check.json', encoding='utf-8'))
+          assert test_result['verdict'] == 'FAIL'
+          assert debug_check['verdict'] == 'PASS'
+          assert debug_check['debug']['integration']['run_id'] == test_result['run_id']
+          assert debug_check['debug']['integration']['test_execution']['execution_identity']
+          PY
+
+      - name: Run the real Forge diagnose-fix-verify test
+        env:
+          PYTHONPATH: ${{ github.workspace }}/family/mncs-forge-mcp/src
+        run: python3 -m pytest family/mncs-forge-mcp/tests/test_mncs_development.py -q --basetemp=.mncs/forge-basetemp
+
+      - name: Upload fixed-loop evidence
+        if: always()
+        # actions/upload-artifact v7.0.1
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: mncs-fixed-development-loop-evidence
+          path: .mncs
+          if-no-files-found: warn
