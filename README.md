@@ -80,11 +80,16 @@ escalation reasons in the execution receipt and evidence manifest. A malformed
 or incomplete plan is `NOT_ESTABLISHED`, never an implicit broad or narrow
 claim.
 
-`actions/mncs-debug` defaults to `diagnostic-depth: minimal` (validation and
-inspection). Request `standard` for trace/provenance or `deep` for replay and
-minimization. These are bounded queries over the existing failing execution;
-the wrapper does not rerun successful tests. Receipts retain plan and provider
-references so Forge can consume an existing handoff instead of repeating it.
+`actions/mncs-debug` defaults to `diagnostic-depth: minimal` (validation,
+inspection, and the typed mncs-debug sufficiency decision). If that decision
+names one missing projection, the transport invokes only that projection and
+rechecks sufficiency against the same witness. Request `standard` for explicit
+trace/provenance or `deep` for replay and minimization. These are bounded
+queries over the existing failing execution; the wrapper does not rerun
+successful tests. Receipts retain the plan, sufficiency, requested operation,
+and provider references so Forge can consume an existing handoff instead of
+repeating it. `explicit_user_request` and
+`insufficient_diagnostic_evidence` remain distinct reasons.
 
 ~~~yaml
 - uses: epi13/mncs-actions/actions/verify@<pinned-sha>
