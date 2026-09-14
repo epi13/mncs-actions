@@ -64,8 +64,10 @@ LAW_CONTRACT = {
     },
     "commons.mesh.interest": {
         "candidate_matches": 13,
-        "candidate_matches_named": 16,
         "candidate_matches_full": 27,
+    },
+    "commons.mesh.interest_named": {
+        "candidate_matches_named": 16,
     },
     "commons.mesh.lattice_check": {"candidate_lattice_agrees": 2},
     "commons.mesh.lifecycle": {"transition_allowed": 2, "transition_check": 4},
@@ -158,7 +160,7 @@ def main() -> int:
             / "mncs"
             / "commons"
             / "mesh"
-            / "interest.mncs"
+            / "interest_named.mncs"
         ).read_text(encoding="utf-8")
         row_pattern = _re.compile(
             r"textmap\.Coded16 \{ key: \[([0-9 as byte,]+)\], key_length: (\d+), code: (-?\d+) \}"
@@ -210,6 +212,8 @@ def main() -> int:
         contracts = 0
         offenders: list[str] = []
         for corpus_path in sorted(corpora_dir.glob("*.json")):
+            if corpus_path.name not in expected_corpora:
+                continue
             corpus = json.loads(corpus_path.read_text(encoding="utf-8"))
             cases = corpus.get("cases", [])
             if not cases:

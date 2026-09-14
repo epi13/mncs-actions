@@ -47,6 +47,10 @@ def test_mncs_test_action_shape():
         "artifacts-directory",
         "evidence-directory",
         "fail-on-unknown",
+        "debug-on-failure",
+        "debug-required",
+        "mncs-debug-bin",
+        "debug-capture-policy",
     ):
         assert key in action["inputs"], key
     for key in (
@@ -59,6 +63,51 @@ def test_mncs_test_action_shape():
         "manifest-digest",
         "command-exit-code",
         "failure-class",
+        "debug-verdict",
+        "debug-claim-status",
+        "debug-evidence-path",
+    ):
+        assert key in action["outputs"], key
+    assert "actions/upload-artifact@" in str(action["runs"])
+
+
+def test_mncs_test_debug_composition_is_failure_gated():
+    action = load_action("mncs-test")
+    steps = action["runs"]["steps"]
+    debug = next(item for item in steps if item.get("id") == "debug")
+    debug_package = next(item for item in steps if item.get("id") == "debug-package")
+    assert "steps.package.outputs.verdict == 'FAIL'" in debug["if"]
+    assert "steps.package.outputs.verdict == 'FAIL'" in debug_package["if"]
+    assert debug["env"]["MNCS_DEBUG_TEST_RESULT_FILE"] == "${{ inputs.test-result-file }}"
+    assert debug["env"]["MNCS_DEBUG_CAPTURE_POLICY"] == "${{ inputs.debug-capture-policy }}"
+    # Debug evidence is explanatory and has its own optional gate; the test
+    # package remains the source of the test verdict and action gate.
+    assert "steps.debug-package.outputs.verdict" not in str(steps[-2]["run"])
+
+
+def test_mncs_debug_action_shape():
+    action = load_action("mncs-debug")
+    for key in (
+        "test-result-file",
+        "program-file",
+        "request-file",
+        "mncs-debug-bin",
+        "mncs-bin",
+        "capture-policy",
+        "check-file",
+        "witness-file",
+        "artifacts-directory",
+        "evidence-directory",
+        "fail-on-unknown",
+    ):
+        assert key in action["inputs"], key
+    for key in (
+        "verdict",
+        "claim-status",
+        "check-path",
+        "evidence-path",
+        "execution-receipt-path",
+        "witness-path",
     ):
         assert key in action["outputs"], key
     assert "actions/upload-artifact@" in str(action["runs"])

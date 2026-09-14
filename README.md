@@ -20,7 +20,14 @@ Primitives:
 - `actions/mncs-test`: invoke the canonical `mncs-test` provider. For ordinary
   Profile 0.17 source, the compiler supplies the first-class test inventory;
   the action transports the provider result and does not duplicate test
-  semantics.
+  semantics. With `debug-on-failure`, a structured FAIL selects the separate
+  `mncs-debug` provider and packages explanatory evidence without changing the
+  test verdict.
+- `actions/mncs-debug`: invoke the registered canonical `mncs-debug` provider
+  from a `mncs.test-result/1` artifact or an explicit request, validate its
+  witness, and package bounded trace/inspection/provenance/replay evidence.
+  Debug `UNKNOWN` remains distinct from test `FAIL` and is optional by
+  default.
 - `actions/aggregate`: compose validated check-results into one
   aggregate verdict with explicit required/optional policy.
 - `actions/render-badge`: render a deterministic SVG presentation badge and
@@ -40,6 +47,11 @@ Primitives:
   the revisions recorded in `family-contracts.json`. Required canary tests
   fail if a checkout or test is skipped. This is compatibility evidence for
   fixed revisions, not proof about moving repository heads.
+- `.github/workflows/mncs-development-canary.yml`: a fixed-revision vertical
+  canary for the Profile 0.17 test → debug → Actions → Forge path. Its exact
+  non-carrier revisions live in `family-development-contract.json`; the
+  Actions workflow subject is the carrier revision and is recorded in the
+  receipts.
 - `family-producer-descriptors.json`: a versioned, data-only registry of the
   six bounded owner operations. Descriptors select allowlisted adapters and
   inputs; they cannot contain executable shell or Python.
@@ -154,6 +166,8 @@ authority.
 ~~~text
 actions/verify/       Single-verifier action (receipt + manifest)
 actions/run-check/    One provider check + receipt
+actions/mncs-test/    Canonical test provider transport + evidence
+actions/mncs-debug/   Canonical debugger transport + evidence
 actions/aggregate/    Required/optional composition + receipt + manifest
 actions/render-badge/ Deterministic SVG badge + machine-readable sidecar
 adapters/             Family mappings (own no policy)
@@ -183,6 +197,8 @@ machine-readable `docs/mncs-badge.json` sidecar) on `main` pushes.
 | --- | --- | --- |
 | Development and promotion rules | MNCDS / MNCS | Invoke and transport checks |
 | Language and compiler capability | mncs-language | Surface compiler results and capability gaps |
+| Test semantics and TestResult | mncs-test | Invoke and transport; do not reinterpret tests |
+| Debugger semantics and witnesses | mncs-debug | Invoke, validate, and transport bounded evidence |
 | Cross-repository coordination | Commons | Emit records that can be consumed by coordination workflows |
 | Rights and provenance semantics | mncs-rights-provenance | Carry references and digests; do not redefine authorization |
 | Pressure experiments and candidate work | Forge | Run bounded verification and preserve evidence |

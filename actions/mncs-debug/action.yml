@@ -1,0 +1,202 @@
+name: MNCS Structured Debug
+description: Capture bounded MNCS debug evidence from a failing test-result or an explicit request.
+author: epi13
+
+branding:
+  color: purple
+  icon: search
+
+inputs:
+  test-result-file:
+    description: Existing mncs.test-result/1 document. The debugger never reconstructs a test command from text.
+    required: false
+    default: ""
+  test-id:
+    description: Optional exact test identity to import from test-result-file.
+    required: false
+    default: ""
+  program-file:
+    description: MNCS source or semantic program manifest for direct debugging.
+    required: false
+    default: ""
+  request-file:
+    description: Canonical 0.1 execution request for program-file.
+    required: false
+    default: ""
+  mncs-debug-bin:
+    description: Checked-out mncs-debug launcher.
+    required: false
+    default: mncs-debug
+  mncs-bin:
+    description: Pinned mncs compiler/runtime executable.
+    required: false
+    default: mncs
+  library-path:
+    description: Colon-separated MNCS library roots.
+    required: false
+    default: ""
+  working-directory:
+    description: Directory for provider execution and relative artifact references.
+    required: false
+    default: .
+  capture-policy:
+    description: Bounded capture policy owned by mncs-debug.
+    required: false
+    default: failure-only
+  max-events:
+    description: Maximum trace events accepted by mncs-debug.
+    required: false
+    default: "256"
+  timeout-seconds:
+    description: Bounded wall-clock timeout.
+    required: false
+    default: "30"
+  check-file:
+    description: Path to mncs.check-result/1 for the debug evidence claim.
+    required: false
+    default: .mncs/mncs-debug-check.json
+  witness-file:
+    description: Path to mncs.debug-witness/1.
+    required: false
+    default: .mncs/mncs-debug-witness.json
+  artifacts-directory:
+    description: Directory for the witness and structured debugger projections.
+    required: false
+    default: .mncs/mncs-debug-artifacts
+  evidence-directory:
+    description: Directory for Actions receipts and evidence manifests.
+    required: false
+    default: .mncs/mncs-debug-evidence
+  fail-on-unknown:
+    description: Fail the action when bounded debug evidence is UNKNOWN.
+    required: false
+    default: "false"
+  upload-artifact:
+    description: Upload debug evidence and bounded debugger artifacts.
+    required: false
+    default: "true"
+  artifact-name:
+    description: Uploaded artifact name.
+    required: false
+    default: mncs-debug-evidence
+
+outputs:
+  verdict:
+    description: Debug evidence claim verdict.
+    value: ${{ steps.package.outputs.verdict }}
+  claim-status:
+    description: ESTABLISHED or NOT_ESTABLISHED.
+    value: ${{ steps.package.outputs.claim-status }}
+  check-path:
+    description: Packaged debug check-result path.
+    value: ${{ steps.package.outputs.check-path }}
+  evidence-path:
+    description: Debug evidence manifest path when established.
+    value: ${{ steps.package.outputs.evidence-path }}
+  execution-receipt-path:
+    description: Debug execution receipt path.
+    value: ${{ steps.package.outputs.execution-receipt-path }}
+  witness-path:
+    description: Debug witness path when produced.
+    value: ${{ steps.run-debug.outputs.witness-path }}
+  command-exit-code:
+    description: Transport exit code from the debug provider script.
+    value: ${{ steps.run-debug.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Capture bounded debug evidence
+      id: run-debug
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      continue-on-error: true
+      env:
+        MNCS_DEBUG_BIN: ${{ inputs.mncs-debug-bin }}
+        MNCS_BIN: ${{ inputs.mncs-bin }}
+        MNCS_LIBRARY_PATH_INPUT: ${{ inputs.library-path }}
+        MNCS_DEBUG_TEST_RESULT_FILE: ${{ inputs.test-result-file }}
+        MNCS_DEBUG_TEST_ID: ${{ inputs.test-id }}
+        MNCS_DEBUG_PROGRAM_FILE: ${{ inputs.program-file }}
+        MNCS_DEBUG_REQUEST_FILE: ${{ inputs.request-file }}
+        # The composite step already runs in inputs.working-directory.
+        MNCS_DEBUG_WORKING_DIRECTORY: .
+        MNCS_DEBUG_CAPTURE_POLICY: ${{ inputs.capture-policy }}
+        MNCS_DEBUG_MAX_EVENTS: ${{ inputs.max-events }}
+        MNCS_DEBUG_TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
+        MNCS_DEBUG_CHECK_FILE: ${{ inputs.check-file }}
+        MNCS_DEBUG_WITNESS_FILE: ${{ inputs.witness-file }}
+        MNCS_DEBUG_ARTIFACTS_DIRECTORY: ${{ inputs.artifacts-directory }}
+      run: |
+        set +e
+        "$GITHUB_ACTION_PATH/test.sh"
+        status=$?
+        echo "exit-code=$status" >> "$GITHUB_OUTPUT"
+        exit 0
+
+    - name: Validate and package debug evidence
+      id: package
+      if: always()
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      env:
+        MNCS_RESULT_FILE: ${{ inputs.check-file }}
+        MNCS_EVIDENCE_DIRECTORY: ${{ inputs.evidence-directory }}
+        MNCS_COMMAND_EXIT_CODE: ${{ steps.run-debug.outputs.exit-code }}
+        MNCS_COMMAND_LABEL: mncs-debug bounded capture
+        MNCS_EXPECTED_ID: mncs-debug
+        MNCS_EXPECTED_PROVIDER: mncs-debug
+      run: |
+        set -euo pipefail
+        if [[ -z "${MNCS_COMMAND_EXIT_CODE:-}" ]]; then
+          echo "::error::Missing mncs-debug provider exit code."
+          exit 2
+        fi
+        "$GITHUB_ACTION_PATH/../run-check/run_check.sh" \
+          --result-file "$MNCS_RESULT_FILE" \
+          --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" \
+          --command-exit-code "$MNCS_COMMAND_EXIT_CODE" \
+          --command "$MNCS_COMMAND_LABEL" \
+          --expected-id "$MNCS_EXPECTED_ID" \
+          --expected-provider "$MNCS_EXPECTED_PROVIDER"
+
+    - name: Upload debug evidence
+      if: ${{ always() && inputs.upload-artifact == 'true' }}
+      # actions/upload-artifact v7.0.1
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          ${{ inputs.working-directory }}/${{ inputs.evidence-directory }}
+          ${{ inputs.working-directory }}/${{ inputs.artifacts-directory }}
+          ${{ inputs.working-directory }}/${{ inputs.witness-file }}
+          ${{ inputs.working-directory }}/${{ inputs.test-result-file }}
+        if-no-files-found: warn
+
+    - name: Apply debug evidence gate
+      if: always()
+      shell: bash
+      env:
+        MNCS_FAIL_ON_UNKNOWN: ${{ inputs.fail-on-unknown }}
+        MNCS_PACKAGE_OUTCOME: ${{ steps.package.outcome }}
+        MNCS_VERDICT: ${{ steps.package.outputs.verdict }}
+        MNCS_CLAIM_STATUS: ${{ steps.package.outputs.claim-status }}
+      run: |
+        set -euo pipefail
+        if [[ "$MNCS_PACKAGE_OUTCOME" != "success" || "$MNCS_CLAIM_STATUS" == "NOT_ESTABLISHED" ]]; then
+          echo "::error::mncs-debug evidence claim was not established."
+          exit 1
+        fi
+        case "$MNCS_VERDICT" in
+          PASS) exit 0 ;;
+          UNKNOWN)
+            if [[ "$MNCS_FAIL_ON_UNKNOWN" == "true" ]]; then
+              echo "::error::mncs-debug returned UNKNOWN and fail-on-unknown is enabled."
+              exit 1
+            fi
+            echo "::warning::mncs-debug returned UNKNOWN; the originating test verdict is unchanged."
+            exit 0
+            ;;
+          FAIL) echo "::error::Unexpected FAIL debug-evidence claim."; exit 1 ;;
+          *) echo "::error::Invalid mncs-debug verdict: $MNCS_VERDICT"; exit 1 ;;
+        esac

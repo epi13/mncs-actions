@@ -74,6 +74,42 @@ inputs:
     description: Fail the action when the provider reports FAIL.
     required: false
     default: "true"
+  debug-on-failure:
+    description: Invoke the canonical mncs-debug provider after a structured test FAIL.
+    required: false
+    default: "false"
+  debug-required:
+    description: Treat unavailable or invalid failure-debug evidence as an action failure.
+    required: false
+    default: "false"
+  mncs-debug-bin:
+    description: Checked-out mncs-debug launcher used for optional failure capture.
+    required: false
+    default: mncs-debug
+  debug-capture-policy:
+    description: mncs-debug capture policy for failure-only, bounded, or selected events.
+    required: false
+    default: failure-only
+  debug-test-id:
+    description: Optional exact test identity to pass to mncs-debug import-test.
+    required: false
+    default: ""
+  debug-result-file:
+    description: Debug check-result path, relative to working-directory.
+    required: false
+    default: .mncs/mncs-debug-check.json
+  debug-witness-file:
+    description: Debug witness path, relative to working-directory.
+    required: false
+    default: .mncs/mncs-debug-witness.json
+  debug-artifacts-directory:
+    description: Debug raw artifact directory, relative to working-directory.
+    required: false
+    default: .mncs/mncs-debug-artifacts
+  debug-evidence-directory:
+    description: Debug Actions evidence directory, relative to working-directory.
+    required: false
+    default: .mncs/mncs-debug-evidence
   allow-unsupported:
     description: Let the provider use exit 0 for an UNKNOWN result while retaining UNKNOWN in the result document.
     required: false
@@ -115,6 +151,15 @@ outputs:
   failure-class:
     description: Provider failure classification, including compile/timeout/unsupported distinctions.
     value: ${{ steps.run-test.outputs.failure-class }}
+  debug-verdict:
+    description: Optional failure-debug evidence claim verdict.
+    value: ${{ steps.debug-package.outputs.verdict }}
+  debug-claim-status:
+    description: Optional failure-debug evidence claim status.
+    value: ${{ steps.debug-package.outputs.claim-status }}
+  debug-evidence-path:
+    description: Optional failure-debug evidence manifest path.
+    value: ${{ steps.debug-package.outputs.evidence-path }}
 
 runs:
   using: composite
@@ -172,6 +217,61 @@ runs:
           --expected-id "$MNCS_EXPECTED_ID" \
           --expected-provider "$MNCS_EXPECTED_PROVIDER"
 
+    - name: Capture bounded debug evidence on failure
+      id: debug
+      if: ${{ always() && inputs.debug-on-failure == 'true' && steps.package.outputs.verdict == 'FAIL' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      continue-on-error: true
+      env:
+        MNCS_DEBUG_BIN: ${{ inputs.mncs-debug-bin }}
+        MNCS_BIN: ${{ inputs.mncs-bin }}
+        MNCS_LIBRARY_PATH_INPUT: ${{ inputs.library-path }}
+        MNCS_DEBUG_TEST_RESULT_FILE: ${{ inputs.test-result-file }}
+        MNCS_DEBUG_TEST_ID: ${{ inputs.debug-test-id }}
+        # The step is already running in inputs.working-directory; pass the
+        # actual provider cwd rather than resolving that directory twice.
+        MNCS_DEBUG_WORKING_DIRECTORY: .
+        MNCS_DEBUG_CAPTURE_POLICY: ${{ inputs.debug-capture-policy }}
+        MNCS_DEBUG_MAX_EVENTS: "256"
+        MNCS_DEBUG_TIMEOUT_SECONDS: ${{ inputs.timeout-seconds || '30' }}
+        MNCS_DEBUG_CHECK_FILE: ${{ inputs.debug-result-file }}
+        MNCS_DEBUG_WITNESS_FILE: ${{ inputs.debug-witness-file }}
+        MNCS_DEBUG_ARTIFACTS_DIRECTORY: ${{ inputs.debug-artifacts-directory }}
+      run: |
+        set +e
+        "$GITHUB_ACTION_PATH/../mncs-debug/test.sh"
+        status=$?
+        echo "exit-code=$status" >> "$GITHUB_OUTPUT"
+        exit 0
+
+    - name: Validate and package failure-debug evidence
+      id: debug-package
+      if: ${{ always() && inputs.debug-on-failure == 'true' && steps.package.outputs.verdict == 'FAIL' }}
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      continue-on-error: true
+      env:
+        MNCS_RESULT_FILE: ${{ inputs.debug-result-file }}
+        MNCS_EVIDENCE_DIRECTORY: ${{ inputs.debug-evidence-directory }}
+        MNCS_COMMAND_EXIT_CODE: ${{ steps.debug.outputs.exit-code }}
+        MNCS_COMMAND_LABEL: mncs-debug bounded failure capture
+        MNCS_EXPECTED_ID: mncs-debug
+        MNCS_EXPECTED_PROVIDER: mncs-debug
+      run: |
+        set -euo pipefail
+        if [[ -z "${MNCS_COMMAND_EXIT_CODE:-}" ]]; then
+          echo "::error::Missing mncs-debug exit code."
+          exit 2
+        fi
+        "$GITHUB_ACTION_PATH/../run-check/run_check.sh" \
+          --result-file "$MNCS_RESULT_FILE" \
+          --evidence-dir "$MNCS_EVIDENCE_DIRECTORY" \
+          --command-exit-code "$MNCS_COMMAND_EXIT_CODE" \
+          --command "$MNCS_COMMAND_LABEL" \
+          --expected-id "$MNCS_EXPECTED_ID" \
+          --expected-provider "$MNCS_EXPECTED_PROVIDER"
+
     - name: Upload native test artifacts
       if: ${{ always() && inputs.upload-artifact == 'true' }}
       # actions/upload-artifact v7.0.1
@@ -182,6 +282,9 @@ runs:
           ${{ inputs.working-directory }}/${{ inputs.evidence-directory }}
           ${{ inputs.working-directory }}/${{ inputs.artifacts-directory }}
           ${{ inputs.working-directory }}/${{ inputs.test-result-file }}
+          ${{ inputs.working-directory }}/${{ inputs.debug-evidence-directory }}
+          ${{ inputs.working-directory }}/${{ inputs.debug-artifacts-directory }}
+          ${{ inputs.working-directory }}/${{ inputs.debug-witness-file }}
         if-no-files-found: warn
 
     - name: Apply native test gate
@@ -224,3 +327,21 @@ runs:
             ;;
           *) echo "::error::Invalid mncs-test verdict: $MNCS_VERDICT"; exit 1 ;;
         esac
+
+    - name: Apply required debug evidence gate
+      if: ${{ always() && inputs.debug-on-failure == 'true' && inputs.debug-required == 'true' && steps.package.outputs.verdict == 'FAIL' }}
+      shell: bash
+      env:
+        MNCS_DEBUG_PACKAGE_OUTCOME: ${{ steps.debug-package.outcome }}
+        MNCS_DEBUG_VERDICT: ${{ steps.debug-package.outputs.verdict }}
+        MNCS_DEBUG_CLAIM_STATUS: ${{ steps.debug-package.outputs.claim-status }}
+      run: |
+        set -euo pipefail
+        if [[ "$MNCS_DEBUG_PACKAGE_OUTCOME" != "success" || "$MNCS_DEBUG_CLAIM_STATUS" != "ESTABLISHED" ]]; then
+          echo "::error::Required mncs-debug evidence was not established."
+          exit 1
+        fi
+        if [[ "$MNCS_DEBUG_VERDICT" != "PASS" ]]; then
+          echo "::error::Required mncs-debug evidence did not establish PASS."
+          exit 1
+        fi
