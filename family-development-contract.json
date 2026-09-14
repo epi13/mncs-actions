@@ -25,7 +25,7 @@
     {
       "name": "mncs-debug",
       "repository": "epi13/mncs-debug",
-      "revision": "b0be3c588e02628aa9b7a42f7524a76edbf38556",
+      "revision": "d134ed702a1be5a1aae32762219b66a1e802e1d6",
       "checkout_path": "family/mncs-debug",
       "artifacts": ["bin/mncs-debug", "schemas/debug-witness.schema.json", "integration/mncs-actions-provider.json"]
     },
