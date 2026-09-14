@@ -32,7 +32,7 @@
     {
       "name": "mncs-forge-mcp",
       "repository": "epi13/mncs-forge-mcp",
-      "revision": "3aa93ee15a057932e12aaccd1133101e9a2c9209",
+      "revision": "c3dacf19dbdf9ad12bfe3d48c9e6a444dcb02878",
       "checkout_path": "family/mncs-forge-mcp",
       "artifacts": ["pyproject.toml", "src/mncs_forge/application/mncs_development.py", "tests/test_mncs_development.py"]
     },
