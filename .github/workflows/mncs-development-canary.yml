@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/mncs-language
-          ref: dbea90d18b28c8716ab34a8873ba308edba265f7
+          ref: 99a8048827a6bc74009b2c37b6c6500047245a4d
           path: family/mncs-language
           persist-credentials: false
           fetch-depth: 1
@@ -64,8 +64,18 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/mncs-test
-          ref: 65c261680c3ee05a16e1caf422b7f9011f1a3e55
+          ref: e1caa6a8715b7275dc3a7c4f99755bfbeec63675
           path: family/mncs-test
+          persist-credentials: false
+          fetch-depth: 1
+
+      - name: Check out pinned RAVEL
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: epi13/RAVEL
+          ref: 326460d0823359c59952b285b067abfeb445dc74
+          path: family/RAVEL
           persist-credentials: false
           fetch-depth: 1
 
@@ -84,7 +94,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/mncs-forge-mcp
-          ref: 54c4fc150c85966bd255e4a079caf70f78ba1ba1
+          ref: 4551c49f1b209c0315ea8f2a61e5e61af25bddf4
           path: family/mncs-forge-mcp
           persist-credentials: false
           fetch-depth: 1
@@ -94,7 +104,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/MNCS-Commons
-          ref: 47e7987bd672dab8b8a00716c5528854a1026c7f
+          ref: 2d4ac3686edd5e0ae656d28009be1053b406b19c
           path: family/MNCS-Commons
           persist-credentials: false
           fetch-depth: 1
@@ -114,7 +124,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/mncs-doctor
-          ref: 069223af94ebf92fe8dc06aae81dcb96e3e2cd71
+          ref: 8a04de270ad847a5be455ea40fa453a5fcdf0279
           path: family/mncs-doctor
           persist-credentials: false
           fetch-depth: 1
@@ -136,6 +146,37 @@ jobs:
         run: |
           cargo build --locked --manifest-path family/mncs-language/Cargo.toml --bin mncs
           cargo build --locked --manifest-path family/mncs-language/Cargo.toml -p mncs-embed
+
+      - name: Build bounded RAVEL verification plan for the failing fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .mncs
+          source="$GITHUB_WORKSPACE/family/mncs-test/tests/fixtures/first_class_failing.mncs"
+          mncs="$GITHUB_WORKSPACE/family/mncs-language/target/debug/mncs"
+          libraries="$GITHUB_WORKSPACE/family/mncs-test/native:$GITHUB_WORKSPACE/family/mncs-language/library"
+          root="$(MNCS_LIBRARY_PATH="$libraries" "$mncs" test-inventory "$source" | python3 -c 'import json, sys; print(json.load(sys.stdin)["inventory"]["tests"][0]["function_identity"])')"
+          python3 family/RAVEL/src/ravel/impact.py "$source" \
+            --mncs "$mncs" \
+            --library "$GITHUB_WORKSPACE/family/mncs-test/native" \
+            --library "$GITHUB_WORKSPACE/family/mncs-language/library" \
+            --root "$root" \
+            --output "$GITHUB_WORKSPACE/.mncs/fail-plan.json"
+          python3 - <<'PY'
+          import json
+          plan = json.load(open('.mncs/fail-plan.json', encoding='utf-8'))
+          assert plan['schema_version'] == 'mncs.verification-plan/1'
+          assert plan['selection']['selected_test_identities']
+          assert plan['selection']['level'] == 'direct_dependents'
+          assert plan['proof']['sufficient_to_stop'] is True
+          print(json.dumps({
+              'plan_id': plan['plan_id'],
+              'level': plan['selection']['level'],
+              'selected_test_count': len(plan['selection']['selected_test_identities']),
+              'available_test_count': plan['selection']['available_test_count'],
+              'escalation_reasons': plan['selection']['escalation_reasons'],
+          }, sort_keys=True))
+          PY
 
       - name: Demonstrate a passing first-class test through Actions transport
         shell: bash
@@ -173,6 +214,7 @@ jobs:
           MNCS_RESULT_FILE="$GITHUB_WORKSPACE/.mncs/fail-check.json" \
           MNCS_TEST_RESULT_FILE="$GITHUB_WORKSPACE/.mncs/fail-result.json" \
           MNCS_ARTIFACTS_DIRECTORY="$GITHUB_WORKSPACE/.mncs/fail-artifacts" \
+          MNCS_VERIFICATION_PLAN="$GITHUB_WORKSPACE/.mncs/fail-plan.json" \
           bash actions/mncs-test/test.sh
           test_status=$?
           set -e
@@ -183,13 +225,15 @@ jobs:
             --command-exit-code "$test_status" \
             --command "mncs-test failing first-class fixture" \
             --expected-id mncs-test \
-            --expected-provider mncs-test
+            --expected-provider mncs-test \
+            --scope-file .mncs/fail-plan.json
           python3 -c "import json; assert json.load(open('.mncs/fail-check.json'))['verdict'] == 'FAIL'"
 
           MNCS_DEBUG_BIN="$GITHUB_WORKSPACE/family/mncs-debug/bin/mncs-debug" \
           MNCS_BIN="$GITHUB_WORKSPACE/family/mncs-language/target/debug/mncs" \
           MNCS_LIBRARY_PATH_INPUT="$GITHUB_WORKSPACE/family/mncs-test/native:$GITHUB_WORKSPACE/family/mncs-language/library" \
           MNCS_DEBUG_TEST_RESULT_FILE="$GITHUB_WORKSPACE/.mncs/fail-result.json" \
+          MNCS_DEBUG_DIAGNOSTIC_DEPTH=minimal \
           MNCS_DEBUG_WORKING_DIRECTORY="$GITHUB_WORKSPACE" \
           MNCS_DEBUG_CAPTURE_POLICY=failure-only \
           MNCS_DEBUG_MAX_EVENTS=256 \
@@ -205,7 +249,8 @@ jobs:
             --command-exit-code 0 \
             --command "mncs-debug bounded failure capture" \
             --expected-id mncs-debug \
-            --expected-provider mncs-debug
+            --expected-provider mncs-debug \
+            --scope-file .mncs/fail-plan.json
           python3 - <<'PY'
           import json
           test_result = json.load(open('.mncs/fail-result.json', encoding='utf-8'))
@@ -225,6 +270,7 @@ jobs:
         env:
           PYTHONPATH: ${{ github.workspace }}/family/mncs-forge-mcp/src
           MNCS_ACTIONS_HANDOFF_ROOT: ${{ github.workspace }}/.mncs
+          RAVEL_REPO: ${{ github.workspace }}/family/RAVEL
         run: python3 -m pytest family/mncs-forge-mcp/tests/test_mncs_development.py -q --basetemp=.mncs/forge-basetemp
 
       - name: Upload fixed-loop evidence
