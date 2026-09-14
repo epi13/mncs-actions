@@ -1,0 +1,4 @@
+# Runtime dependency required by the pinned mncs-forge-mcp development canary.
+# The other Forge direct dependencies are already in requirements-dev.lock.
+filelock==3.29.7 \
+    --hash=sha256:987db6f789a3a2a59f55081801b2b3697cb97e2a736b5f1a9e99b559285fbc51
