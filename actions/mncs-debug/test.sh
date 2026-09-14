@@ -14,6 +14,9 @@ request_file="${MNCS_DEBUG_REQUEST_FILE:-}"
 working_directory="${MNCS_DEBUG_WORKING_DIRECTORY:-.}"
 capture_policy="${MNCS_DEBUG_CAPTURE_POLICY:-failure-only}"
 max_events="${MNCS_DEBUG_MAX_EVENTS:-256}"
+max_values="${MNCS_DEBUG_MAX_VALUES:-1024}"
+max_value_bytes="${MNCS_DEBUG_MAX_VALUE_BYTES:-4096}"
+selected_operations="${MNCS_DEBUG_SELECTED_OPERATIONS:-}"
 timeout_seconds="${MNCS_DEBUG_TIMEOUT_SECONDS:-30}"
 check_file="${MNCS_DEBUG_CHECK_FILE:-.mncs/mncs-debug-check.json}"
 witness_file="${MNCS_DEBUG_WITNESS_FILE:-.mncs/mncs-debug-witness.json}"
@@ -84,9 +87,26 @@ if [[ "$capture_policy" == "disabled" ]]; then
   exit 0
 fi
 case "$capture_policy" in
-  failure-only|bounded|events) ;;
+  failure-only|selected|bounded|diagnostic|events) ;;
   *) write_unknown "invalid_invocation" "unsupported capture policy: $capture_policy"; exit 0 ;;
 esac
+
+if ! [[ "$max_events" =~ ^[0-9]+$ ]] || (( max_events < 1 || max_events > 512 )); then
+  write_unknown "invalid_invocation" "max-events must be an integer between 1 and 512"
+  exit 0
+fi
+if ! [[ "$max_values" =~ ^[0-9]+$ ]] || (( max_values > 2048 )); then
+  write_unknown "invalid_invocation" "max-values must be an integer between 0 and 2048"
+  exit 0
+fi
+if ! [[ "$max_value_bytes" =~ ^[0-9]+$ ]] || (( max_value_bytes > 65536 )); then
+  write_unknown "invalid_invocation" "max-value-bytes must be an integer between 0 and 65536"
+  exit 0
+fi
+if [[ "$capture_policy" == "selected" && -z "$selected_operations" ]]; then
+  write_unknown "invalid_invocation" "selected capture requires at least one operation identity"
+  exit 0
+fi
 
 if [[ -n "$test_result_file" && ! -f "$test_result_file" ]]; then
   write_unknown "infrastructure_failure" "mncs.test-result/1 file is unavailable"
@@ -124,7 +144,12 @@ if [[ -n "$test_result_file" ]]; then
 else
   provider=("$debug_bin" record "$program_file" "$request_file")
 fi
-provider+=(--mncs "$mncs_bin" --cwd "$working_directory" --capture "$capture_policy" --max-events "$max_events" --timeout "$timeout_seconds" --output "$witness_file")
+provider+=(--mncs "$mncs_bin" --cwd "$working_directory" --capture "$capture_policy" --max-events "$max_events" --max-values "$max_values" --max-value-bytes "$max_value_bytes" --timeout "$timeout_seconds" --output "$witness_file")
+if [[ "$capture_policy" == "selected" ]]; then
+  while IFS= read -r operation; do
+    [[ -n "$operation" ]] && provider+=(--operation "$operation")
+  done <<< "$selected_operations"
+fi
 if [[ -n "$library_path" ]]; then
   IFS=':' read -r -a libraries <<< "$library_path"
   for library in "${libraries[@]}"; do
@@ -210,6 +235,25 @@ if test_result_path:
     if path.is_file():
         references.append(ref("mncs-test-result", path, "mncs.test-result/1"))
 integration = witness.get("integration") if isinstance(witness.get("integration"), dict) else {}
+runtime = witness.get("runtime") if isinstance(witness.get("runtime"), dict) else {}
+observation = runtime.get("observation") if isinstance(runtime.get("observation"), dict) else {}
+source = witness.get("static", {}).get("source", {}) if isinstance(witness.get("static"), dict) else {}
+source_map = source.get("source_map") if isinstance(source, dict) and isinstance(source.get("source_map"), dict) else {}
+observation_metadata = {
+    "schema_revision": observation.get("schema_version"),
+    "identity": runtime.get("observation_identity") or observation.get("identity"),
+    "execution_identity": observation.get("execution_identity"),
+    "completeness": observation.get("completeness", {}),
+    "event_count": len(observation.get("events", [])) if isinstance(observation.get("events"), list) else 0,
+    "value_count": len(observation.get("values", [])) if isinstance(observation.get("values"), list) else 0,
+    "frame_count": len(observation.get("frames", [])) if isinstance(observation.get("frames"), list) else 0,
+    "effect_count": len(observation.get("effects", [])) if isinstance(observation.get("effects"), list) else 0,
+}
+source_map_metadata = {
+    "schema_revision": source.get("source_map_schema") if isinstance(source, dict) else None,
+    "identity": source.get("source_map_identity") if isinstance(source, dict) else None,
+    "source_identity": source_map.get("source_identity"),
+}
 document = {
     "schema_version": "mncs.check-result/1",
     "id": "mncs-debug",
@@ -231,6 +275,8 @@ document = {
         "integration": integration,
         "provider_exit_code": int(debug_status),
         "capture_policy": witness.get("trace", {}).get("capture_policy"),
+        "observation": observation_metadata,
+        "source_map": source_map_metadata,
     },
 }
 check_path.parent.mkdir(parents=True, exist_ok=True)
