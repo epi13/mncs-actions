@@ -25,7 +25,7 @@
     {
       "name": "mncs-debug",
       "repository": "epi13/mncs-debug",
-      "revision": "178f8bfd05b9ecee6aa5edb912baa59ddcc1bfdd",
+      "revision": "e93c2e721aeff2c19cc87c46851cf96789f7f30f",
       "checkout_path": "family/mncs-debug",
       "artifacts": ["bin/mncs-debug", "schemas/debug-witness.schema.json", "integration/mncs-actions-provider.json", "evidence/native-observability-demonstrations-2026-09.json", "evidence/native-observability-overhead-2026-09.json"]
     },

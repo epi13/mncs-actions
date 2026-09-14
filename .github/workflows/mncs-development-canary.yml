@@ -74,7 +74,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: epi13/mncs-debug
-          ref: 178f8bfd05b9ecee6aa5edb912baa59ddcc1bfdd
+          ref: e93c2e721aeff2c19cc87c46851cf96789f7f30f
           path: family/mncs-debug
           persist-credentials: false
           fetch-depth: 1
