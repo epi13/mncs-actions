@@ -216,6 +216,7 @@ jobs:
       - name: Run the real Forge diagnose-fix-verify test
         env:
           PYTHONPATH: ${{ github.workspace }}/family/mncs-forge-mcp/src
+          MNCS_ACTIONS_HANDOFF_ROOT: ${{ github.workspace }}/.mncs
         run: python3 -m pytest family/mncs-forge-mcp/tests/test_mncs_development.py -q --basetemp=.mncs/forge-basetemp
 
       - name: Upload fixed-loop evidence

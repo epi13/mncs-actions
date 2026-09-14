@@ -32,7 +32,7 @@
     {
       "name": "mncs-forge-mcp",
       "repository": "epi13/mncs-forge-mcp",
-      "revision": "f96985fe3897c6e80b910f01d07b6e2fab51bb78",
+      "revision": "dbece72fae723a93e9f7df636ab4ea47245b23be",
       "checkout_path": "family/mncs-forge-mcp",
       "artifacts": ["pyproject.toml", "src/mncs_forge/application/mncs_development.py", "tests/test_mncs_development.py"]
     },
@@ -70,7 +70,7 @@
     "required_stages": ["compiler_inventory", "mncs_test", "mncs_debug", "mncs_actions", "forge_diagnosis", "mncs_test_verification"],
     "test_action": "actions/mncs-test/action.yml",
     "debug_action": "actions/mncs-debug/action.yml",
-    "forge_test": "family/mncs-forge-mcp/tests/test_mncs_development.py::test_failure_loop_preserves_lineage_and_verifies_exact_repair"
+    "forge_test": "family/mncs-forge-mcp/tests/test_mncs_development.py::test_failure_loop_consumes_actions_handoff_and_verifies_exact_repair"
   },
   "policy": {
     "moving_heads": "observation_only",
