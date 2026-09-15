@@ -278,6 +278,7 @@ def _consumer_check(
     edge: Mapping[str, Any],
     plan: Mapping[str, Any],
     plan_digest: str,
+    graph_identity: str,
     graph_digest: str,
     producer_repository_revision: str,
     mncs_test_runner: str,
@@ -354,7 +355,7 @@ def _consumer_check(
             "contract_identity": edge["contract_identity"],
             "contract_revision": edge["contract_revision"],
             "verification_plan_id": plan["plan_id"],
-            "family_graph_identity": graph_digest,
+            "family_graph_identity": graph_identity,
             "edge_fingerprint": edge["fingerprint"],
             "source_change_sha256": plan["source"]["sha256"],
         }
@@ -404,21 +405,25 @@ def _consumer_check(
                 ) from error
         if not isinstance(response, Mapping) or response.get("schema_version") != "mncs.family-check-response/1":
             raise SelectiveFamilyError(f"{repository_id} mncs-test runner response has an unsupported schema")
-        if response.get("check_identity") not in (None, check_identity):
+        if response.get("check_identity") != check_identity:
             raise SelectiveFamilyError(f"{repository_id} mncs-test runner response identity disagrees")
-        if response.get("contract_identity") not in (None, edge["contract_identity"]):
+        if response.get("contract_identity") != edge["contract_identity"]:
             raise SelectiveFamilyError(f"{repository_id} mncs-test runner contract identity disagrees")
-        if response.get("contract_revision") not in (None, edge["contract_revision"]):
+        if response.get("contract_revision") != edge["contract_revision"]:
             raise SelectiveFamilyError(f"{repository_id} mncs-test runner contract revision disagrees")
+        if response.get("runner") != "mncs-test" or response.get("verdict") not in {"PASS", "FAIL", "UNKNOWN"}:
+            raise SelectiveFamilyError(f"{repository_id} mncs-test runner response verdict is invalid")
         binding = response.get("family_binding")
-        if isinstance(binding, Mapping):
-            for key, expected in (
-                ("verification_plan_id", plan["plan_id"]),
-                ("family_graph_identity", graph_digest),
-                ("edge_fingerprint", edge["fingerprint"]),
-            ):
-                if binding.get(key) != expected:
-                    raise SelectiveFamilyError(f"{repository_id} mncs-test runner {key} disagrees")
+        if not isinstance(binding, Mapping):
+            raise SelectiveFamilyError(f"{repository_id} mncs-test runner omitted family bindings")
+        for key, expected in (
+            ("verification_plan_id", plan["plan_id"]),
+            ("family_graph_identity", graph_identity),
+            ("edge_fingerprint", edge["fingerprint"]),
+            ("source_change_sha256", plan["source"]["sha256"]),
+        ):
+            if binding.get(key) != expected:
+                raise SelectiveFamilyError(f"{repository_id} mncs-test runner {key} disagrees")
         behavioral_check = response.get("check_result")
         behavioral_result = response.get("test_result")
         if not isinstance(behavioral_check, Mapping) or not isinstance(behavioral_result, Mapping):
@@ -447,10 +452,37 @@ def _consumer_check(
             raise SelectiveFamilyError(
                 f"{repository_id} mncs-test CheckResult is invalid: {'; '.join(errors)}"
             )
+        if behavioral_check.get("id") != check_identity:
+            raise SelectiveFamilyError(f"{repository_id} mncs-test CheckResult identity disagrees")
+        if behavioral_check.get("verdict") != response.get("verdict"):
+            raise SelectiveFamilyError(f"{repository_id} mncs-test CheckResult verdict disagrees")
+        if behavioral_result.get("schema_version") != "mncs.test-result/1":
+            raise SelectiveFamilyError(f"{repository_id} mncs-test TestResult schema is invalid")
+        if behavioral_result.get("verdict") != response.get("verdict"):
+            raise SelectiveFamilyError(f"{repository_id} mncs-test TestResult verdict disagrees")
         execution = response.get("execution")
-        selected_tests = execution.get("test_case_identities", []) if isinstance(execution, Mapping) else []
+        if not isinstance(execution, Mapping):
+            raise SelectiveFamilyError(f"{repository_id} mncs-test omitted execution identity")
+        selected_tests = execution.get("test_case_identities", [])
         if sorted(selected_tests) != sorted(selector["test_identities"]):
             raise SelectiveFamilyError(f"{repository_id} mncs-test did not execute the exact declared tests")
+        if not isinstance(execution.get("runner_version"), str) or not execution.get("runner_version"):
+            raise SelectiveFamilyError(f"{repository_id} mncs-test runner version is missing")
+        if not isinstance(execution.get("run_identity"), str) or not execution.get("run_identity"):
+            raise SelectiveFamilyError(f"{repository_id} mncs-test run identity is missing")
+        if execution.get("inventory_identity") != selector.get("inventory_identity"):
+            raise SelectiveFamilyError(f"{repository_id} mncs-test inventory identity disagrees")
+        expected_check_definition = sha256_hex(canonical_bytes(check))
+        if execution.get("check_definition_identity") != expected_check_definition:
+            raise SelectiveFamilyError(f"{repository_id} mncs-test check definition identity disagrees")
+        selection_projection = behavioral_result.get("selection")
+        selected_result_tests = (
+            selection_projection.get("selected_test_identities", [])
+            if isinstance(selection_projection, Mapping)
+            else []
+        )
+        if sorted(selected_result_tests) != sorted(selector["test_identities"]):
+            raise SelectiveFamilyError(f"{repository_id} mncs-test TestResult selection disagrees")
         behavioral_result_digest = sha256_hex(canonical_bytes(behavioral_result))
         test_result_ref = {
             "kind": "mncs-test-result",
@@ -860,6 +892,7 @@ def build_selective_proof(
                 edge=edge,
                 plan=plan,
                 plan_digest=plan_digest,
+                graph_identity=graph["graph_identity"],
                 graph_digest=graph_digest,
                 producer_repository_revision=producer["repository_revision"],
                 mncs_test_runner=mncs_test_runner,
