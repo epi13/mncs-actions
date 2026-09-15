@@ -1,0 +1,14 @@
+{
+  "schema_version": "commons.mncs.semantic-contract-declarations/v1",
+  "repository_id": "mncs-actions",
+  "revision": "1",
+  "provides": [],
+  "consumes": [
+    {
+      "contract_identity": "mncs.verification-plan/1",
+      "contract_revision": "1",
+      "consumer_identity": "mncs-actions:run-check",
+      "evidence": "lib/mncs_family_contract.py"
+    }
+  ]
+}
