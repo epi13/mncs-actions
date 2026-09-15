@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -28,6 +29,7 @@ from mncs_actions import (  # noqa: E402
     build_execution_receipt,
     canonical_bytes,
     sha256_hex,
+    validate_execution_receipt,
     validate_check_result,
 )
 from mncs_family_contract import (  # noqa: E402
@@ -70,12 +72,39 @@ def _file_digest(path: Path) -> str:
     return sha256_hex(path.read_bytes())
 
 
+def _directory_digest(path: Path) -> str:
+    """Hash a bounded directory tree without following directory symlinks."""
+
+    entries: list[dict[str, str]] = []
+    total_bytes = 0
+    for root, directories, files in os.walk(path, topdown=True, followlinks=False):
+        directories.sort()
+        files.sort()
+        directories[:] = [name for name in directories if not (Path(root) / name).is_symlink()]
+        for name in files:
+            candidate = Path(root) / name
+            relative = candidate.relative_to(path).as_posix()
+            if candidate.is_symlink():
+                entries.append({"path": relative, "kind": "symlink", "target": os.readlink(candidate)})
+                continue
+            if not candidate.is_file():
+                raise SelectiveFamilyError(f"runtime library entry is not a regular file: {candidate}")
+            size = candidate.stat().st_size
+            total_bytes += size
+            if len(entries) >= 4096 or total_bytes > 256 * 1024 * 1024:
+                raise SelectiveFamilyError(f"runtime library directory is too large to bind safely: {path}")
+            entries.append({"path": relative, "kind": "file", "sha256": _file_digest(candidate)})
+    return sha256_hex(canonical_bytes(entries))
+
+
 def _path_identity(value: str, *, kind: str) -> str:
     """Bind an executable/library path without making paths semantic."""
 
     path = Path(value)
     if not path.is_absolute():
         path = (Path.cwd() / path).resolve()
+    if path.is_dir() and not path.is_symlink():
+        return f"{kind}:directory:{_directory_digest(path)}"
     if path.is_file():
         return f"{kind}:file:{_file_digest(path)}"
     resolved = shutil.which(value)
@@ -84,6 +113,14 @@ def _path_identity(value: str, *, kind: str) -> str:
         if candidate.is_file():
             return f"{kind}:file:{_file_digest(candidate)}"
     return f"{kind}:command:{value}"
+
+
+def _canonical_selector(value: Mapping[str, Any]) -> dict[str, Any]:
+    selector = dict(value)
+    identities = selector.get("test_identities")
+    if isinstance(identities, list):
+        selector["test_identities"] = sorted(identities)
+    return selector
 
 
 def _runtime_bindings(
@@ -274,7 +311,7 @@ def _consumer_check(
         check_selector = check.get("selector")
         if not isinstance(edge_selector, Mapping) or not isinstance(check_selector, Mapping):
             raise SelectiveFamilyError(f"{check_identity} has no complete mncs-test selector")
-        if dict(edge_selector) != dict(check_selector):
+        if _canonical_selector(edge_selector) != _canonical_selector(check_selector):
             raise SelectiveFamilyError(f"{check_identity} selector disagrees with the canonical graph edge")
     if verification.get("evidence") != manifest_path.name:
         raise SelectiveFamilyError(
@@ -670,7 +707,7 @@ def _reuse_consumer(
         selector = edge.get("verification", {}).get("selector")
         if not isinstance(selector, Mapping):
             return None
-        if match.get("selected_test_identities") != selector.get("test_identities"):
+        if match.get("selected_test_identities") != _canonical_selector(selector).get("test_identities"):
             return None
         expected_inventory = selector.get("inventory_identity")
         if expected_inventory is not None and match.get("test_inventory_identity") != expected_inventory:
@@ -690,6 +727,46 @@ def _reuse_consumer(
             return None
         if expected_digest is not None and _file_digest(source) != expected_digest:
             return None
+    receipt = _read_json(prior_dir / "execution-receipt.json", "prior consumer execution receipt")
+    if validate_execution_receipt(receipt):
+        return None
+    if receipt.get("claim_status") != CLAIM_ESTABLISHED:
+        return None
+    claim = receipt.get("claim")
+    if not isinstance(claim, Mapping) or claim.get("verdict") != "PASS":
+        return None
+    receipt_inputs = receipt.get("inputs")
+    if not isinstance(receipt_inputs, Mapping):
+        return None
+    expected_inputs = {
+        "verification_plan_id": str(plan["plan_id"]),
+        "family_graph_identity": str(plan["impact"]["cross_repository"]["graph_identity"]),
+        "edge_fingerprint": str(edge["fingerprint"]),
+        "consumer_manifest_identity": str(edge["consumer_manifest_identity"]),
+        "consumer_repository_revision": str(repository_revision),
+        "producer_repository_revision": str(producer_repository_revision),
+        "runner": str(runner),
+        "check_definition_identity": str(edge["verification_evidence_sha256"]),
+    }
+    if runner == "mncs-test":
+        expected_inputs.update(
+            {
+                "test_run_identity": str(match.get("test_run_identity") or ""),
+                "test_inventory_identity": str(match.get("test_inventory_identity") or ""),
+                "runner_identity": str(runtime_bindings["runner_identity"]),
+                "mncs_binary_identity": str(runtime_bindings["mncs_binary_identity"]),
+                "runtime_identity": str(runtime_bindings["runtime_identity"]),
+                "library_identities": json.dumps(
+                    list(runtime_bindings["library_identities"]), separators=(",", ":")
+                ),
+                "selected_test_identities": json.dumps(
+                    list(_canonical_selector(edge["verification"]["selector"])["test_identities"]),
+                    separators=(",", ":"),
+                ),
+            }
+        )
+    if any(receipt_inputs.get(key) != expected for key, expected in expected_inputs.items()):
+        return None
     check = _read_json(prior_dir / "check-result.json", "prior consumer check")
     if validate_check_result(check) or check.get("verdict") != "PASS":
         return None
