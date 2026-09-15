@@ -8,7 +8,13 @@
       "contract_identity": "mncs.verification-plan/1",
       "contract_revision": "1",
       "consumer_identity": "mncs-actions:run-check",
-      "evidence": "lib/mncs_family_contract.py"
+      "evidence": "lib/mncs_family_contract.py",
+      "verification": {
+        "check_identity": "mncs-actions:verification-plan-receipt",
+        "executor": "mncs-actions",
+        "surface": "selected-consumer-receipt",
+        "evidence": "family-verification-checks-v1.json"
+      }
     }
   ]
 }

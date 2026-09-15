@@ -7,7 +7,7 @@ import os
 import sys
 from pathlib import Path
 from types import ModuleType
-from typing import Any
+from typing import Any, Mapping
 
 
 def _module() -> ModuleType:
@@ -45,3 +45,41 @@ def validate_plan(value: Any, **kwargs: Any) -> dict[str, Any]:
 
 def plan_identity(value: Any) -> str:
     return _module().plan_identity(value)
+
+
+def _graph_module() -> ModuleType:
+    verification_module = _module()
+    module_path = Path(verification_module.__file__).with_name("family_graph.py")
+    name = "_mncs_commons_family_graph_canonical"
+    existing = sys.modules.get(name)
+    if existing is not None:
+        return existing
+    spec = importlib.util.spec_from_file_location(name, module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load canonical family-graph module: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_family_graph(path: Path) -> dict[str, Any]:
+    return _graph_module().load_graph(path)
+
+
+def generate_family_graph(
+    declarations: list[Mapping[str, Any]], repositories: list[Mapping[str, str]]
+) -> dict[str, Any]:
+    return _graph_module().generate_graph(declarations, repositories)
+
+
+def bind_declaration_evidence(root: Path, value: Any) -> dict[str, Any]:
+    return _graph_module().bind_declaration_evidence(root, value)
+
+
+def declaration_identity(value: Any) -> str:
+    return _graph_module().declaration_identity(value)
+
+
+def validate_verification_manifest(value: Any, *, repository_id: str) -> dict[str, Any]:
+    return _graph_module().validate_verification_manifest(value, repository_id=repository_id)
