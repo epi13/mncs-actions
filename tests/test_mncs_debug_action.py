@@ -31,6 +31,12 @@ LIVE = all(
 )
 
 
+def test_minimal_debug_path_delegates_escalation_to_debug_owner() -> None:
+    script = (REPO / "actions" / "mncs-debug" / "test.sh").read_text(encoding="utf-8")
+    assert '"$debug_bin" diagnose' in script
+    assert "--evidence-operation" not in script
+
+
 @pytest.mark.skipif(not LIVE, reason="sibling MNCS test/debug providers and runtime are required")
 def test_failing_test_produces_debug_evidence_with_lineage(tmp_path: Path) -> None:
     test_result = tmp_path / "test-result.json"
@@ -90,6 +96,9 @@ def test_failing_test_produces_debug_evidence_with_lineage(tmp_path: Path) -> No
     assert check["verdict"] == "PASS"
     assert "mncs-test-result" in {item["kind"] for item in check["references"]}
     debug = check["debug"]
+    assert "diagnose" in debug["diagnostic"]["operations"]
+    assert "sufficiency" not in debug["diagnostic"]["operations"]
+    assert debug["diagnostic"]["sufficiency"]["sufficient"] is True
     assert debug["integration"]["run_id"] == json.loads(test_result.read_text(encoding="utf-8"))["run_id"]
     assert debug["integration"]["test_execution"]["execution_identity"]
     assert debug["witness_id"] == json.loads(witness.read_text(encoding="utf-8"))["witness_id"]
