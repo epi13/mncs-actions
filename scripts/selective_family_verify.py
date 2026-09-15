@@ -94,6 +94,29 @@ def _repository_revision(checkout: Path, manifest_identity: str) -> str:
     return f"manifest:{manifest_identity}"
 
 
+def _repository_checkout(workspace_root: Path, repository_id: str) -> Path | None:
+    """Resolve one family checkout without making aliases part of proof identity."""
+
+    exact = workspace_root / repository_id
+    if exact.is_dir():
+        return exact
+    try:
+        aliases = [
+            candidate
+            for candidate in workspace_root.iterdir()
+            if candidate.is_dir() and candidate.name.casefold() == repository_id.casefold()
+        ]
+    except OSError as error:
+        raise SelectiveFamilyError(
+            f"cannot inspect family workspace for {repository_id}: {error}"
+        ) from error
+    if len(aliases) > 1:
+        raise SelectiveFamilyError(
+            f"family workspace has multiple aliases for {repository_id}"
+        )
+    return aliases[0] if aliases else None
+
+
 def _check_manifest(checkout: Path, repository_id: str) -> tuple[Path, dict[str, Any]]:
     path = checkout / "family-verification-checks-v1.json"
     value = _read_json(path, f"{repository_id} verification manifest")
@@ -118,6 +141,53 @@ def _matching_edge(
     return dict(candidates[0])
 
 
+def _producer_binding(
+    graph: Mapping[str, Any], edges: list[Mapping[str, Any]], workspace_root: Path
+) -> dict[str, Any]:
+    producer_ids = {edge.get("producer_repository") for edge in edges}
+    if len(producer_ids) != 1 or not all(isinstance(item, str) and item for item in producer_ids):
+        raise SelectiveFamilyError("selected edges do not have one producer repository")
+    producer_id = next(iter(producer_ids))
+    repositories = [
+        repository
+        for repository in graph.get("repositories", [])
+        if isinstance(repository, Mapping) and repository.get("id") == producer_id
+    ]
+    if len(repositories) != 1:
+        raise SelectiveFamilyError(f"canonical graph has no unique producer row for {producer_id}")
+    declaration_revision = repositories[0].get("revision")
+    if not isinstance(declaration_revision, str) or not declaration_revision:
+        raise SelectiveFamilyError(f"producer {producer_id} has no repository revision")
+    manifest_identities = {edge.get("producer_manifest_identity") for edge in edges}
+    evidence_digests = {
+        edge.get("provider_evidence_sha256")
+        for edge in edges
+        if isinstance(edge.get("provider_evidence_sha256"), str)
+    }
+    if len(manifest_identities) != 1 or not all(
+        isinstance(item, str) and item for item in manifest_identities
+    ):
+        raise SelectiveFamilyError("selected edges do not share one producer declaration identity")
+    if not evidence_digests:
+        raise SelectiveFamilyError("selected edges carry no producer evidence digest")
+    manifest_identity = next(iter(manifest_identities))
+    checkout = _repository_checkout(workspace_root, producer_id)
+    repository_revision = (
+        _repository_revision(checkout, manifest_identity)
+        if checkout
+        else f"manifest:{manifest_identity}"
+    )
+    revision_kind = "git" if REVISION_RE.fullmatch(repository_revision) else "manifest_identity"
+    return {
+        "repository": producer_id,
+        "declaration_revision": declaration_revision,
+        "repository_revision": repository_revision,
+        "repository_revision_kind": revision_kind,
+        "manifest_identity": manifest_identity,
+        "evidence_sha256": sorted(evidence_digests),
+    }
+
+
 def _consumer_check(
     *,
     checkout: Path,
@@ -126,6 +196,7 @@ def _consumer_check(
     plan: Mapping[str, Any],
     plan_digest: str,
     graph_digest: str,
+    producer_repository_revision: str,
 ) -> tuple[dict[str, Any], str]:
     manifest_path, manifest = _check_manifest(checkout, repository_id)
     verification = edge.get("verification")
@@ -187,6 +258,7 @@ def _consumer_check(
         "summary": "Contract-scoped consumer proof established without a repository-wide suite.",
         "contract_revision": edge["contract_revision"],
         "producer_revision": plan["source"]["sha256"],
+        "producer_repository_revision": producer_repository_revision,
         "references": [
             {
                 "kind": "verification-plan",
@@ -215,6 +287,7 @@ def _write_consumer_evidence(
     graph_digest: str,
     edge: Mapping[str, Any],
     repository_revision: str,
+    producer_repository_revision: str,
 ) -> dict[str, Any]:
     evidence_dir = output_dir / "evidence" / repository_id
     evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -229,6 +302,7 @@ def _write_consumer_evidence(
         "edge_fingerprint": str(edge["fingerprint"]),
         "consumer_manifest_identity": str(edge["consumer_manifest_identity"]),
         "consumer_repository_revision": repository_revision,
+        "producer_repository_revision": producer_repository_revision,
     }
     receipt = build_execution_receipt(
         command=f"declaration check {repository_id}",
@@ -270,6 +344,7 @@ def _write_consumer_evidence(
         "verdict": result["verdict"],
         "status": "generated",
         "repository_revision": repository_revision,
+        "producer_repository_revision": producer_repository_revision,
         "consumer_manifest_identity": edge["consumer_manifest_identity"],
         "consumer_evidence_sha256": edge["consumer_evidence_sha256"],
         "verification_evidence_sha256": edge["verification_evidence_sha256"],
@@ -306,6 +381,7 @@ def _reuse_consumer(
     edge: Mapping[str, Any],
     plan: Mapping[str, Any],
     repository_revision: str,
+    producer_repository_revision: str,
 ) -> dict[str, Any] | None:
     if prior is None:
         return None
@@ -334,6 +410,7 @@ def _reuse_consumer(
         ("verification_evidence_sha256", edge["verification_evidence_sha256"]),
         ("contract_revision", edge["contract_revision"]),
         ("repository_revision", repository_revision),
+        ("producer_repository_revision", producer_repository_revision),
     ):
         if match.get(field) != expected:
             return None
@@ -394,6 +471,7 @@ def build_selective_proof(
     if sorted({edge.get("consumer_repository") for edge in edges}) != sorted(selected):
         raise SelectiveFamilyError("plan selected repositories do not match its edges")
     exact_edges = [_matching_edge(plan, graph, edge) for edge in edges]
+    producer = _producer_binding(graph, exact_edges, workspace_root)
     plan_digest = _file_digest(plan_path)
     graph_digest = _file_digest(graph_path)
     prior = _prior_document(prior_proof)
@@ -421,6 +499,7 @@ def build_selective_proof(
             edge=edge,
             plan=plan,
             repository_revision=revision,
+            producer_repository_revision=producer["repository_revision"],
         )
         if record is not None:
             records.append(record)
@@ -434,6 +513,7 @@ def build_selective_proof(
                 plan=plan,
                 plan_digest=plan_digest,
                 graph_digest=graph_digest,
+                producer_repository_revision=producer["repository_revision"],
             )
         except SelectiveFamilyError as error:
             result = {
@@ -446,6 +526,7 @@ def build_selective_proof(
                 "summary": str(error),
                 "contract_revision": edge["contract_revision"],
                 "producer_revision": plan["source"]["sha256"],
+                "producer_repository_revision": producer["repository_revision"],
                 "unresolved": [str(error)],
             }
         records.append(
@@ -458,6 +539,7 @@ def build_selective_proof(
                 graph_digest=graph_digest,
                 edge=edge,
                 repository_revision=revision,
+                producer_repository_revision=producer["repository_revision"],
             )
         )
         generated += 1
@@ -470,6 +552,7 @@ def build_selective_proof(
         "plan_id": plan["plan_id"],
         "plan_sha256": plan_digest,
         "source_change_sha256": plan["source"]["sha256"],
+        "producer": producer,
         "contract_identities": contract_identities,
         "contract_revision": sorted({edge["contract_revision"] for edge in exact_edges}),
         "graph_identity": graph["graph_identity"],

@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from mncs_family_contract import (
     bind_declaration_evidence,
+    declaration_identity,
     generate_family_graph,
     plan_identity,
 )
@@ -177,6 +178,17 @@ def test_contract_change_runs_selected_consumers_and_reuses_exact_receipts(tmp_p
     assert first["status"] == "PASS"
     assert first["routing"]["selected_repository_count"] == 2
     assert first["routing"]["family_repository_count"] == 4
+    provider_manifest_identity = declaration_identity(provider)
+    assert first["producer"] == {
+        "repository": "ravel",
+        "declaration_revision": "1",
+        "repository_revision": f"manifest:{provider_manifest_identity}",
+        "repository_revision_kind": "manifest_identity",
+        "manifest_identity": provider_manifest_identity,
+        "evidence_sha256": [
+            provider["_evidence_digests"]["provides"]["contract/provider.py"]
+        ],
+    }
     assert first["metrics"] == {
         "repositories_selected": 2,
         "repositories_available": 4,
