@@ -24,7 +24,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: epi13/MNCS-Commons
-          ref: 09acc9a45ad9361041ac48492539b9452a32e8c6
+          ref: 7e308b42e6145f4b4f33d39d500d7f6ed0f0ef2d
           path: family/MNCS-Commons
           fetch-depth: 1
       - uses: actions/setup-python@v5

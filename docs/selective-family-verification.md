@@ -14,10 +14,18 @@ Actions writes one check result, execution receipt, and evidence manifest per
 selected consumer, followed by `composite-proof.json`.  A composite PASS is
 only selected-consumer proof, never family-wide proof.
 
+The composite proof also binds the producer repository, its declaration
+revision, producer declaration identity, producer evidence digests, and the
+producer checkout revision when that checkout is available.  Source-change
+content identity remains separate from repository revision.  Source archives
+and synthetic fixtures use a conservative `manifest:<identity>` revision
+instead of pretending to have a VCS revision.
+
 An earlier composite proof can be supplied with `--prior-proof`.  Reuse
 requires the same plan identity, graph identity, edge fingerprint, contract
 revision, consumer declaration/evidence identities, and consumer repository
-revision.  Otherwise the consumer check runs again.
+revision, plus the producer repository revision.  Otherwise the consumer check
+runs again.
 
 ```text
 python scripts/selective_family_verify.py \
