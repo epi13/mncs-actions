@@ -1,0 +1,38 @@
+name: MNCS selective family canary
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "family-semantic-contracts-v1.json"
+      - "family-verification-checks-v1.json"
+      - "lib/mncs_family_contract.py"
+      - "scripts/selective_family_verify.py"
+      - "tests/test_selective_family_verify.py"
+      - ".github/workflows/mncs-selective-family.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  selected-consumer-canary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: epi13/MNCS-Commons
+          ref: 09acc9a45ad9361041ac48492539b9452a32e8c6
+          path: family/MNCS-Commons
+          fetch-depth: 1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install --require-hashes -r requirements-dev.lock
+      - name: Run producer/consumer/unrelated selective canary
+        env:
+          MNCS_COMMONS_ROOT: ${{ github.workspace }}/family/MNCS-Commons
+          PYTHONPATH: lib:scripts
+        run: python -m pytest -q tests/test_selective_family_verify.py
