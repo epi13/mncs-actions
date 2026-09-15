@@ -3,8 +3,8 @@
 
 The Commons graph supplies topology and edge identities.  Repository-owned
 ``family-verification-checks-v1.json`` files supply a typed check identity;
-the only runner currently supported here is the command-free declaration
-surface check.  Actions owns process transport, receipts, and composition,
+runner identities select trusted adapters and graph data never supplies a
+command. Actions owns process transport, receipts, and composition,
 while Commons remains the authority for the graph and plan contracts.
 """
 
@@ -17,6 +17,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -67,6 +68,51 @@ def _write_json(path: Path, value: Mapping[str, Any]) -> None:
 
 def _file_digest(path: Path) -> str:
     return sha256_hex(path.read_bytes())
+
+
+def _path_identity(value: str, *, kind: str) -> str:
+    """Bind an executable/library path without making paths semantic."""
+
+    path = Path(value)
+    if not path.is_absolute():
+        path = (Path.cwd() / path).resolve()
+    if path.is_file():
+        return f"{kind}:file:{_file_digest(path)}"
+    resolved = shutil.which(value)
+    if resolved:
+        candidate = Path(resolved)
+        if candidate.is_file():
+            return f"{kind}:file:{_file_digest(candidate)}"
+    return f"{kind}:command:{value}"
+
+
+def _runtime_bindings(
+    *,
+    mncs_test_runner: str,
+    mncs_binary: str,
+    mncs_test_libraries: list[str],
+) -> dict[str, Any]:
+    runner_identity = _path_identity(mncs_test_runner, kind="mncs-test-runner")
+    binary_identity = _path_identity(mncs_binary, kind="mncs-binary")
+    libraries = sorted(
+        _path_identity(library, kind="mncs-library")
+        for library in mncs_test_libraries
+    )
+    runtime_identity = sha256_hex(
+        canonical_bytes(
+            {
+                "runner_identity": runner_identity,
+                "mncs_binary_identity": binary_identity,
+                "library_identities": libraries,
+            }
+        )
+    )
+    return {
+        "runner_identity": runner_identity,
+        "mncs_binary_identity": binary_identity,
+        "library_identities": libraries,
+        "runtime_identity": runtime_identity,
+    }
 
 
 def _safe_relative_path(value: str) -> bool:
@@ -197,6 +243,10 @@ def _consumer_check(
     plan_digest: str,
     graph_digest: str,
     producer_repository_revision: str,
+    mncs_test_runner: str,
+    mncs_binary: str,
+    mncs_test_libraries: list[str],
+    runtime_bindings: Mapping[str, Any],
 ) -> tuple[dict[str, Any], str]:
     manifest_path, manifest = _check_manifest(checkout, repository_id)
     verification = edge.get("verification")
@@ -217,6 +267,15 @@ def _consumer_check(
         )
     if verification.get("surface") != check["surface"]:
         raise SelectiveFamilyError(f"{check_identity} surface disagrees with the graph edge")
+    if verification.get("runner") != check["runner"]:
+        raise SelectiveFamilyError(f"{check_identity} runner disagrees with the graph edge")
+    if check["runner"] == "mncs-test":
+        edge_selector = verification.get("selector")
+        check_selector = check.get("selector")
+        if not isinstance(edge_selector, Mapping) or not isinstance(check_selector, Mapping):
+            raise SelectiveFamilyError(f"{check_identity} has no complete mncs-test selector")
+        if dict(edge_selector) != dict(check_selector):
+            raise SelectiveFamilyError(f"{check_identity} selector disagrees with the canonical graph edge")
     if verification.get("evidence") != manifest_path.name:
         raise SelectiveFamilyError(
             f"{check_identity} verification evidence is not the repository manifest"
@@ -248,6 +307,154 @@ def _consumer_check(
     repository_revision = _repository_revision(
         checkout, str(edge["consumer_manifest_identity"])
     )
+    if check["runner"] == "mncs-test":
+        selector = check.get("selector")
+        if not isinstance(selector, Mapping):
+            raise SelectiveFamilyError(f"{check_identity} has no mncs-test selector")
+        request = {
+            "schema_version": "mncs.family-check-request/1",
+            "check_identity": check_identity,
+            "contract_identity": edge["contract_identity"],
+            "contract_revision": edge["contract_revision"],
+            "verification_plan_id": plan["plan_id"],
+            "family_graph_identity": graph_digest,
+            "edge_fingerprint": edge["fingerprint"],
+            "source_change_sha256": plan["source"]["sha256"],
+        }
+        with tempfile.TemporaryDirectory(prefix="mncs-actions-family-check-") as directory:
+            request_path = Path(directory) / "family-check-request.json"
+            _write_json(request_path, request)
+            runner_path = Path(mncs_test_runner)
+            command = (
+                [sys.executable, str(runner_path)]
+                if runner_path.suffix == ".py"
+                else [mncs_test_runner]
+            )
+            command.extend(
+                [
+                    "run-check",
+                    "--request",
+                    str(request_path),
+                    "--checks",
+                    str(manifest_path),
+                    "--repository-id",
+                    repository_id,
+                    "--mncs",
+                    mncs_binary,
+                ]
+            )
+            for library in mncs_test_libraries:
+                command.extend(["--library", library])
+            try:
+                completed = subprocess.run(
+                    command,
+                    cwd=str(checkout),
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=300,
+                )
+            except (OSError, subprocess.SubprocessError) as error:
+                raise SelectiveFamilyError(
+                    f"{repository_id} mncs-test runner could not be started: {error}"
+                ) from error
+            try:
+                response = json.loads(completed.stdout)
+            except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                raise SelectiveFamilyError(
+                    f"{repository_id} mncs-test runner returned no structured family-check response: "
+                    + (completed.stderr.strip() or str(error))
+                ) from error
+        if not isinstance(response, Mapping) or response.get("schema_version") != "mncs.family-check-response/1":
+            raise SelectiveFamilyError(f"{repository_id} mncs-test runner response has an unsupported schema")
+        if response.get("check_identity") not in (None, check_identity):
+            raise SelectiveFamilyError(f"{repository_id} mncs-test runner response identity disagrees")
+        if response.get("contract_identity") not in (None, edge["contract_identity"]):
+            raise SelectiveFamilyError(f"{repository_id} mncs-test runner contract identity disagrees")
+        if response.get("contract_revision") not in (None, edge["contract_revision"]):
+            raise SelectiveFamilyError(f"{repository_id} mncs-test runner contract revision disagrees")
+        binding = response.get("family_binding")
+        if isinstance(binding, Mapping):
+            for key, expected in (
+                ("verification_plan_id", plan["plan_id"]),
+                ("family_graph_identity", graph_digest),
+                ("edge_fingerprint", edge["fingerprint"]),
+            ):
+                if binding.get(key) != expected:
+                    raise SelectiveFamilyError(f"{repository_id} mncs-test runner {key} disagrees")
+        behavioral_check = response.get("check_result")
+        behavioral_result = response.get("test_result")
+        if not isinstance(behavioral_check, Mapping) or not isinstance(behavioral_result, Mapping):
+            verdict = response.get("verdict") if response.get("verdict") in {"FAIL", "UNKNOWN"} else "UNKNOWN"
+            result = {
+                "schema_version": "mncs.check-result/1",
+                "id": check_identity,
+                "provider": repository_id,
+                "verdict": verdict,
+                "scope": check["surface"],
+                "claim": "selected consumer behavioral proof",
+                "summary": str(response.get("failure", {}).get("message", "mncs-test returned no result")),
+                "contract_revision": edge["contract_revision"],
+                "producer_revision": plan["source"]["sha256"],
+                "producer_repository_revision": producer_repository_revision,
+                "references": [],
+                "behavioral": {
+                    "runner": "mncs-test",
+                    "selector": dict(selector),
+                    **dict(runtime_bindings),
+                },
+            }
+            return result, repository_revision
+        errors = validate_check_result(dict(behavioral_check))
+        if errors:
+            raise SelectiveFamilyError(
+                f"{repository_id} mncs-test CheckResult is invalid: {'; '.join(errors)}"
+            )
+        execution = response.get("execution")
+        selected_tests = execution.get("test_case_identities", []) if isinstance(execution, Mapping) else []
+        if sorted(selected_tests) != sorted(selector["test_identities"]):
+            raise SelectiveFamilyError(f"{repository_id} mncs-test did not execute the exact declared tests")
+        behavioral_result_digest = sha256_hex(canonical_bytes(behavioral_result))
+        test_result_ref = {
+            "kind": "mncs-test-result",
+            "uri": f"urn:mncs-test:{behavioral_result.get('run_id', '')}",
+            "digest": "sha256:" + behavioral_result_digest,
+        }
+        check_ref = behavioral_check.get("result_ref")
+        references = [test_result_ref]
+        if isinstance(check_ref, Mapping) and isinstance(check_ref.get("uri"), str) and isinstance(check_ref.get("digest"), str):
+            references.insert(
+                0,
+                {
+                    "kind": "mncs-test-check-result",
+                    "uri": check_ref["uri"],
+                    "digest": check_ref["digest"],
+                },
+            )
+        result = {
+            "schema_version": "mncs.check-result/1",
+            "id": check_identity,
+            "provider": repository_id,
+            "verdict": response.get("verdict", "UNKNOWN"),
+            "scope": check["surface"],
+            "claim": "selected consumer behavioral proof established by mncs-test",
+            "summary": behavioral_check.get("summary", "mncs-test behavioral check"),
+            "contract_revision": edge["contract_revision"],
+            "producer_revision": plan["source"]["sha256"],
+            "producer_repository_revision": producer_repository_revision,
+            "references": references,
+            "behavioral": {
+                "runner": "mncs-test",
+                "runner_version": execution.get("runner_version") if isinstance(execution, Mapping) else None,
+                "selector": dict(selector),
+                "test_case_identities": selected_tests,
+                "run_identity": execution.get("run_identity") if isinstance(execution, Mapping) else None,
+                "inventory_identity": execution.get("inventory_identity") if isinstance(execution, Mapping) else None,
+                **dict(runtime_bindings),
+                "test_result": dict(behavioral_result),
+            },
+        }
+        return result, repository_revision
     result = {
         "schema_version": "mncs.check-result/1",
         "id": check_identity,
@@ -288,6 +495,7 @@ def _write_consumer_evidence(
     edge: Mapping[str, Any],
     repository_revision: str,
     producer_repository_revision: str,
+    runtime_bindings: Mapping[str, Any],
 ) -> dict[str, Any]:
     evidence_dir = output_dir / "evidence" / repository_id
     evidence_dir.mkdir(parents=True, exist_ok=True)
@@ -303,9 +511,28 @@ def _write_consumer_evidence(
         "consumer_manifest_identity": str(edge["consumer_manifest_identity"]),
         "consumer_repository_revision": repository_revision,
         "producer_repository_revision": producer_repository_revision,
+        "runner": str(result.get("behavioral", {}).get("runner", "declaration")),
+        "check_definition_identity": str(edge["verification_evidence_sha256"]),
+        "selected_test_identities": json.dumps(
+            list(result.get("behavioral", {}).get("test_case_identities", [])),
+            separators=(",", ":"),
+        ),
+        "test_run_identity": str(result.get("behavioral", {}).get("run_identity", "")),
+        "test_inventory_identity": str(result.get("behavioral", {}).get("inventory_identity", "")),
     }
+    for key in (
+        "runner_identity",
+        "mncs_binary_identity",
+        "runtime_identity",
+    ):
+        inputs[key] = str(result.get("behavioral", {}).get(key, runtime_bindings.get(key, "")))
+    inputs["library_identities"] = json.dumps(
+        list(result.get("behavioral", {}).get("library_identities", runtime_bindings.get("library_identities", []))),
+        separators=(",", ":"),
+    )
+    runner = str(result.get("behavioral", {}).get("runner", "declaration"))
     receipt = build_execution_receipt(
-        command=f"declaration check {repository_id}",
+        command=f"{runner} family-check {result['id']}",
         command_exit_code=0 if result["verdict"] == "PASS" else 1,
         claim_status=CLAIM_ESTABLISHED,
         result_path=str(check_path),
@@ -352,6 +579,18 @@ def _write_consumer_evidence(
         "contract_revision": edge["contract_revision"],
         "check_digest": check_digest,
         "evidence_directory": f"evidence/{repository_id}",
+        "runner": runner,
+        "check_definition_identity": edge["verification_evidence_sha256"],
+        "selected_test_identities": list(
+            result.get("behavioral", {}).get("test_case_identities", [])
+        ),
+        "test_run_identity": result.get("behavioral", {}).get("run_identity"),
+        "test_inventory_identity": result.get("behavioral", {}).get("inventory_identity"),
+        "runner_version": result.get("behavioral", {}).get("runner_version"),
+        "runner_identity": result.get("behavioral", {}).get("runner_identity"),
+        "mncs_binary_identity": result.get("behavioral", {}).get("mncs_binary_identity"),
+        "library_identities": list(result.get("behavioral", {}).get("library_identities", [])),
+        "runtime_identity": result.get("behavioral", {}).get("runtime_identity"),
     }
 
 
@@ -382,6 +621,7 @@ def _reuse_consumer(
     plan: Mapping[str, Any],
     repository_revision: str,
     producer_repository_revision: str,
+    runtime_bindings: Mapping[str, Any],
 ) -> dict[str, Any] | None:
     if prior is None:
         return None
@@ -411,8 +651,29 @@ def _reuse_consumer(
         ("contract_revision", edge["contract_revision"]),
         ("repository_revision", repository_revision),
         ("producer_repository_revision", producer_repository_revision),
+        ("runner", edge.get("verification", {}).get("runner", "declaration")),
+        ("check_definition_identity", edge.get("verification_evidence_sha256")),
     ):
         if match.get(field) != expected:
+            return None
+    runner = edge.get("verification", {}).get("runner", "declaration")
+    if runner == "mncs-test":
+        for key in (
+            "runner_identity",
+            "mncs_binary_identity",
+            "runtime_identity",
+        ):
+            if match.get(key) != runtime_bindings.get(key):
+                return None
+        if match.get("library_identities") != runtime_bindings.get("library_identities"):
+            return None
+        selector = edge.get("verification", {}).get("selector")
+        if not isinstance(selector, Mapping):
+            return None
+        if match.get("selected_test_identities") != selector.get("test_identities"):
+            return None
+        expected_inventory = selector.get("inventory_identity")
+        if expected_inventory is not None and match.get("test_inventory_identity") != expected_inventory:
             return None
     relative = match.get("evidence_directory")
     if not isinstance(relative, str) or not _safe_relative_path(relative):
@@ -450,6 +711,9 @@ def build_selective_proof(
     workspace_root: Path,
     output_dir: Path,
     prior_proof: Path | None = None,
+    mncs_test_runner: str = "mncs-test",
+    mncs_binary: str = "mncs",
+    mncs_test_libraries: list[str] | None = None,
 ) -> dict[str, Any]:
     if output_dir.exists() and any(output_dir.iterdir()):
         raise SelectiveFamilyError(f"output directory must be empty: {output_dir}")
@@ -475,6 +739,12 @@ def build_selective_proof(
     plan_digest = _file_digest(plan_path)
     graph_digest = _file_digest(graph_path)
     prior = _prior_document(prior_proof)
+    mncs_test_libraries = list(mncs_test_libraries or [])
+    runtime_bindings = _runtime_bindings(
+        mncs_test_runner=mncs_test_runner,
+        mncs_binary=mncs_binary,
+        mncs_test_libraries=mncs_test_libraries,
+    )
     records: list[dict[str, Any]] = []
     generated = 0
     reused = 0
@@ -500,6 +770,7 @@ def build_selective_proof(
             plan=plan,
             repository_revision=revision,
             producer_repository_revision=producer["repository_revision"],
+            runtime_bindings=runtime_bindings,
         )
         if record is not None:
             records.append(record)
@@ -514,13 +785,17 @@ def build_selective_proof(
                 plan_digest=plan_digest,
                 graph_digest=graph_digest,
                 producer_repository_revision=producer["repository_revision"],
+                mncs_test_runner=mncs_test_runner,
+                mncs_binary=mncs_binary,
+                mncs_test_libraries=mncs_test_libraries,
+                runtime_bindings=runtime_bindings,
             )
         except SelectiveFamilyError as error:
             result = {
                 "schema_version": "mncs.check-result/1",
                 "id": edge["verification"]["check_identity"],
                 "provider": repository_id,
-                "verdict": "FAIL",
+                "verdict": "UNKNOWN" if edge.get("verification", {}).get("runner") == "mncs-test" else "FAIL",
                 "scope": edge["verification"]["surface"],
                 "claim": "selected consumer contract proof",
                 "summary": str(error),
@@ -540,6 +815,7 @@ def build_selective_proof(
                 edge=edge,
                 repository_revision=revision,
                 producer_repository_revision=producer["repository_revision"],
+                runtime_bindings=runtime_bindings,
             )
         )
         generated += 1
@@ -560,7 +836,16 @@ def build_selective_proof(
         "routing": {
             "scope": "selected_repositories",
             "selected_repositories": selected,
+            # Backward-compatible field: this is the semantic-graph count,
+            # never the total registry family size.
             "family_repository_count": len(graph["repositories"]),
+            "semantic_graph_repository_count": len(graph["repositories"]),
+            "registered_family_project_count": graph["coverage"]["registered_family_project_count"],
+            "coverage_classified_project_count": graph["coverage"]["classified_project_count"],
+            "unclassified_project_count": graph["coverage"]["unclassified_project_count"],
+            "unclassified_repositories": list(graph["coverage"]["unclassified_repositories"]),
+            "coverage_status": graph["coverage"]["coverage_status"],
+            "topology_status": graph["coverage"]["topology_status"],
             "selected_repository_count": len(selected),
             "unselected_repositories": sorted(
                 {repository["id"] for repository in graph["repositories"]} - set(selected)
@@ -571,6 +856,11 @@ def build_selective_proof(
         "metrics": {
             "repositories_selected": len(selected),
             "repositories_available": len(graph["repositories"]),
+            "semantic_graph_participants": len(graph["repositories"]),
+            "registered_family_projects": graph["coverage"]["registered_family_project_count"],
+            "coverage_classified_projects": graph["coverage"]["classified_project_count"],
+            "unclassified_projects": graph["coverage"]["unclassified_project_count"],
+            "coverage_status": graph["coverage"]["coverage_status"],
             "checks_executed": generated,
             "checks_available": len(exact_edges),
             "receipts_reused": reused,
@@ -595,6 +885,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--workspace-root", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--prior-proof", type=Path)
+    parser.add_argument("--mncs-test", dest="mncs_test_runner", default="mncs-test")
+    parser.add_argument("--mncs", dest="mncs_binary", default="mncs")
+    parser.add_argument("--mncs-test-library", action="append", default=[])
     args = parser.parse_args(argv)
     try:
         proof = build_selective_proof(
@@ -603,6 +896,9 @@ def main(argv: list[str] | None = None) -> int:
             workspace_root=args.workspace_root.resolve(),
             output_dir=args.output_dir.resolve(),
             prior_proof=args.prior_proof.resolve() if args.prior_proof else None,
+            mncs_test_runner=args.mncs_test_runner,
+            mncs_binary=args.mncs_binary,
+            mncs_test_libraries=args.mncs_test_library,
         )
     except (OSError, SelectiveFamilyError, ValueError) as error:
         print(f"SELECTIVE FAMILY VERIFICATION REFUSED: {error}", file=sys.stderr)

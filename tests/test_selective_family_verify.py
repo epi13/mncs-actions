@@ -192,6 +192,11 @@ def test_contract_change_runs_selected_consumers_and_reuses_exact_receipts(tmp_p
     assert first["metrics"] == {
         "repositories_selected": 2,
         "repositories_available": 4,
+        "semantic_graph_participants": 4,
+        "registered_family_projects": 4,
+        "coverage_classified_projects": 4,
+        "unclassified_projects": 0,
+        "coverage_status": "complete",
         "checks_executed": 2,
         "checks_available": 2,
         "receipts_reused": 0,
