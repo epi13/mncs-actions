@@ -22,7 +22,7 @@
   "optional_evidence": [
     {
       "check_id": "forge-cell-contract",
-      "authority": "mncs-forge-mcp"
+      "authority": "mncs-forge"
     }
   ],
   "require_subject_binding": true,

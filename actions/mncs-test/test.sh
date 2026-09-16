@@ -7,6 +7,7 @@ set -u -o pipefail
 mncs_test_bin="${MNCS_TEST_BIN:-mncs-test}"
 mncs_bin="${MNCS_BIN:-mncs}"
 mncs_source="${MNCS_SOURCE:-}"
+source_file="${MNCS_SOURCE_FILE:-}"
 manifest="${MNCS_MANIFEST:-}"
 library_path="${MNCS_LIBRARY_PATH_INPUT:-}"
 embed_library="${MNCS_EMBED_LIBRARY_INPUT:-}"
@@ -55,7 +56,7 @@ result = {
     "native_suite_summary": None,
     "provenance": {"runner": {"name": "mncs-test", "version": "unknown"}},
     "artifacts": [],
-    "reproduction": {"command": "mncs-test run --manifest <manifest>", "run_id": "0" * 64},
+    "reproduction": {"command": "mncs test <source>", "run_id": "0" * 64},
     "failure": {"class": "infrastructure_failure", "message": message},
 }
 result_path.parent.mkdir(parents=True, exist_ok=True)
@@ -80,8 +81,8 @@ PY
   emit_output "test-result-path" "$(cd "$(dirname "$test_result_file")" && pwd)/$(basename "$test_result_file")"
 }
 
-if [[ -z "$manifest" ]]; then
-  write_start_failure "manifest input is required"
+if [[ -z "$source_file" ]]; then
+  write_start_failure "native mncs-test requires a source input; legacy manifests are compatibility-only"
   exit 2
 fi
 
@@ -92,6 +93,11 @@ fi
 
 if [[ -n "$verification_plan" && -n "$test_filter" ]]; then
   write_start_failure "test-filter cannot be combined with verification-plan; the plan owns exact selection"
+  exit 2
+fi
+
+if [[ -n "$timeout_seconds" ]]; then
+  write_start_failure "native mncs-test has no wall-clock fallback; use step-budget"
   exit 2
 fi
 
@@ -117,7 +123,7 @@ if [[ "${MNCS_BUILD:-false}" == "true" ]]; then
   mncs_bin="$mncs_source/target/debug/mncs"
 fi
 
-provider=("$mncs_test_bin" run --manifest "$manifest" --mncs "$mncs_bin" --result "$test_result_file" --check-result "$result_file" --artifacts "$artifacts_dir")
+provider=("$mncs_test_bin" "$source_file" --result "$test_result_file" --check-result "$result_file" --artifacts "$artifacts_dir")
 if [[ -n "$library_path" ]]; then
   IFS=':' read -r -a libraries <<< "$library_path"
   for library in "${libraries[@]}"; do
@@ -125,7 +131,7 @@ if [[ -n "$library_path" ]]; then
   done
 fi
 if [[ -n "$embed_library" ]]; then
-  provider+=(--embed-library "$embed_library")
+  echo "warning: native mncs-test owns the in-process session; ignoring obsolete embed-library input" >&2
 fi
 if [[ -n "$test_filter" ]]; then
   normalized_filters="${test_filter//,/ }"
@@ -135,13 +141,23 @@ if [[ -n "$test_filter" ]]; then
   done
 fi
 if [[ -n "$verification_plan" ]]; then
-  provider+=(--verification-plan "$verification_plan")
+  if ! command -v jq >/dev/null 2>&1; then
+    write_start_failure "verification-plan selection requires jq in the external Actions adapter"
+    exit 3
+  fi
+  mapfile -t plan_identities < <(jq -r '.selection.selected_test_identities[]? // empty' "$verification_plan")
+  if [[ "${#plan_identities[@]}" -eq 0 ]]; then
+    write_start_failure "verification plan contains no exact selected test identities"
+    exit 2
+  fi
+  for identity in "${plan_identities[@]}"; do
+    provider+=(--test-identity "$identity")
+  done
 fi
-[[ -n "$timeout_seconds" ]] && provider+=(--timeout-seconds "$timeout_seconds")
 [[ -n "$step_budget" ]] && provider+=(--step-budget "$step_budget")
 [[ "$allow_unsupported" == "true" ]] && provider+=(--allow-unsupported)
 
-"${provider[@]}"
+MNCS="$mncs_bin" "${provider[@]}"
 status=$?
 
 if [[ -f "$test_result_file" ]]; then

@@ -37,10 +37,10 @@
       "artifacts": ["src/ravel/impact.py", "tests/test_impact.py", "docs/SELECTIVE_VERIFICATION.md"]
     },
     {
-      "name": "mncs-forge-mcp",
-      "repository": "epi13/mncs-forge-mcp",
+      "name": "mncs-forge",
+      "repository": "epi13/mncs-forge",
       "revision": "4551c49f1b209c0315ea8f2a61e5e61af25bddf4",
-      "checkout_path": "family/mncs-forge-mcp",
+      "checkout_path": "family/mncs-forge",
       "artifacts": ["pyproject.toml", "src/mncs_forge/application/mncs_development.py", "docs/mncs-development-loop.md", "tests/test_mncs_development.py"]
     },
     {
@@ -77,7 +77,7 @@
     "required_stages": ["compiler_inventory", "semantic_impact", "verification_plan", "mncs_test", "native_observability", "mncs_debug", "mncs_actions", "forge_diagnosis", "mncs_test_verification"],
     "test_action": "actions/mncs-test/action.yml",
     "debug_action": "actions/mncs-debug/action.yml",
-    "forge_test": "family/mncs-forge-mcp/tests/test_mncs_development.py::test_failure_loop_consumes_ravel_plan_and_rebinds_after_repair"
+    "forge_test": "family/mncs-forge/tests/test_mncs_development.py::test_failure_loop_consumes_ravel_plan_and_rebinds_after_repair"
   },
   "policy": {
     "moving_heads": "observation_only",
@@ -94,6 +94,6 @@
     "debug_diagnostic_depth_default": "minimal",
     "debug_semantic_authority": "mncs-debug",
     "transport_authority": "mncs-actions",
-    "diagnosis_authority": "mncs-forge-mcp"
+    "diagnosis_authority": "mncs-forge"
   }
 }

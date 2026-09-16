@@ -19,12 +19,12 @@ launcher plus the current `mncs` binary. A repository that also checks out
   id: mncs-test
   uses: epi13/mncs-actions/actions/mncs-test@<pinned-mncs-actions-sha>
   with:
-    manifest: mncs-test.toml
+    source: ./mncs-test/tests/self_suite.mncs
     mncs-test-bin: ./mncs-test/bin/mncs-test
     build-mncs: "true"
     mncs-source: ./mncs-language
     library-path: ./mncs-test/native:./mncs-language/library
-    # Optional: the provider also discovers this beside mncs when built here.
+    # Deprecated compatibility input; native execution ignores it.
     embed-library: ./mncs-language/target/debug/libmncs_embed.so
     # Optional identity/name fragment selection.
     test-filter: arithmetic
@@ -36,17 +36,21 @@ launcher plus the current `mncs` binary. A repository that also checks out
 
 `mncs-test-bin` is an executable path, not an interpolated shell command.
 `build-mncs` uses the narrow platform/toolchain boundary to build both the
-`mncs` compiler and `mncs-embed`. With the embed library available, the normal
-run is one inventory call, one backend compilation, one retained session, and
-one batch of test calls. The subprocess-per-test path remains an explicit
-fallback for environments without the shared library.
+`mncs` compiler and `mncs-embed`. The native run is one inventory call, one
+backend compilation, one retained session, and one batch of test calls. It
+fails closed when the trusted bootstrap is unavailable; the Python
+subprocess-per-test implementation is reachable only through the explicit
+compatibility/oracle entrypoint.
 Checkout/source acquisition remains the caller's responsibility, as it does
 for the other provider actions.
 
 `test-filter` is passed to `mncs-test` as a selection hint; it does not change
-the compiler's inventory or semantic identities. The manifest continues to
-hold source/module roots, library paths, budgets, and external compile/diagnostic
-fixtures. Ordinary runtime test registration belongs to the language/compiler.
+the compiler's inventory or semantic identities. The deprecated `manifest`
+input remains only as an explicit compatibility label; native execution
+requires `source`. Legacy manifests continue to describe source/module roots,
+library paths, budgets, and external compile/diagnostic fixtures for the
+oracle path. Ordinary runtime test registration belongs to the
+language/compiler.
 
 The action preserves the provider exit class and exposes it as
 `failure-class`. The provider distinguishes assertion/test failure,

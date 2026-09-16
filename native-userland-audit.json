@@ -1,0 +1,34 @@
+{
+  "schema_version": "mncs.native-userland-audit/1",
+  "repository": "mncs-actions",
+  "status": "hybrid",
+  "canonical_mncs_surfaces": [
+    "family contract declarations",
+    "verification-plan and receipt semantics",
+    "check-result and evidence projections"
+  ],
+  "host_canonical_responsibilities": [
+    {
+      "area": "GitHub Actions composite transport and artifact upload",
+      "classification": "external_interoperability_only",
+      "eliminating_capability": "none; GitHub runner boundary"
+    },
+    {
+      "area": "family selective-proof process supervision and receipt packaging",
+      "classification": "missing_reusable_runtime_capability",
+      "eliminating_capability": "typed process, filesystem, and canonical structured-data effects"
+    },
+    {
+      "area": "legacy manifest compatibility adapter",
+      "classification": "test_oracle_tooling",
+      "eliminating_capability": "native source/inventory contract adoption by all consumers"
+    }
+  ],
+  "existing_pressures": [
+    "MNCS-TOOLING-B665F138D324",
+    "MNCS-TOOLING-CB736AB5B3F0",
+    "MNCS-LANG-52A5E0C72A39"
+  ],
+  "migration_order": 2,
+  "next_native_slice": "native family-check composition over compiler-owned TestResult and CheckResult"
+}

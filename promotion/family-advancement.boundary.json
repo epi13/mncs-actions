@@ -62,7 +62,7 @@
     },
     {
       "check_id": "forge-cell-contract",
-      "authority": "mncs-forge-mcp",
+      "authority": "mncs-forge",
       "contract_revision": "0.1"
     }
   ],

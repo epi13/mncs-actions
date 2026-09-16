@@ -30,9 +30,8 @@ EMBED_LIBRARY = Path(
 
 @pytest.mark.skipif(
     not (MNCS_TEST / "bin" / "mncs-test").is_file()
-    or not MNCS.is_file()
-    or not EMBED_LIBRARY.is_file(),
-    reason="sibling mncs-test checkout and built compiler/embed library are required",
+    or not MNCS.is_file(),
+    reason="sibling mncs-test checkout and built compiler are required",
 )
 def test_native_provider_and_run_check_packaging(tmp_path: Path):
     result = tmp_path / "mncs-test-check.json"
@@ -48,7 +47,7 @@ def test_native_provider_and_run_check_packaging(tmp_path: Path):
         {
             "MNCS_TEST_BIN": str(MNCS_TEST / "bin" / "mncs-test"),
             "MNCS_BIN": str(MNCS),
-            "MNCS_MANIFEST": str(MNCS_TEST / "mncs-test.toml"),
+            "MNCS_SOURCE_FILE": str(MNCS_TEST / "tests" / "self_suite.mncs"),
             "MNCS_LIBRARY_PATH_INPUT": os.pathsep.join(
                 (str(MNCS_TEST / "native"), str(MNCS_LANGUAGE / "library"))
             ),
@@ -56,7 +55,7 @@ def test_native_provider_and_run_check_packaging(tmp_path: Path):
             "MNCS_RESULT_FILE": str(result),
             "MNCS_TEST_RESULT_FILE": str(test_result),
             "MNCS_ARTIFACTS_DIRECTORY": str(artifacts),
-            "MNCS_TIMEOUT_SECONDS": "60",
+            "MNCS_TIMEOUT_SECONDS": "",
             "MNCS_STEP_BUDGET": "200000",
             "GITHUB_OUTPUT": str(output),
             "GITHUB_STEP_SUMMARY": str(summary),
@@ -82,7 +81,7 @@ def test_native_provider_and_run_check_packaging(tmp_path: Path):
             "--command-exit-code",
             str(provider.returncode),
             "--command",
-            "mncs-test run --manifest mncs-test.toml",
+            "mncs test tests/self_suite.mncs",
             "--expected-id",
             "mncs-test",
             "--expected-provider",
@@ -97,7 +96,9 @@ def test_native_provider_and_run_check_packaging(tmp_path: Path):
     assert package.returncode == 0, package.stderr + package.stdout
     assert json.loads(result.read_text(encoding="utf-8"))["verdict"] == "PASS"
     detailed = json.loads(test_result.read_text(encoding="utf-8"))
-    assert detailed["summary"]["total"] == 6
-    assert detailed["execution"]["mode"] == "retained-embed-batch"
+    assert detailed["summary"]["total"] == 7
+    assert detailed["execution"]["mode"] == "native-toolchain-embed"
+    assert detailed["execution"]["fallback"] is False
+    assert detailed["execution"]["host_subprocesses"] == 0
     assert json.loads((evidence / "evidence-manifest.json").read_text(encoding="utf-8"))["verdict"] == "PASS"
     assert "verdict=PASS" in output.read_text(encoding="utf-8")

@@ -1,5 +1,5 @@
 name: MNCS Native Test
-description: Run an MNCS-native test manifest and package its structured result for family automation.
+description: Run an MNCS-native source test and package its structured result for family automation.
 author: epi13
 
 branding:
@@ -8,8 +8,13 @@ branding:
 
 inputs:
   manifest:
-    description: Path to an mncs.test-manifest/1 TOML manifest, relative to working-directory.
-    required: true
+    description: Deprecated compatibility-manifest label; native execution requires source.
+    required: false
+    default: ""
+  source:
+    description: Path to an MNCS source file containing compiler-inventoried test declarations.
+    required: false
+    default: ""
   mncs-test-bin:
     description: Executable mncs-test launcher. It must be a checked-out provider, not a shell command string.
     required: false
@@ -31,7 +36,7 @@ inputs:
     required: false
     default: ""
   embed-library:
-    description: Optional mncs-embed shared library used for one retained session and batch execution.
+    description: Deprecated compatibility input; native mncs-test owns the retained session and ignores this value.
     required: false
     default: ""
   test-filter:
@@ -63,7 +68,7 @@ inputs:
     required: false
     default: .mncs/mncs-test-evidence
   timeout-seconds:
-    description: Optional wall-clock timeout override for the inventory/compile/session run.
+    description: Deprecated compatibility timeout; native execution fails closed and requires step-budget.
     required: false
     default: ""
   step-budget:
@@ -199,6 +204,7 @@ runs:
         MNCS_SOURCE: ${{ inputs.mncs-source }}
         MNCS_BUILD: ${{ inputs.build-mncs }}
         MNCS_MANIFEST: ${{ inputs.manifest }}
+        MNCS_SOURCE_FILE: ${{ inputs.source }}
         MNCS_LIBRARY_PATH_INPUT: ${{ inputs.library-path }}
         MNCS_EMBED_LIBRARY_INPUT: ${{ inputs.embed-library }}
         MNCS_TEST_FILTER: ${{ inputs.test-filter }}
@@ -225,7 +231,7 @@ runs:
         MNCS_RESULT_FILE: ${{ inputs.result-file }}
         MNCS_EVIDENCE_DIRECTORY: ${{ inputs.evidence-directory }}
         MNCS_COMMAND_EXIT_CODE: ${{ steps.run-test.outputs.exit-code }}
-        MNCS_COMMAND_LABEL: mncs-test run --manifest ${{ inputs.manifest }}
+        MNCS_COMMAND_LABEL: mncs test ${{ inputs.source || inputs.manifest }}
         MNCS_SCOPE_FILE: ${{ inputs.verification-plan }}
         MNCS_EXPECTED_ID: mncs-test
         MNCS_EXPECTED_PROVIDER: mncs-test

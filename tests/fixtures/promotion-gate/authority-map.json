@@ -17,9 +17,9 @@
       "repository": "epi13/machine-native-complexity-development-specification"
     },
     "forge-cell-contract": {
-      "provider": "mncs-forge-mcp",
-      "authority": "mncs-forge-mcp",
-      "repository": "epi13/mncs-forge-mcp"
+      "provider": "mncs-forge",
+      "authority": "mncs-forge",
+      "repository": "epi13/mncs-forge"
     }
   }
 }

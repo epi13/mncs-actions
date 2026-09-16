@@ -293,7 +293,7 @@
     },
     {
       "producer": "forge",
-      "repository": "epi13/mncs-forge-mcp",
+      "repository": "epi13/mncs-forge",
       "artifact_paths": [
         "examples/forge-cell/execution-record.json"
       ],
@@ -316,12 +316,12 @@
       "outputs": [
         {
           "check_id": "forge-cell-contract",
-          "provider": "mncs-forge-mcp",
+          "provider": "mncs-forge",
           "contract_revision": "0.1",
           "roles": {
-            "evidence_provider": "mncs-forge-mcp",
-            "semantic_authority": "mncs-forge-mcp",
-            "remediation_owner": "epi13/mncs-forge-mcp",
+            "evidence_provider": "mncs-forge",
+            "semantic_authority": "mncs-forge",
+            "remediation_owner": "epi13/mncs-forge",
             "transport_authority": "mncs-actions",
             "originating_project": "epi13/mncs-actions"
           }

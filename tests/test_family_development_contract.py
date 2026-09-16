@@ -18,7 +18,7 @@ def test_fixed_development_contract_is_exact_and_complete() -> None:
     assert document["carrier"]["revision_binding"] == "workflow_subject_sha"
     names = {entry["name"] for entry in document["repositories"]}
     assert names == {
-        "mncs-language", "mncs-test", "mncs-debug", "RAVEL", "mncs-forge-mcp",
+        "mncs-language", "mncs-test", "mncs-debug", "RAVEL", "mncs-forge",
         "MNCS-Commons", "mncs-language-service", "mncs-doctor", "mncs-atlas",
     }
     result = subprocess.run(

@@ -191,7 +191,7 @@
         "output:forge-cell-contract": "0.1"
       },
       "name": "forge",
-      "repository": "epi13/mncs-forge-mcp"
+      "repository": "epi13/mncs-forge"
     },
     {
       "changed": true,

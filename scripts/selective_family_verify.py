@@ -206,6 +206,40 @@ def _check_manifest(checkout: Path, repository_id: str) -> tuple[Path, dict[str,
     return path, validate_verification_manifest(value, repository_id=repository_id)
 
 
+def _native_source(checkout: Path, repository_id: str, selector: Mapping[str, Any]) -> str:
+    """Resolve the bounded source mapping for a native mncs-test consumer.
+
+    The family selector retains its historical manifest identity for graph
+    compatibility.  Native execution consumes the source mapping declared by
+    the repository's machine-readable userland status; it never reparses a
+    TOML manifest or falls back to the Python runner.
+    """
+
+    status_path = checkout / "native-userland-status.json"
+    if not status_path.is_file():
+        raise SelectiveFamilyError(
+            f"{repository_id} has no native-userland-status.json for native mncs-test"
+        )
+    status = _read_json(status_path, f"{repository_id} native userland status")
+    sources = status.get("native_sources")
+    manifest = selector.get("manifest")
+    if not isinstance(sources, Mapping) or not isinstance(manifest, str):
+        raise SelectiveFamilyError(
+            f"{repository_id} native userland status has no source for selector manifest"
+        )
+    source = sources.get(manifest)
+    if not isinstance(source, str) or not _safe_relative_path(source):
+        raise SelectiveFamilyError(
+            f"{repository_id} native source mapping is not a safe relative path"
+        )
+    source_path = checkout / source
+    if not source_path.is_file():
+        raise SelectiveFamilyError(
+            f"{repository_id} native source is unavailable: {source}"
+        )
+    return source
+
+
 def _matching_edge(
     plan: Mapping[str, Any], graph: Mapping[str, Any], edge: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -363,26 +397,47 @@ def _consumer_check(
             request_path = Path(directory) / "family-check-request.json"
             _write_json(request_path, request)
             runner_path = Path(mncs_test_runner)
-            command = (
-                [sys.executable, str(runner_path)]
-                if runner_path.suffix == ".py"
-                else [mncs_test_runner]
-            )
-            command.extend(
-                [
-                    "run-check",
-                    "--request",
-                    str(request_path),
-                    "--checks",
-                    str(manifest_path),
-                    "--repository-id",
-                    repository_id,
-                    "--mncs",
-                    mncs_binary,
+            native_runner = runner_path.suffix != ".py"
+            if native_runner:
+                source = _native_source(checkout, repository_id, selector)
+                native_result_path = Path(directory) / "native-test-result.json"
+                native_check_path = Path(directory) / "native-check-result.json"
+                native_artifacts = Path(directory) / "native-artifacts"
+                command = [
+                    mncs_test_runner,
+                    source,
+                    "--result",
+                    str(native_result_path),
+                    "--check-result",
+                    str(native_check_path),
+                    "--artifacts",
+                    str(native_artifacts),
                 ]
-            )
+                for identity in selector["test_identities"]:
+                    command.extend(["--test-identity", identity])
+            else:
+                # Python remains an explicit compatibility/oracle path.  The
+                # default family runner is the native launcher above; callers
+                # must opt into this branch by naming a .py runner directly.
+                command = [sys.executable, str(runner_path)]
+                command.extend(
+                    [
+                        "run-check",
+                        "--request",
+                        str(request_path),
+                        "--checks",
+                        str(manifest_path),
+                        "--repository-id",
+                        repository_id,
+                        "--mncs",
+                        mncs_binary,
+                    ]
+                )
             for library in mncs_test_libraries:
                 command.extend(["--library", library])
+            environment = os.environ.copy()
+            if native_runner:
+                environment["MNCS"] = mncs_binary
             try:
                 completed = subprocess.run(
                     command,
@@ -391,18 +446,91 @@ def _consumer_check(
                     text=True,
                     check=False,
                     timeout=300,
+                    env=environment,
                 )
             except (OSError, subprocess.SubprocessError) as error:
                 raise SelectiveFamilyError(
                     f"{repository_id} mncs-test runner could not be started: {error}"
                 ) from error
-            try:
-                response = json.loads(completed.stdout)
-            except (UnicodeDecodeError, json.JSONDecodeError) as error:
-                raise SelectiveFamilyError(
-                    f"{repository_id} mncs-test runner returned no structured family-check response: "
-                    + (completed.stderr.strip() or str(error))
-                ) from error
+            if native_runner:
+                if not native_result_path.is_file() or not native_check_path.is_file():
+                    raise SelectiveFamilyError(
+                        f"{repository_id} native mncs-test produced no structured result: "
+                        + (completed.stderr.strip() or f"exit {completed.returncode}")
+                    )
+                behavioral_result = _read_json(
+                    native_result_path, f"{repository_id} native TestResult"
+                )
+                native_check = _read_json(
+                    native_check_path, f"{repository_id} native CheckResult"
+                )
+                verdict = behavioral_result.get("verdict")
+                if verdict not in {"PASS", "FAIL", "UNKNOWN"}:
+                    raise SelectiveFamilyError(
+                        f"{repository_id} native mncs-test returned an invalid verdict"
+                    )
+                execution = behavioral_result.get("execution")
+                if not isinstance(execution, Mapping):
+                    raise SelectiveFamilyError(
+                        f"{repository_id} native mncs-test omitted execution identity"
+                    )
+                execution = dict(execution)
+                execution["check_definition_identity"] = sha256_hex(
+                    canonical_bytes(check)
+                )
+                behavioral_result = dict(behavioral_result)
+                behavioral_result["execution"] = execution
+                native_result_digest = sha256_hex(canonical_bytes(behavioral_result))
+                native_check_digest = sha256_hex(canonical_bytes(native_check))
+                response = {
+                    "schema_version": "mncs.family-check-response/1",
+                    "check_identity": check_identity,
+                    "contract_identity": edge["contract_identity"],
+                    "contract_revision": edge["contract_revision"],
+                    "runner": "mncs-test",
+                    "verdict": verdict,
+                    "family_binding": {
+                        "verification_plan_id": plan["plan_id"],
+                        "family_graph_identity": graph_identity,
+                        "edge_fingerprint": edge["fingerprint"],
+                        "source_change_sha256": plan["source"]["sha256"],
+                    },
+                    "check_result": {
+                        "schema_version": "mncs.check-result/1",
+                        "id": check_identity,
+                        "provider": repository_id,
+                        "verdict": verdict,
+                        "scope": check["surface"],
+                        "claim": "selected consumer behavioral proof established by native mncs-test",
+                        "summary": native_check.get(
+                            "summary", "native mncs-test behavioral check"
+                        ),
+                        "contract_revision": edge["contract_revision"],
+                        "producer_revision": plan["source"]["sha256"],
+                        "references": [
+                            {
+                                "kind": "mncs-test-check-result",
+                                "uri": f"urn:mncs-test-check:{check_identity}",
+                                "digest": "sha256:" + native_check_digest,
+                            },
+                            {
+                                "kind": "mncs-test-result",
+                                "uri": f"urn:mncs-test:{behavioral_result.get('run_id', native_result_digest)}",
+                                "digest": "sha256:" + native_result_digest,
+                            },
+                        ],
+                    },
+                    "test_result": behavioral_result,
+                    "execution": execution,
+                }
+            else:
+                try:
+                    response = json.loads(completed.stdout)
+                except (UnicodeDecodeError, json.JSONDecodeError) as error:
+                    raise SelectiveFamilyError(
+                        f"{repository_id} mncs-test runner returned no structured family-check response: "
+                        + (completed.stderr.strip() or str(error))
+                    ) from error
         if not isinstance(response, Mapping) or response.get("schema_version") != "mncs.family-check-response/1":
             raise SelectiveFamilyError(f"{repository_id} mncs-test runner response has an unsupported schema")
         if response.get("check_identity") != check_identity:

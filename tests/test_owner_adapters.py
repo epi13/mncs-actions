@@ -11,7 +11,7 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 COMMONS_ROOT = REPO.parent / "MNCS-Commons"
-FORGE_ROOT = REPO.parent / "mncs-forge-mcp"
+FORGE_ROOT = REPO.parent / "mncs-forge"
 sys.path.insert(0, str(REPO / "lib"))
 sys.path.insert(0, str(REPO / "adapters"))
 sys.path.insert(0, str(FORGE_ROOT / "src"))
@@ -86,7 +86,7 @@ def test_commons_registry_and_owner_validator_projection(tmp_path):
 
 def test_forge_native_validator_preserves_unknown_assurance():
     if not FORGE_ROOT.is_dir():
-        pytest.skip("mncs-forge-mcp checkout is not available")
+        pytest.skip("mncs-forge checkout is not available")
     forge_root = FORGE_ROOT
     check = forge_adapter.build_check(
         forge_root=forge_root,
@@ -106,7 +106,7 @@ def test_forge_native_validator_preserves_unknown_assurance():
 
 def test_forge_wrong_nonce_is_fail_and_malformed_record_is_rejected(tmp_path):
     if not FORGE_ROOT.is_dir():
-        pytest.skip("mncs-forge-mcp checkout is not available")
+        pytest.skip("mncs-forge checkout is not available")
     forge_root = FORGE_ROOT
     check = forge_adapter.build_check(
         forge_root=forge_root,

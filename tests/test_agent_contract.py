@@ -20,7 +20,7 @@ EXPECTED_AUTHORITIES = {
     "rights semantics": "mncs-rights-provenance",
     "coordination": "MNCS-Commons",
     "language capability": "mncs-language",
-    "assurance semantics": "mncs-forge-mcp",
+    "assurance semantics": "mncs-forge",
     "transport": "mncs-actions",
 }
 
@@ -64,7 +64,7 @@ def test_contract_authority_table_matches_schema():
         "rights_semantics": "mncs-rights-provenance",
         "coordination_exchange": "MNCS-Commons",
         "language_capability": "mncs-language",
-        "assurance_semantics": "mncs-forge-mcp",
+        "assurance_semantics": "mncs-forge",
         "transport": "mncs-actions",
     }, "schema authority consts changed; update contract and test together"
     for surface, owner in EXPECTED_AUTHORITIES.items():

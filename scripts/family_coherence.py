@@ -36,7 +36,7 @@ KNOWN_AUTHORITIES = {
     "mncs-rights-provenance",
     "mncs-language",
     "MNCS-Commons",
-    "mncs-forge-mcp",
+    "mncs-forge",
 }
 
 

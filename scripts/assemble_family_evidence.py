@@ -315,7 +315,7 @@ def run(args: argparse.Namespace) -> int:
             "commons": "MNCS-Commons",
             "rights": "mncs-rights-provenance",
             "language": "mncs-language",
-            "forge": "mncs-forge-mcp",
+            "forge": "mncs-forge",
             "orchestration": "mncs-actions",
         },
         "promotion": "observation-only; this document cannot update family-contracts.json",

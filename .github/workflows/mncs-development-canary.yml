@@ -93,9 +93,9 @@ jobs:
         # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          repository: epi13/mncs-forge-mcp
+          repository: epi13/mncs-forge
           ref: 4551c49f1b209c0315ea8f2a61e5e61af25bddf4
-          path: family/mncs-forge-mcp
+          path: family/mncs-forge
           persist-credentials: false
           fetch-depth: 1
 
@@ -185,9 +185,8 @@ jobs:
           mkdir -p .mncs
           MNCS_TEST_BIN="$GITHUB_WORKSPACE/family/mncs-test/bin/mncs-test" \
           MNCS_BIN="$GITHUB_WORKSPACE/family/mncs-language/target/debug/mncs" \
-          MNCS_MANIFEST="$GITHUB_WORKSPACE/family/mncs-test/mncs-test.toml" \
+          MNCS_SOURCE_FILE="$GITHUB_WORKSPACE/family/mncs-test/tests/self_suite.mncs" \
           MNCS_LIBRARY_PATH_INPUT="$GITHUB_WORKSPACE/family/mncs-test/native:$GITHUB_WORKSPACE/family/mncs-language/library" \
-          MNCS_EMBED_LIBRARY_INPUT="$GITHUB_WORKSPACE/family/mncs-language/target/debug/libmncs_embed.so" \
           MNCS_RESULT_FILE="$GITHUB_WORKSPACE/.mncs/pass-check.json" \
           MNCS_TEST_RESULT_FILE="$GITHUB_WORKSPACE/.mncs/pass-result.json" \
           MNCS_ARTIFACTS_DIRECTORY="$GITHUB_WORKSPACE/.mncs/pass-artifacts" \
@@ -196,7 +195,7 @@ jobs:
             --result-file .mncs/pass-check.json \
             --evidence-dir .mncs/pass-evidence \
             --command-exit-code 0 \
-            --command "mncs-test pass fixture" \
+            --command "mncs test self_suite.mncs" \
             --expected-id mncs-test \
             --expected-provider mncs-test
           python3 -c "import json; assert json.load(open('.mncs/pass-check.json'))['verdict'] == 'PASS'"
@@ -208,9 +207,8 @@ jobs:
           set +e
           MNCS_TEST_BIN="$GITHUB_WORKSPACE/family/mncs-test/bin/mncs-test" \
           MNCS_BIN="$GITHUB_WORKSPACE/family/mncs-language/target/debug/mncs" \
-          MNCS_MANIFEST="$GITHUB_WORKSPACE/family/mncs-test/tests/fixtures/first-class-failing.toml" \
+          MNCS_SOURCE_FILE="$GITHUB_WORKSPACE/family/mncs-test/tests/fixtures/first_class_failing.mncs" \
           MNCS_LIBRARY_PATH_INPUT="$GITHUB_WORKSPACE/family/mncs-test/native:$GITHUB_WORKSPACE/family/mncs-language/library" \
-          MNCS_EMBED_LIBRARY_INPUT="$GITHUB_WORKSPACE/family/mncs-language/target/debug/libmncs_embed.so" \
           MNCS_RESULT_FILE="$GITHUB_WORKSPACE/.mncs/fail-check.json" \
           MNCS_TEST_RESULT_FILE="$GITHUB_WORKSPACE/.mncs/fail-result.json" \
           MNCS_ARTIFACTS_DIRECTORY="$GITHUB_WORKSPACE/.mncs/fail-artifacts" \
@@ -223,7 +221,7 @@ jobs:
             --result-file .mncs/fail-check.json \
             --evidence-dir .mncs/fail-evidence \
             --command-exit-code "$test_status" \
-            --command "mncs-test failing first-class fixture" \
+            --command "mncs test first_class_failing.mncs" \
             --expected-id mncs-test \
             --expected-provider mncs-test \
             --scope-file .mncs/fail-plan.json
@@ -268,10 +266,10 @@ jobs:
 
       - name: Run the real Forge diagnose-fix-verify test
         env:
-          PYTHONPATH: ${{ github.workspace }}/family/mncs-forge-mcp/src
+          PYTHONPATH: ${{ github.workspace }}/family/mncs-forge/src
           MNCS_ACTIONS_HANDOFF_ROOT: ${{ github.workspace }}/.mncs
           RAVEL_REPO: ${{ github.workspace }}/family/RAVEL
-        run: python3 -m pytest family/mncs-forge-mcp/tests/test_mncs_development.py -q --basetemp=.mncs/forge-basetemp
+        run: python3 -m pytest family/mncs-forge/tests/test_mncs_development.py -q --basetemp=.mncs/forge-basetemp
 
       - name: Upload fixed-loop evidence
         if: always()

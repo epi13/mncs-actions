@@ -24,7 +24,7 @@
         "rights_semantics": { "const": "mncs-rights-provenance" },
         "coordination_exchange": { "const": "MNCS-Commons" },
         "language_capability": { "const": "mncs-language" },
-        "assurance_semantics": { "const": "mncs-forge-mcp" },
+        "assurance_semantics": { "const": "mncs-forge" },
         "transport": { "const": "mncs-actions" }
       },
       "additionalProperties": false

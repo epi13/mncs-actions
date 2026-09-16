@@ -55,7 +55,7 @@
       ],
       "checkout_path": "family/forge",
       "name": "forge",
-      "repository": "epi13/mncs-forge-mcp",
+      "repository": "epi13/mncs-forge",
       "revision": "f96985fe3897c6e80b910f01d07b6e2fab51bb78"
     }
   ],

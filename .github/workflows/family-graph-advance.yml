@@ -125,7 +125,7 @@ jobs:
       - name: Check out candidate Forge
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
-          repository: epi13/mncs-forge-mcp
+          repository: epi13/mncs-forge
           ref: ${{ steps.candidate.outputs.forge }}
           path: family/forge
           persist-credentials: false

@@ -39,7 +39,7 @@ When MNCS cannot cleanly express or perform something this repository needs:
    | rights semantics   | mncs-rights-provenance  |
    | coordination       | MNCS-Commons             |
    | language capability| mncs-language           |
-   | assurance semantics| mncs-forge-mcp          |
+   | assurance semantics| mncs-forge              |
    | transport          | mncs-actions            |
 
 4. Fix the deficiency in the owning repository, run that repository's suite,

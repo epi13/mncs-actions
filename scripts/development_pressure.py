@@ -216,7 +216,7 @@ def build_pressure_bundle(
             "rights_semantics": "mncs-rights-provenance",
             "coordination_exchange": "MNCS-Commons",
             "language_capability": "mncs-language",
-            "assurance_semantics": "mncs-forge-mcp",
+            "assurance_semantics": "mncs-forge",
             "transport": "mncs-actions",
         },
         "promotion": "observation only; no pressure observation authorizes a change",

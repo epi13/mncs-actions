@@ -57,8 +57,8 @@ def build_check(
         references.append(
             {
                 "kind": kind,
-                "producer": "mncs-forge-mcp",
-                "authority": "mncs-forge-mcp",
+                "producer": "mncs-forge",
+                "authority": "mncs-forge",
                 "path": "family/forge/" + str(path.relative_to(forge_root)).replace("\\", "/"),
                 "digest": sha256_hex(path.read_bytes()),
             }
@@ -66,7 +66,7 @@ def build_check(
     check: dict[str, Any] = {
         "schema_version": CHECK_RESULT_SCHEMA_VERSION,
         "id": "forge-cell-contract",
-        "provider": "mncs-forge-mcp",
+        "provider": "mncs-forge",
         "verdict": assessment.status,
         "scope": "forge-cell-schema-and-assurance-boundary",
         "claim": "Forge-owned Forge Cell validation and assurance projection were executed",
