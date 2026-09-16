@@ -174,6 +174,7 @@ def test_contract_change_runs_selected_consumers_and_reuses_exact_receipts(tmp_p
         graph_path=graph_path,
         workspace_root=workspace,
         output_dir=first_dir,
+        compatibility_oracle=True,
     )
     assert first["status"] == "PASS"
     assert first["routing"]["selected_repository_count"] == 2
@@ -211,6 +212,7 @@ def test_contract_change_runs_selected_consumers_and_reuses_exact_receipts(tmp_p
         workspace_root=workspace,
         output_dir=second_dir,
         prior_proof=first_dir,
+        compatibility_oracle=True,
     )
     assert second["status"] == "PASS"
     assert second["metrics"]["checks_executed"] == 0

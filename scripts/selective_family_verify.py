@@ -1613,10 +1613,15 @@ def build_selective_proof(
     mncs_binary: str = "mncs",
     mncs_test_libraries: list[str] | None = None,
     native_actions_shadow_source: Path | None = None,
+    compatibility_oracle: bool = False,
 ) -> dict[str, Any]:
     if output_dir.exists() and any(output_dir.iterdir()):
         raise SelectiveFamilyError(f"output directory must be empty: {output_dir}")
     output_dir.mkdir(parents=True, exist_ok=True)
+    if native_actions_shadow_source is None and not compatibility_oracle:
+        native_actions_shadow_source = (
+            Path(__file__).resolve().parents[1] / "native/mncs/actions/family/v1.mncs"
+        )
     plan = validate_plan(_read_json(plan_path, "verification plan"))
     graph = load_family_graph(graph_path)
     cross = plan["impact"]["cross_repository"]
@@ -1853,6 +1858,7 @@ def main(argv: list[str] | None = None) -> int:
             mncs_binary=args.mncs_binary,
             mncs_test_libraries=args.mncs_test_library,
             native_actions_shadow_source=native_actions_source,
+            compatibility_oracle=args.python_compatibility_oracle,
         )
     except (OSError, SelectiveFamilyError, ValueError) as error:
         print(f"SELECTIVE FAMILY VERIFICATION REFUSED: {error}", file=sys.stderr)
