@@ -141,18 +141,10 @@ if [[ -n "$test_filter" ]]; then
   done
 fi
 if [[ -n "$verification_plan" ]]; then
-  if ! command -v jq >/dev/null 2>&1; then
-    write_start_failure "verification-plan selection requires jq in the external Actions adapter"
-    exit 3
-  fi
-  mapfile -t plan_identities < <(jq -r '.selection.selected_test_identities[]? // empty' "$verification_plan")
-  if [[ "${#plan_identities[@]}" -eq 0 ]]; then
-    write_start_failure "verification plan contains no exact selected test identities"
-    exit 2
-  fi
-  for identity in "${plan_identities[@]}"; do
-    provider+=(--test-identity "$identity")
-  done
+  # Plan validation and exact inventory joining belong to the native runner.
+  # The composite action only transports the plan file; it never projects
+  # selection semantics through jq or another shell parser.
+  provider+=(--verification-plan "$verification_plan")
 fi
 [[ -n "$step_budget" ]] && provider+=(--step-budget "$step_budget")
 [[ "$allow_unsupported" == "true" ]] && provider+=(--allow-unsupported)

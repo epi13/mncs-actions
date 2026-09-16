@@ -1,0 +1,34 @@
+{
+  "schema_version": "mncs.native-userland-status/1",
+  "repository_id": "mncs-actions",
+  "status": "native_shadow",
+  "canonical_entrypoint": "scripts/selective_family_verify.py",
+  "native_sources": {
+    "family-check": "native/mncs/actions/family/v1.mncs"
+  },
+  "shadow_launcher": "mncs call",
+  "semantic_modules": [
+    "native/mncs/actions/family/v1.mncs"
+  ],
+  "next_migration_slice": "native verification-plan ingestion and native family-check response composition",
+  "host_paths": [
+    {
+      "path": "scripts/selective_family_verify.py",
+      "role": "canonical_transport_and_compatibility_oracle",
+      "canonical": true,
+      "semantic_authority": "native shadow only for the enabled family-check slice"
+    },
+    {
+      "path": "actions/mncs-test/test.sh",
+      "role": "external_composite_action_transport",
+      "canonical": true,
+      "semantic_authority": false
+    }
+  ],
+  "host_fallback": {
+    "allowed": true,
+    "failure_mode": "explicit_compatibility_oracle",
+    "canonical_native_shadow": "--native-actions-shadow",
+    "silent_fallback": false
+  }
+}

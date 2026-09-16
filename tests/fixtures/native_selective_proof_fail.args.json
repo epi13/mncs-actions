@@ -1,0 +1,97 @@
+[
+  {
+    "record": {
+      "type": "SelectedProofInput",
+      "fields": {
+        "observations": {
+          "sequence": {
+            "values": [
+              {
+                "record": {
+                  "type": "ConsumerObservation",
+                  "fields": {
+                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "receipt_valid": {"boolean": {"value": true}},
+                    "proof_sufficient": {"boolean": {"value": true}}
+                  }
+                }
+              },
+              {
+                "record": {
+                  "type": "ConsumerObservation",
+                  "fields": {
+                    "verdict": {"finite": {"type": "Verdict", "variant": "FAIL"}},
+                    "receipt_valid": {"boolean": {"value": false}},
+                    "proof_sufficient": {"boolean": {"value": true}}
+                  }
+                }
+              },
+              {
+                "record": {
+                  "type": "ConsumerObservation",
+                  "fields": {
+                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "receipt_valid": {"boolean": {"value": true}},
+                    "proof_sufficient": {"boolean": {"value": true}}
+                  }
+                }
+              },
+              {
+                "record": {
+                  "type": "ConsumerObservation",
+                  "fields": {
+                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "receipt_valid": {"boolean": {"value": true}},
+                    "proof_sufficient": {"boolean": {"value": true}}
+                  }
+                }
+              },
+              {
+                "record": {
+                  "type": "ConsumerObservation",
+                  "fields": {
+                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "receipt_valid": {"boolean": {"value": true}},
+                    "proof_sufficient": {"boolean": {"value": true}}
+                  }
+                }
+              },
+              {
+                "record": {
+                  "type": "ConsumerObservation",
+                  "fields": {
+                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "receipt_valid": {"boolean": {"value": true}},
+                    "proof_sufficient": {"boolean": {"value": true}}
+                  }
+                }
+              },
+              {
+                "record": {
+                  "type": "ConsumerObservation",
+                  "fields": {
+                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "receipt_valid": {"boolean": {"value": true}},
+                    "proof_sufficient": {"boolean": {"value": true}}
+                  }
+                }
+              },
+              {
+                "record": {
+                  "type": "ConsumerObservation",
+                  "fields": {
+                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "receipt_valid": {"boolean": {"value": true}},
+                    "proof_sufficient": {"boolean": {"value": true}}
+                  }
+                }
+              }
+            ]
+          }
+        },
+        "count": {"integer": {"value": 2}},
+        "overflow": {"boolean": {"value": false}}
+      }
+    }
+  }
+]

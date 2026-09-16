@@ -1,0 +1,18 @@
+[
+  {
+    "record": {
+      "type": "FamilyCheckInput",
+      "fields": {
+        "family_binding_valid": {"boolean": {"value": true}},
+        "plan_binding_valid": {"boolean": {"value": true}},
+        "graph_binding_valid": {"boolean": {"value": true}},
+        "edge_binding_valid": {"boolean": {"value": true}},
+        "receipt_valid": {"boolean": {"value": true}},
+        "test_result_bound": {"boolean": {"value": true}},
+        "check_result_bound": {"boolean": {"value": true}},
+        "proof_sufficient": {"boolean": {"value": true}},
+        "test_verdict": {"finite": {"type": "Verdict", "variant": "PASS"}}
+      }
+    }
+  }
+]

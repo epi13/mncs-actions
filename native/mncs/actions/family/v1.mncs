@@ -1,0 +1,195 @@
+mncs 0.16;
+
+// mncs.actions.family.v1 — native Actions semantics.
+//
+// This module is intentionally bounded and typed.  It receives already
+// decoded contract facts from an adapter and decides family-check verdict,
+// receipt reuse eligibility, and selected-consumer proof aggregation.  It does
+// not know GitHub, paths, subprocesses, JSON, or repository manifests.
+module mncs.actions.family.v1;
+
+enum Verdict { PASS, FAIL, UNKNOWN }
+
+record FamilyCheckInput {
+    family_binding_valid: bool,
+    plan_binding_valid: bool,
+    graph_binding_valid: bool,
+    edge_binding_valid: bool,
+    receipt_valid: bool,
+    test_result_bound: bool,
+    check_result_bound: bool,
+    proof_sufficient: bool,
+    test_verdict: Verdict
+}
+
+record FamilyCheckResult {
+    verdict: Verdict,
+    proof_sufficient: bool,
+    reusable: bool,
+    reason_code: u64
+}
+
+fn family_check(input: FamilyCheckInput) -> (result: FamilyCheckResult) {
+    if !input.family_binding_valid
+        || !input.plan_binding_valid
+        || !input.graph_binding_valid
+        || !input.edge_binding_valid
+        || !input.test_result_bound
+        || !input.check_result_bound
+        || !input.proof_sufficient {
+        return FamilyCheckResult {
+            verdict: Verdict.UNKNOWN,
+            proof_sufficient: false,
+            reusable: false,
+            reason_code: 10
+        };
+    }
+    return match input.test_verdict {
+        PASS => FamilyCheckResult {
+            verdict: Verdict.PASS,
+            proof_sufficient: true,
+            reusable: input.receipt_valid,
+            reason_code: 0
+        },
+        FAIL => FamilyCheckResult {
+            verdict: Verdict.FAIL,
+            proof_sufficient: true,
+            reusable: false,
+            reason_code: 1
+        },
+        UNKNOWN => FamilyCheckResult {
+            verdict: Verdict.UNKNOWN,
+            proof_sufficient: false,
+            reusable: false,
+            reason_code: 2
+        }
+    };
+}
+
+record ReuseInput {
+    family_binding_equal: bool,
+    plan_binding_equal: bool,
+    graph_binding_equal: bool,
+    source_binding_equal: bool,
+    dependency_identity_equal: bool,
+    receipt_valid: bool,
+    evidence_valid: bool
+}
+
+record ReuseDecision {
+    eligible: bool,
+    reason_code: u64
+}
+
+fn reuse_eligibility(input: ReuseInput) -> (result: ReuseDecision) {
+    let eligible: bool = input.family_binding_equal
+        && input.plan_binding_equal
+        && input.graph_binding_equal
+        && input.source_binding_equal
+        && input.dependency_identity_equal
+        && input.receipt_valid
+        && input.evidence_valid;
+    return ReuseDecision {
+        eligible: eligible,
+        reason_code: select(eligible, 0, 20)
+    };
+}
+
+record ConsumerObservation {
+    verdict: Verdict,
+    receipt_valid: bool,
+    proof_sufficient: bool
+}
+
+record SelectiveProof {
+    verdict: Verdict,
+    total: u64,
+    passed: u64,
+    failed: u64,
+    unknown: u64,
+    invalid: u64,
+    reusable: bool
+}
+
+fn empty_proof() -> (result: SelectiveProof) {
+    return SelectiveProof {
+        verdict: Verdict.PASS,
+        total: 0,
+        passed: 0,
+        failed: 0,
+        unknown: 0,
+        invalid: 0,
+        reusable: true
+    };
+}
+
+fn observe(proof: SelectiveProof, consumer: ConsumerObservation) -> (result: SelectiveProof) {
+    let total: u64 = proof.total +% 1;
+    let invalid: u64 = proof.invalid +% select(consumer.receipt_valid && consumer.proof_sufficient, 0, 1);
+    return match consumer.verdict {
+        PASS => SelectiveProof {
+            ..proof,
+            total: total,
+            passed: proof.passed +% 1,
+            invalid: invalid,
+            reusable: proof.reusable && consumer.receipt_valid && consumer.proof_sufficient
+        },
+        FAIL => SelectiveProof {
+            ..proof,
+            verdict: Verdict.FAIL,
+            total: total,
+            failed: proof.failed +% 1,
+            invalid: invalid,
+            reusable: false
+        },
+        UNKNOWN => SelectiveProof {
+            ..proof,
+            verdict: Verdict.UNKNOWN,
+            total: total,
+            unknown: proof.unknown +% 1,
+            invalid: invalid,
+            reusable: false
+        }
+    };
+}
+
+fn finalize(proof: SelectiveProof) -> (result: SelectiveProof) {
+    if proof.invalid > 0 {
+        return SelectiveProof { ..proof, verdict: Verdict.UNKNOWN, reusable: false };
+    }
+    if proof.failed > 0 {
+        return SelectiveProof { ..proof, verdict: Verdict.FAIL, reusable: false };
+    }
+    if proof.unknown > 0 {
+        return SelectiveProof { ..proof, verdict: Verdict.UNKNOWN, reusable: false };
+    }
+    return proof;
+}
+
+record SelectedProofInput {
+    observations: [ConsumerObservation; 8],
+    count: u64,
+    overflow: bool
+}
+
+fn include_slot(index: u64, count: u64, overflow: bool) -> (result: bool) {
+    if overflow { return false; }
+    return index < count;
+}
+
+fn selected_proof(input: SelectedProofInput) -> (result: SelectiveProof) {
+    iterate i over input.observations carrying proof: SelectiveProof = empty_proof() {
+        let include: bool = include_slot(i as u64, input.count, input.overflow);
+        next proof = observe_if(proof, input.observations[i], include);
+    }
+    return finalize(proof);
+}
+
+fn observe_if(
+    proof: SelectiveProof,
+    consumer: ConsumerObservation,
+    include: bool
+) -> (result: SelectiveProof) {
+    if include { return observe(proof, consumer); }
+    return proof;
+}

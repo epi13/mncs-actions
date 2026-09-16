@@ -1,0 +1,22 @@
+{
+  "schema_version": "mncs.native-userland-allowlist/1",
+  "repository_id": "mncs-actions",
+  "canonical_status": "native_shadow",
+  "entries": [
+    {
+      "path": "scripts/selective_family_verify.py",
+      "class": "transport_and_compatibility_oracle",
+      "reason": "It still owns external plan/graph loading, process supervision, receipt packaging, and composite proof transport; the native family semantic slice is opt-in and parity-checked."
+    },
+    {
+      "path": "actions/mncs-test/test.sh",
+      "class": "external_adapter",
+      "reason": "GitHub composite-action transport remains external; it passes the verification-plan file directly to native mncs-test."
+    },
+    {
+      "path": "lib/*.py",
+      "class": "compatibility_oracle",
+      "reason": "Existing Python contract and evidence helpers remain available for parity and external interoperability until their native consumers take ownership."
+    }
+  ]
+}

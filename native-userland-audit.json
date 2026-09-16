@@ -1,11 +1,12 @@
 {
   "schema_version": "mncs.native-userland-audit/1",
   "repository": "mncs-actions",
-  "status": "hybrid",
+  "status": "native_shadow",
   "canonical_mncs_surfaces": [
     "family contract declarations",
     "verification-plan and receipt semantics",
-    "check-result and evidence projections"
+    "check-result and evidence projections",
+    "mncs.actions.family.v1 bounded family-check and selected-proof semantics"
   ],
   "host_canonical_responsibilities": [
     {
@@ -19,16 +20,34 @@
       "eliminating_capability": "typed process, filesystem, and canonical structured-data effects"
     },
     {
+      "area": "family-check response and selective-proof composition",
+      "classification": "native_shadow_parity_path",
+      "eliminating_capability": "native verification-plan ingestion, receipt/evidence effects, and direct typed calls"
+    },
+    {
       "area": "legacy manifest compatibility adapter",
       "classification": "test_oracle_tooling",
       "eliminating_capability": "native source/inventory contract adoption by all consumers"
     }
   ],
   "existing_pressures": [
+    "MNCS-TOOLING-146FB6F4BBC6",
     "MNCS-TOOLING-B665F138D324",
     "MNCS-TOOLING-CB736AB5B3F0",
     "MNCS-LANG-52A5E0C72A39"
   ],
   "migration_order": 2,
-  "next_native_slice": "native family-check composition over compiler-owned TestResult and CheckResult"
+  "next_native_slice": "native verification-plan ingestion and native family-check response composition",
+  "shadow_entrypoint": "scripts/selective_family_verify.py --native-actions-shadow native/mncs/actions/family/v1.mncs",
+  "shadow_authority": "mncs.actions.family.v1",
+  "runtime_effect_dogfood": {
+    "process": "native shadow launcher uses mncs process for explicit argv, bounded UTF-8 capture, and deadline enforcement",
+    "structured_data": "native shadow launcher transports typed call arguments/results through the generic structured boundary"
+  },
+  "canonical_entrypoint": "scripts/selective_family_verify.py (host transport; native shadow opt-in)",
+  "host_fallback": {
+    "allowed": true,
+    "failure_mode": "explicit_compatibility_oracle",
+    "canonical_semantic_fallback": false
+  }
 }

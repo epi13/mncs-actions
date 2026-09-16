@@ -240,6 +240,249 @@ def _native_source(checkout: Path, repository_id: str, selector: Mapping[str, An
     return source
 
 
+def _run_native_mncs_call(
+    *,
+    mncs_binary: str,
+    source_path: Path,
+    function: str,
+    arguments: str,
+    cwd: Path,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Invoke one generic MNCS call through the bounded process capability."""
+
+    try:
+        completed = subprocess.run(
+            [
+                mncs_binary,
+                "process",
+                mncs_binary,
+                "--cwd",
+                str(cwd),
+                "--arg",
+                "call",
+                "--arg",
+                str(source_path),
+                "--arg",
+                "--module",
+                "--arg",
+                "mncs.actions.family.v1",
+                "--arg",
+                "--function",
+                "--arg",
+                function,
+                "--arg",
+                "--args-json",
+                "--arg",
+                arguments,
+                "--deadline-ms",
+                "300000",
+            ],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=305,
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise SelectiveFamilyError(f"bounded native process launcher could not be started: {error}") from error
+    if completed.returncode != 0:
+        raise SelectiveFamilyError(
+            "bounded native process launcher failed: "
+            + (completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}")
+        )
+    try:
+        process_document = json.loads(completed.stdout)
+        if not process_document.get("success") or process_document.get("timed_out"):
+            raise SelectiveFamilyError(
+                "bounded native process returned failure: "
+                + (process_document.get("stderr") or str(process_document))
+            )
+        call_text = process_document.get("stdout")
+        if not isinstance(call_text, str):
+            raise SelectiveFamilyError("bounded native process returned no UTF-8 call output")
+        return json.loads(call_text), process_document
+    except (TypeError, ValueError, json.JSONDecodeError) as error:
+        raise SelectiveFamilyError(
+            f"bounded native process returned invalid structured output: {error}"
+        ) from error
+
+
+def _run_native_actions_family_check(
+    *,
+    mncs_binary: str,
+    source_path: Path,
+    verdict: str,
+    cwd: Path,
+) -> dict[str, Any]:
+    """Run the Actions semantic core through the generic MNCS launcher.
+
+    This adapter performs only name-oriented transport.  It does not decide a
+    family verdict; the returned finite Verdict and proof fields are owned by
+    ``mncs.actions.family.v1``.
+    """
+
+    boolean = lambda value: {"boolean": {"value": bool(value)}}
+    fields = {
+        "family_binding_valid": boolean(True),
+        "plan_binding_valid": boolean(True),
+        "graph_binding_valid": boolean(True),
+        "edge_binding_valid": boolean(True),
+        "receipt_valid": boolean(False),
+        "test_result_bound": boolean(True),
+        "check_result_bound": boolean(True),
+        "proof_sufficient": boolean(True),
+        "test_verdict": {
+            "finite": {"type": "Verdict", "variant": verdict},
+        },
+    }
+    arguments = json.dumps(
+        [{"record": {"type": "FamilyCheckInput", "fields": fields}}],
+        separators=(",", ":"),
+    )
+    document, process_document = _run_native_mncs_call(
+        mncs_binary=mncs_binary,
+        source_path=source_path,
+        function="family_check",
+        arguments=arguments,
+        cwd=cwd,
+    )
+    try:
+        call = document["call"]
+        returned = call["returned"]
+        record = returned[0]["record"]
+        fields = dict(record["fields"])
+        finite = fields["verdict"]["finite"]
+        native_verdict = str(finite["variant_identity"]).rsplit("::", 1)[-1]
+        native_result = {
+            "proof_sufficient": fields["proof_sufficient"]["boolean"]["value"],
+            "reusable": fields["reusable"]["boolean"]["value"],
+            "reason_code": fields["reason_code"]["integer"]["value"],
+        }
+    except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise SelectiveFamilyError(
+            f"native Actions semantic core returned an invalid typed result: {error}"
+        ) from error
+    if native_verdict != verdict:
+        raise SelectiveFamilyError(
+            f"native Actions semantic core verdict {native_verdict} disagrees with mncs-test {verdict}"
+        )
+    return {
+        "schema_version": "mncs-actions.native-family-check/1",
+        "authority": "mncs.actions.family.v1",
+        "module": "mncs.actions.family.v1",
+        "function": "family_check",
+        "verdict": native_verdict,
+        **native_result,
+        "artifact_identity": call.get("artifact_identity"),
+        "artifact_sha256": call.get("artifact_sha256"),
+        "steps": call.get("steps"),
+        "process": {
+            "schema_version": process_document.get("schema_version"),
+            "timed_out": process_document.get("timed_out"),
+            "stdout_truncated": process_document.get("stdout_truncated"),
+            "stderr_truncated": process_document.get("stderr_truncated"),
+        },
+    }
+
+
+def _run_native_actions_selected_proof(
+    *,
+    mncs_binary: str,
+    source_path: Path,
+    records: list[Mapping[str, Any]],
+    cwd: Path,
+) -> dict[str, Any]:
+    """Ask the bounded native reducer to aggregate selected consumers."""
+
+    observations: list[dict[str, Any]] = []
+    for record in records[:8]:
+        verdict = str(record.get("verdict", "UNKNOWN"))
+        if verdict not in {"PASS", "FAIL", "UNKNOWN"}:
+            verdict = "UNKNOWN"
+        observations.append(
+            {
+                "record": {
+                    "type": "ConsumerObservation",
+                    "fields": {
+                        "verdict": {"finite": {"type": "Verdict", "variant": verdict}},
+                        "receipt_valid": {"boolean": {"value": True}},
+                        "proof_sufficient": {"boolean": {"value": True}},
+                    },
+                }
+            }
+        )
+    while len(observations) < 8:
+        observations.append(
+            {
+                "record": {
+                    "type": "ConsumerObservation",
+                    "fields": {
+                        "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                        "receipt_valid": {"boolean": {"value": True}},
+                        "proof_sufficient": {"boolean": {"value": True}},
+                    },
+                }
+            }
+        )
+    arguments = json.dumps(
+        [
+            {
+                "record": {
+                    "type": "SelectedProofInput",
+                    "fields": {
+                        "observations": {"sequence": {"values": observations}},
+                        "count": {"integer": {"value": len(records)}},
+                        "overflow": {"boolean": {"value": len(records) > 8}},
+                    },
+                }
+            }
+        ],
+        separators=(",", ":"),
+    )
+    document, process_document = _run_native_mncs_call(
+        mncs_binary=mncs_binary,
+        source_path=source_path,
+        function="selected_proof",
+        arguments=arguments,
+        cwd=cwd,
+    )
+    try:
+        call = document["call"]
+        fields = dict(call["returned"][0]["record"]["fields"])
+        native_verdict = str(
+            fields["verdict"]["finite"]["variant_identity"]
+        ).rsplit("::", 1)[-1]
+        native_result = {
+            "total": fields["total"]["integer"]["value"],
+            "passed": fields["passed"]["integer"]["value"],
+            "failed": fields["failed"]["integer"]["value"],
+            "unknown": fields["unknown"]["integer"]["value"],
+            "invalid": fields["invalid"]["integer"]["value"],
+            "reusable": fields["reusable"]["boolean"]["value"],
+        }
+    except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise SelectiveFamilyError(
+            f"native selected-proof reducer returned an invalid typed result: {error}"
+        ) from error
+    return {
+        "schema_version": "mncs-actions.native-selective-proof/1",
+        "authority": "mncs.actions.family.v1",
+        "module": "mncs.actions.family.v1",
+        "function": "selected_proof",
+        "verdict": native_verdict,
+        **native_result,
+        "artifact_identity": call.get("artifact_identity"),
+        "artifact_sha256": call.get("artifact_sha256"),
+        "steps": call.get("steps"),
+        "process": {
+            "schema_version": process_document.get("schema_version"),
+            "timed_out": process_document.get("timed_out"),
+            "stdout_truncated": process_document.get("stdout_truncated"),
+            "stderr_truncated": process_document.get("stderr_truncated"),
+        },
+    }
+
+
 def _matching_edge(
     plan: Mapping[str, Any], graph: Mapping[str, Any], edge: Mapping[str, Any]
 ) -> dict[str, Any]:
@@ -319,6 +562,7 @@ def _consumer_check(
     mncs_binary: str,
     mncs_test_libraries: list[str],
     runtime_bindings: Mapping[str, Any],
+    native_actions_shadow_source: Path | None,
 ) -> tuple[dict[str, Any], str]:
     manifest_path, manifest = _check_manifest(checkout, repository_id)
     verification = edge.get("verification")
@@ -541,6 +785,14 @@ def _consumer_check(
             raise SelectiveFamilyError(f"{repository_id} mncs-test runner contract revision disagrees")
         if response.get("runner") != "mncs-test" or response.get("verdict") not in {"PASS", "FAIL", "UNKNOWN"}:
             raise SelectiveFamilyError(f"{repository_id} mncs-test runner response verdict is invalid")
+        native_actions_shadow = None
+        if native_actions_shadow_source is not None and response.get("runner") == "mncs-test":
+            native_actions_shadow = _run_native_actions_family_check(
+                mncs_binary=mncs_binary,
+                source_path=native_actions_shadow_source,
+                verdict=str(response["verdict"]),
+                cwd=checkout,
+            )
         binding = response.get("family_binding")
         if not isinstance(binding, Mapping):
             raise SelectiveFamilyError(f"{repository_id} mncs-test runner omitted family bindings")
@@ -649,6 +901,7 @@ def _consumer_check(
                 "inventory_identity": execution.get("inventory_identity") if isinstance(execution, Mapping) else None,
                 **dict(runtime_bindings),
                 "test_result": dict(behavioral_result),
+                "actions_native_shadow": native_actions_shadow,
             },
         }
         return result, repository_revision
@@ -951,6 +1204,7 @@ def build_selective_proof(
     mncs_test_runner: str = "mncs-test",
     mncs_binary: str = "mncs",
     mncs_test_libraries: list[str] | None = None,
+    native_actions_shadow_source: Path | None = None,
 ) -> dict[str, Any]:
     if output_dir.exists() and any(output_dir.iterdir()):
         raise SelectiveFamilyError(f"output directory must be empty: {output_dir}")
@@ -1027,6 +1281,7 @@ def build_selective_proof(
                 mncs_binary=mncs_binary,
                 mncs_test_libraries=mncs_test_libraries,
                 runtime_bindings=runtime_bindings,
+                native_actions_shadow_source=native_actions_shadow_source,
             )
         except SelectiveFamilyError as error:
             result = {
@@ -1059,6 +1314,19 @@ def build_selective_proof(
         generated += 1
     verdicts = [record["verdict"] for record in records]
     status = "FAIL" if "FAIL" in verdicts else ("UNKNOWN" if "UNKNOWN" in verdicts else "PASS")
+    native_actions_proof = None
+    if native_actions_shadow_source is not None:
+        native_actions_proof = _run_native_actions_selected_proof(
+            mncs_binary=mncs_binary,
+            source_path=native_actions_shadow_source,
+            records=records,
+            cwd=workspace_root,
+        )
+        if native_actions_proof["verdict"] != status:
+            raise SelectiveFamilyError(
+                "native selected-proof reducer disagrees with the compatibility projection: "
+                f"{native_actions_proof['verdict']} != {status}"
+            )
     contract_identities = sorted({edge["contract_identity"] for edge in exact_edges})
     core: dict[str, Any] = {
         "schema_version": PROOF_SCHEMA,
@@ -1111,6 +1379,8 @@ def build_selective_proof(
             "claim": "all selected consumer proofs required by this plan are established",
         },
     }
+    if native_actions_proof is not None:
+        core["native_actions_shadow"] = native_actions_proof
     core["proof_identity"] = sha256_hex(canonical_bytes(core))
     _write_json(output_dir / "composite-proof.json", core)
     return core
@@ -1126,6 +1396,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--mncs-test", dest="mncs_test_runner", default="mncs-test")
     parser.add_argument("--mncs", dest="mncs_binary", default="mncs")
     parser.add_argument("--mncs-test-library", action="append", default=[])
+    parser.add_argument(
+        "--native-actions-shadow",
+        type=Path,
+        help="Run the Actions semantic core through generic `mncs call` for parity evidence.",
+    )
     args = parser.parse_args(argv)
     try:
         proof = build_selective_proof(
@@ -1137,6 +1412,9 @@ def main(argv: list[str] | None = None) -> int:
             mncs_test_runner=args.mncs_test_runner,
             mncs_binary=args.mncs_binary,
             mncs_test_libraries=args.mncs_test_library,
+            native_actions_shadow_source=args.native_actions_shadow.resolve()
+            if args.native_actions_shadow
+            else None,
         )
     except (OSError, SelectiveFamilyError, ValueError) as error:
         print(f"SELECTIVE FAMILY VERIFICATION REFUSED: {error}", file=sys.stderr)
