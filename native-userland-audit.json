@@ -4,9 +4,9 @@
   "status": "native_shadow",
   "canonical_mncs_surfaces": [
     "family contract declarations",
-    "verification-plan and receipt semantics",
-    "check-result and evidence projections",
-    "mncs.actions.family.v1 bounded family-check and selected-proof semantics"
+    "typed family-binding facts consumed by the shadow path",
+    "mncs.actions.family.v1 bounded family-check verdict and reuse semantics",
+    "mncs.actions.family.v1 selected-consumer proof aggregation"
   ],
   "host_canonical_responsibilities": [
     {
