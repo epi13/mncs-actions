@@ -4,9 +4,9 @@
   "status": "native_shadow",
   "canonical_mncs_surfaces": [
     "family contract declarations",
-    "typed family-binding facts consumed by the shadow path",
-    "mncs.actions.family.v1 bounded family-check verdict and reuse semantics",
-    "mncs.actions.family.v1 selected-consumer proof aggregation"
+    "typed plan, graph, edge, TestResult, CheckResult, receipt, and evidence records",
+    "mncs.actions.family.v1 family-binding, verdict, receipt, reuse, and proof semantics",
+    "mncs.actions.family.v1 bounded selected-consumer proof aggregation"
   ],
   "host_canonical_responsibilities": [
     {
@@ -15,14 +15,14 @@
       "eliminating_capability": "none; GitHub runner boundary"
     },
     {
-      "area": "family selective-proof process supervision and receipt packaging",
-      "classification": "missing_reusable_runtime_capability",
-      "eliminating_capability": "typed process, filesystem, and canonical structured-data effects"
+      "area": "selected consumer/provider invocation and source artifact acquisition",
+      "classification": "application_effect_orchestration_blocker",
+      "eliminating_capability": "native application entry context plus typed process/filesystem effects and provider artifact ingress"
     },
     {
-      "area": "family-check response and selective-proof composition",
-      "classification": "native_shadow_parity_path",
-      "eliminating_capability": "native verification-plan ingestion, receipt/evidence effects, and direct typed calls"
+      "area": "external evidence decoding and receipt-file packaging",
+      "classification": "boundary_adapter",
+      "eliminating_capability": "typed structured-record ingress/egress and native receipt/evidence artifact effects"
     },
     {
       "area": "legacy manifest compatibility adapter",
@@ -37,14 +37,15 @@
     "MNCS-LANG-52A5E0C72A39"
   ],
   "migration_order": 2,
-  "next_native_slice": "native verification-plan ingestion and native family-check response composition",
-  "shadow_entrypoint": "scripts/selective_family_verify.py --native-actions-shadow native/mncs/actions/family/v1.mncs",
+  "next_native_slice": "native provider invocation and typed artifact/receipt ingress",
+  "shadow_entrypoint": "scripts/selective_family_verify.py --native-actions-source native/mncs/actions/family/v1.mncs",
   "shadow_authority": "mncs.actions.family.v1",
   "runtime_effect_dogfood": {
-    "process": "native shadow launcher uses mncs process for explicit argv, bounded UTF-8 capture, and deadline enforcement",
-    "structured_data": "native shadow launcher transports typed call arguments/results through the generic structured boundary"
+    "process": "generic mncs process_run is available to MNCS applications and is directly dogfooded by the Debug shadow; Actions provider launch remains host orchestration",
+    "structured_data": "Actions consumes typed family records and uses native structured_digest for receipt/proof identities; the external JSON projection remains an adapter",
+    "filesystem": "generic bounded filesystem effects are available to native applications; Actions source/evidence file ingress remains host orchestration"
   },
-  "canonical_entrypoint": "scripts/selective_family_verify.py (host transport; native shadow opt-in)",
+  "canonical_entrypoint": "scripts/selective_family_verify.py (native family semantics with host provider/evidence transport)",
   "host_fallback": {
     "allowed": true,
     "failure_mode": "explicit_compatibility_oracle",

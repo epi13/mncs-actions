@@ -6,7 +6,7 @@
     {
       "path": "scripts/selective_family_verify.py",
       "class": "transport_and_compatibility_oracle",
-      "reason": "It still owns external plan/graph loading, process supervision, receipt packaging, and composite proof transport; the native family semantic slice is opt-in and parity-checked."
+      "reason": "It still owns provider/process supervision, external plan/graph/evidence decoding, and receipt-file packaging; the native family semantic slice is the normal path, but end-to-end application orchestration remains host-owned."
     },
     {
       "path": "actions/mncs-test/test.sh",

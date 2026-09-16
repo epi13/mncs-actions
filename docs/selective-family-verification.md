@@ -12,7 +12,11 @@ and its command-free check identity.  Commons carries the identity and
 metadata; it does not carry arbitrary shell commands or execute repositories.
 Actions writes one check result, execution receipt, and evidence manifest per
 selected consumer, followed by `composite-proof.json`.  A composite PASS is
-only selected-consumer proof, never family-wide proof.
+only selected-consumer proof, never family-wide proof. On the normal command
+line path, Actions invokes its native application module and treats the
+returned family result, receipt, and selected proof as authoritative. Python
+remains a bounded document/filesystem adapter; `--python-compatibility-oracle`
+is reserved for explicit comparison tests.
 
 The composite proof also binds the producer repository, its declaration
 revision, producer declaration identity, producer evidence digests, and the
@@ -33,5 +37,6 @@ python scripts/selective_family_verify.py \
   --graph family/MNCS-Commons/family/semantic-edges-v1.json \
   --workspace-root family \
   --output-dir .mncs/selective-family-proof \
+  --native-actions-source native/mncs/actions/family/v1.mncs \
   [--prior-proof .mncs/previous-proof]
 ```

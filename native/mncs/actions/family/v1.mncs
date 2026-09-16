@@ -1,104 +1,365 @@
 mncs 0.16;
 
-// mncs.actions.family.v1 — native Actions semantics.
+// mncs.actions.family.v1 — native selected-family evidence authority.
 //
-// This module is intentionally bounded and typed.  It receives already
-// decoded contract facts from an adapter and decides family-check verdict,
-// receipt reuse eligibility, and selected-consumer proof aggregation.  It does
-// not know GitHub, paths, subprocesses, JSON, or repository manifests.
+// The application boundary carries actual bounded identities and result
+// records. No validity/sufficiency boolean is an input to this module. The
+// generic runtime owns canonical value identity and explicit effects; this
+// module owns family relationships, receipt construction, reuse, and proof
+// composition.
 module mncs.actions.family.v1;
 
 enum Verdict { PASS, FAIL, UNKNOWN }
 
+record PlanEvidence {
+    family_identity: [byte; 32],
+    plan_identity: [byte; 32],
+    graph_identity: [byte; 32],
+    edge_identity: [byte; 32],
+    source_identity: [byte; 32],
+    contract_identity: [byte; 32],
+    consumer_identity: [byte; 32],
+    test_identity: [byte; 32],
+    check_identity: [byte; 32]
+}
+
+record GraphEvidence {
+    family_identity: [byte; 32],
+    graph_identity: [byte; 32],
+    edge_identity: [byte; 32],
+    source_identity: [byte; 32],
+    contract_identity: [byte; 32],
+    consumer_identity: [byte; 32]
+}
+
+record EdgeEvidence {
+    edge_identity: [byte; 32],
+    source_identity: [byte; 32],
+    contract_identity: [byte; 32],
+    consumer_identity: [byte; 32],
+    producer_identity: [byte; 32],
+    producer_revision_identity: [byte; 32]
+}
+
+record TestResultEvidence {
+    result_identity: [byte; 32],
+    plan_identity: [byte; 32],
+    graph_identity: [byte; 32],
+    edge_identity: [byte; 32],
+    source_identity: [byte; 32],
+    consumer_identity: [byte; 32],
+    test_identity: [byte; 32],
+    execution_identity: [byte; 32],
+    evidence_identity: [byte; 32],
+    verdict: Verdict
+}
+
+record CheckResultEvidence {
+    result_identity: [byte; 32],
+    check_identity: [byte; 32],
+    plan_identity: [byte; 32],
+    graph_identity: [byte; 32],
+    edge_identity: [byte; 32],
+    source_identity: [byte; 32],
+    consumer_identity: [byte; 32],
+    test_result_identity: [byte; 32],
+    evidence_identity: [byte; 32],
+    verdict: Verdict
+}
+
+record ReceiptMaterial {
+    family_identity: [byte; 32],
+    plan_identity: [byte; 32],
+    graph_identity: [byte; 32],
+    edge_identity: [byte; 32],
+    source_identity: [byte; 32],
+    contract_identity: [byte; 32],
+    consumer_identity: [byte; 32],
+    test_result_identity: [byte; 32],
+    check_result_identity: [byte; 32],
+    execution_identity: [byte; 32],
+    evidence_identity: [byte; 32],
+    producer_identity: [byte; 32],
+    producer_revision_identity: [byte; 32],
+    verdict: Verdict
+}
+
+record ReceiptEvidence {
+    receipt_identity: [byte; 32],
+    family_identity: [byte; 32],
+    plan_identity: [byte; 32],
+    graph_identity: [byte; 32],
+    edge_identity: [byte; 32],
+    source_identity: [byte; 32],
+    consumer_identity: [byte; 32],
+    test_result_identity: [byte; 32],
+    check_result_identity: [byte; 32],
+    execution_identity: [byte; 32],
+    evidence_identity: [byte; 32],
+    producer_identity: [byte; 32],
+    producer_revision_identity: [byte; 32],
+    verdict: Verdict
+}
+
 record FamilyCheckInput {
-    family_binding_valid: bool,
-    plan_binding_valid: bool,
-    graph_binding_valid: bool,
-    edge_binding_valid: bool,
-    receipt_valid: bool,
-    test_result_bound: bool,
-    check_result_bound: bool,
-    proof_sufficient: bool,
-    test_verdict: Verdict
+    plan: PlanEvidence,
+    graph: GraphEvidence,
+    edge: EdgeEvidence,
+    test_result: TestResultEvidence,
+    check_result: CheckResultEvidence,
+    prior_receipt: ReceiptEvidence
+}
+
+record ProofMaterial {
+    family_identity: [byte; 32],
+    plan_identity: [byte; 32],
+    graph_identity: [byte; 32],
+    edge_identity: [byte; 32],
+    source_identity: [byte; 32],
+    consumer_identity: [byte; 32],
+    test_result_identity: [byte; 32],
+    check_result_identity: [byte; 32],
+    receipt_identity: [byte; 32],
+    execution_identity: [byte; 32],
+    evidence_identity: [byte; 32],
+    verdict: Verdict
 }
 
 record FamilyCheckResult {
     verdict: Verdict,
     proof_sufficient: bool,
     reusable: bool,
-    reason_code: u64
+    reason_code: u64,
+    plan_identity: [byte; 32],
+    graph_identity: [byte; 32],
+    edge_identity: [byte; 32],
+    source_identity: [byte; 32],
+    consumer_identity: [byte; 32],
+    test_result_identity: [byte; 32],
+    check_result_identity: [byte; 32],
+    execution_identity: [byte; 32],
+    evidence_identity: [byte; 32],
+    receipt: ReceiptEvidence,
+    proof_identity: [byte; 32]
 }
 
-fn family_check(input: FamilyCheckInput) -> (result: FamilyCheckResult) {
-    if !input.family_binding_valid
-        || !input.plan_binding_valid
-        || !input.graph_binding_valid
-        || !input.edge_binding_valid
-        || !input.test_result_bound
-        || !input.check_result_bound
-        || !input.proof_sufficient {
-        return FamilyCheckResult {
-            verdict: Verdict.UNKNOWN,
-            proof_sufficient: false,
-            reusable: false,
-            reason_code: 10
-        };
+fn bytes_equal(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
+    iterate i over left carrying equal: bool = true {
+        next equal = equal && left[i] == right[i];
     }
-    return match input.test_verdict {
-        PASS => FamilyCheckResult {
-            verdict: Verdict.PASS,
-            proof_sufficient: true,
-            reusable: input.receipt_valid,
-            reason_code: 0
-        },
-        FAIL => FamilyCheckResult {
-            verdict: Verdict.FAIL,
-            proof_sufficient: true,
-            reusable: false,
-            reason_code: 1
-        },
-        UNKNOWN => FamilyCheckResult {
-            verdict: Verdict.UNKNOWN,
-            proof_sufficient: false,
-            reusable: false,
-            reason_code: 2
-        }
+    return equal;
+}
+
+fn bytes_present(value: [byte; 32]) -> (result: bool) {
+    iterate i over value carrying present: bool = false {
+        next present = present || value[i] != 0;
+    }
+    return present;
+}
+
+fn verdict_equal(left: Verdict, right: Verdict) -> (result: bool) {
+    return match left {
+        PASS => match right { PASS => true, FAIL => false, UNKNOWN => false },
+        FAIL => match right { PASS => false, FAIL => true, UNKNOWN => false },
+        UNKNOWN => match right { PASS => false, FAIL => false, UNKNOWN => true }
     };
 }
 
-record ReuseInput {
-    family_binding_equal: bool,
-    plan_binding_equal: bool,
-    graph_binding_equal: bool,
-    source_binding_equal: bool,
-    dependency_identity_equal: bool,
-    receipt_valid: bool,
-    evidence_valid: bool
+fn verdict_is_unknown(value: Verdict) -> (result: bool) {
+    return match value { PASS => false, FAIL => false, UNKNOWN => true };
 }
 
-record ReuseDecision {
-    eligible: bool,
-    reason_code: u64
+fn verdict_is_fail(value: Verdict) -> (result: bool) {
+    return match value { PASS => false, FAIL => true, UNKNOWN => false };
 }
 
-fn reuse_eligibility(input: ReuseInput) -> (result: ReuseDecision) {
-    let eligible: bool = input.family_binding_equal
-        && input.plan_binding_equal
-        && input.graph_binding_equal
-        && input.source_binding_equal
-        && input.dependency_identity_equal
-        && input.receipt_valid
-        && input.evidence_valid;
-    return ReuseDecision {
-        eligible: eligible,
-        reason_code: select(eligible, 0, 20)
+fn verdict_is_pass(value: Verdict) -> (result: bool) {
+    return match value { PASS => true, FAIL => false, UNKNOWN => false };
+}
+
+fn copy_digest(view: [byte; up_to 64]) -> (result: [byte; 32]) {
+    let seed: [byte; 32] = [0; 32];
+    return copy_span(seed, 0, view, 0, 32);
+}
+
+fn plan_binding(input: FamilyCheckInput) -> (result: bool) {
+    return bytes_present(input.plan.family_identity)
+        && bytes_present(input.plan.plan_identity)
+        && bytes_present(input.plan.graph_identity)
+        && bytes_present(input.plan.edge_identity)
+        && bytes_present(input.plan.source_identity)
+        && bytes_present(input.plan.contract_identity)
+        && bytes_present(input.plan.consumer_identity)
+        && bytes_present(input.plan.test_identity)
+        && bytes_present(input.plan.check_identity)
+        && bytes_equal(input.plan.family_identity, input.graph.family_identity)
+        && bytes_equal(input.plan.graph_identity, input.graph.graph_identity)
+        && bytes_equal(input.plan.edge_identity, input.graph.edge_identity)
+        && bytes_equal(input.plan.edge_identity, input.edge.edge_identity)
+        && bytes_equal(input.plan.source_identity, input.graph.source_identity)
+        && bytes_equal(input.plan.source_identity, input.edge.source_identity)
+        && bytes_equal(input.plan.contract_identity, input.graph.contract_identity)
+        && bytes_equal(input.plan.contract_identity, input.edge.contract_identity)
+        && bytes_equal(input.plan.consumer_identity, input.graph.consumer_identity)
+        && bytes_equal(input.plan.consumer_identity, input.edge.consumer_identity)
+        && bytes_present(input.edge.producer_identity);
+}
+
+fn edge_binding(input: FamilyCheckInput) -> (result: bool) {
+    return bytes_present(input.edge.edge_identity)
+        && bytes_present(input.edge.producer_identity)
+        && bytes_present(input.edge.producer_revision_identity)
+        && bytes_equal(input.edge.edge_identity, input.test_result.edge_identity)
+        && bytes_equal(input.edge.edge_identity, input.check_result.edge_identity)
+        && bytes_equal(input.edge.source_identity, input.test_result.source_identity)
+        && bytes_equal(input.edge.source_identity, input.check_result.source_identity)
+        && bytes_equal(input.edge.consumer_identity, input.test_result.consumer_identity)
+        && bytes_equal(input.edge.consumer_identity, input.check_result.consumer_identity);
+}
+
+fn test_binding(input: FamilyCheckInput) -> (result: bool) {
+    return bytes_present(input.test_result.result_identity)
+        && bytes_present(input.test_result.test_identity)
+        && bytes_present(input.test_result.execution_identity)
+        && bytes_present(input.test_result.evidence_identity)
+        && bytes_equal(input.test_result.plan_identity, input.plan.plan_identity)
+        && bytes_equal(input.test_result.graph_identity, input.plan.graph_identity)
+        && bytes_equal(input.test_result.test_identity, input.plan.test_identity)
+        && bytes_equal(input.test_result.consumer_identity, input.plan.consumer_identity);
+}
+
+fn check_binding(input: FamilyCheckInput) -> (result: bool) {
+    return bytes_present(input.check_result.result_identity)
+        && bytes_present(input.check_result.check_identity)
+        && bytes_present(input.check_result.evidence_identity)
+        && bytes_equal(input.check_result.check_identity, input.plan.check_identity)
+        && bytes_equal(input.check_result.plan_identity, input.plan.plan_identity)
+        && bytes_equal(input.check_result.graph_identity, input.plan.graph_identity)
+        && bytes_equal(input.check_result.consumer_identity, input.plan.consumer_identity)
+        && bytes_equal(input.check_result.test_result_identity, input.test_result.result_identity)
+        && bytes_equal(input.check_result.evidence_identity, input.test_result.evidence_identity)
+        && verdict_equal(input.check_result.verdict, input.test_result.verdict);
+}
+
+fn receipt_matches(receipt: ReceiptEvidence, material: ReceiptMaterial, identity: [byte; 32]) -> (result: bool) {
+    return bytes_present(receipt.receipt_identity)
+        && bytes_equal(receipt.receipt_identity, identity)
+        && bytes_equal(receipt.family_identity, material.family_identity)
+        && bytes_equal(receipt.plan_identity, material.plan_identity)
+        && bytes_equal(receipt.graph_identity, material.graph_identity)
+        && bytes_equal(receipt.edge_identity, material.edge_identity)
+        && bytes_equal(receipt.source_identity, material.source_identity)
+        && bytes_equal(receipt.consumer_identity, material.consumer_identity)
+        && bytes_equal(receipt.test_result_identity, material.test_result_identity)
+        && bytes_equal(receipt.check_result_identity, material.check_result_identity)
+        && bytes_equal(receipt.execution_identity, material.execution_identity)
+        && bytes_equal(receipt.evidence_identity, material.evidence_identity)
+        && bytes_equal(receipt.producer_identity, material.producer_identity)
+        && bytes_equal(receipt.producer_revision_identity, material.producer_revision_identity)
+        && verdict_equal(receipt.verdict, material.verdict);
+}
+
+fn family_check(input: FamilyCheckInput) -> (result: FamilyCheckResult)
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    let bindings: bool = plan_binding(input)
+        && edge_binding(input)
+        && test_binding(input)
+        && check_binding(input);
+    let material: ReceiptMaterial = ReceiptMaterial {
+        family_identity: input.plan.family_identity,
+        plan_identity: input.plan.plan_identity,
+        graph_identity: input.plan.graph_identity,
+        edge_identity: input.plan.edge_identity,
+        source_identity: input.plan.source_identity,
+        contract_identity: input.plan.contract_identity,
+        consumer_identity: input.plan.consumer_identity,
+        test_result_identity: input.test_result.result_identity,
+        check_result_identity: input.check_result.result_identity,
+        execution_identity: input.test_result.execution_identity,
+        evidence_identity: input.check_result.evidence_identity,
+        producer_identity: input.edge.producer_identity,
+        producer_revision_identity: input.edge.producer_revision_identity,
+        verdict: input.test_result.verdict
+    };
+    let receipt_identity: [byte; 32] = copy_digest(structured_digest(material));
+    let receipt: ReceiptEvidence = ReceiptEvidence {
+        receipt_identity: receipt_identity,
+        family_identity: material.family_identity,
+        plan_identity: material.plan_identity,
+        graph_identity: material.graph_identity,
+        edge_identity: material.edge_identity,
+        source_identity: material.source_identity,
+        consumer_identity: material.consumer_identity,
+        test_result_identity: material.test_result_identity,
+        check_result_identity: material.check_result_identity,
+        execution_identity: material.execution_identity,
+        evidence_identity: material.evidence_identity,
+        producer_identity: material.producer_identity,
+        producer_revision_identity: material.producer_revision_identity,
+        verdict: material.verdict
+    };
+    let reusable: bool = bindings && receipt_matches(input.prior_receipt, material, receipt_identity);
+    let sufficient: bool = bindings && !verdict_is_unknown(input.test_result.verdict) && !verdict_is_unknown(input.check_result.verdict);
+    let verdict: Verdict = select(
+        !bindings,
+        Verdict.UNKNOWN,
+        select(verdict_is_fail(input.test_result.verdict) || verdict_is_fail(input.check_result.verdict),
+            Verdict.FAIL,
+            select(sufficient && verdict_is_pass(input.test_result.verdict) && verdict_is_pass(input.check_result.verdict),
+                Verdict.PASS,
+                Verdict.UNKNOWN)));
+    let final_sufficient: bool = sufficient && !verdict_is_unknown(verdict);
+    let proof_material: ProofMaterial = ProofMaterial {
+        family_identity: material.family_identity,
+        plan_identity: material.plan_identity,
+        graph_identity: material.graph_identity,
+        edge_identity: material.edge_identity,
+        source_identity: material.source_identity,
+        consumer_identity: material.consumer_identity,
+        test_result_identity: material.test_result_identity,
+        check_result_identity: material.check_result_identity,
+        receipt_identity: receipt_identity,
+        execution_identity: material.execution_identity,
+        evidence_identity: material.evidence_identity,
+        verdict: verdict
+    };
+    let proof_identity: [byte; 32] = copy_digest(structured_digest(proof_material));
+    return FamilyCheckResult {
+        verdict: verdict,
+        proof_sufficient: final_sufficient,
+        reusable: reusable && verdict_is_pass(verdict),
+        reason_code: select(!bindings, 10, select(verdict_is_fail(verdict), 1, select(verdict_is_unknown(verdict), 2, select(reusable, 0, 3)))),
+        plan_identity: material.plan_identity,
+        graph_identity: material.graph_identity,
+        edge_identity: material.edge_identity,
+        source_identity: material.source_identity,
+        consumer_identity: material.consumer_identity,
+        test_result_identity: material.test_result_identity,
+        check_result_identity: material.check_result_identity,
+        execution_identity: material.execution_identity,
+        evidence_identity: material.evidence_identity,
+        receipt: receipt,
+        proof_identity: proof_identity
     };
 }
 
 record ConsumerObservation {
-    verdict: Verdict,
-    receipt_valid: bool,
-    proof_sufficient: bool
+    material: ProofMaterial,
+    proof_identity: [byte; 32]
+}
+
+// One fixed-size reduction step keeps the final proof identity bounded even
+// when the selected family contains many consumers. The consumer proof
+// identity already binds its full typed material; this fold adds deterministic
+// ordering and the native aggregate's prior state without hashing the whole
+// dynamic sequence as one oversized external document.
+record ProofIdentityStep {
+    prior_identity: [byte; 32],
+    consumer_identity: [byte; 32],
+    ordinal: u64,
+    verdict: Verdict
 }
 
 record SelectiveProof {
@@ -108,7 +369,15 @@ record SelectiveProof {
     failed: u64,
     unknown: u64,
     invalid: u64,
-    reusable: bool
+    reusable: bool,
+    reason_code: u64,
+    proof_identity: [byte; 32]
+}
+
+record SelectedProofInput {
+    observations: [ConsumerObservation; up_to 64],
+    count: u64,
+    overflow: bool
 }
 
 fn empty_proof() -> (result: SelectiveProof) {
@@ -119,20 +388,65 @@ fn empty_proof() -> (result: SelectiveProof) {
         failed: 0,
         unknown: 0,
         invalid: 0,
-        reusable: true
+        reusable: true,
+        reason_code: 0,
+        proof_identity: [0; 32]
     };
 }
 
-fn observe(proof: SelectiveProof, consumer: ConsumerObservation) -> (result: SelectiveProof) {
+fn observation_valid(consumer: ConsumerObservation) -> (result: bool)
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    return bytes_present(consumer.proof_identity)
+        && bytes_present(consumer.material.family_identity)
+        && bytes_present(consumer.material.plan_identity)
+        && bytes_present(consumer.material.graph_identity)
+        && bytes_present(consumer.material.edge_identity)
+        && bytes_present(consumer.material.consumer_identity)
+        && bytes_present(consumer.material.test_result_identity)
+        && bytes_present(consumer.material.check_result_identity)
+        && bytes_present(consumer.material.receipt_identity)
+        && bytes_present(consumer.material.execution_identity)
+        && bytes_present(consumer.material.evidence_identity)
+        && !verdict_is_unknown(consumer.material.verdict)
+        && bytes_equal(consumer.proof_identity, copy_digest(structured_digest(consumer.material)));
+}
+
+fn advance_proof_identity(
+    prior_identity: [byte; 32],
+    consumer: ConsumerObservation,
+    ordinal: u64
+) -> (result: [byte; 32])
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    let step: ProofIdentityStep = ProofIdentityStep {
+        prior_identity: prior_identity,
+        consumer_identity: consumer.proof_identity,
+        ordinal: ordinal,
+        verdict: consumer.material.verdict
+    };
+    return copy_digest(structured_digest(step));
+}
+
+fn observe(proof: SelectiveProof, consumer: ConsumerObservation) -> (result: SelectiveProof)
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    let valid: bool = observation_valid(consumer);
     let total: u64 = proof.total +% 1;
-    let invalid: u64 = proof.invalid +% select(consumer.receipt_valid && consumer.proof_sufficient, 0, 1);
-    return match consumer.verdict {
+    let invalid: u64 = proof.invalid +% select(valid, 0, 1);
+    let proof_identity: [byte; 32] = advance_proof_identity(proof.proof_identity, consumer, proof.total);
+    return match consumer.material.verdict {
         PASS => SelectiveProof {
             ..proof,
             total: total,
             passed: proof.passed +% 1,
             invalid: invalid,
-            reusable: proof.reusable && consumer.receipt_valid && consumer.proof_sufficient
+            proof_identity: proof_identity,
+            reusable: proof.reusable && valid,
+            reason_code: select(valid, proof.reason_code, 31)
         },
         FAIL => SelectiveProof {
             ..proof,
@@ -140,7 +454,9 @@ fn observe(proof: SelectiveProof, consumer: ConsumerObservation) -> (result: Sel
             total: total,
             failed: proof.failed +% 1,
             invalid: invalid,
-            reusable: false
+            proof_identity: proof_identity,
+            reusable: false,
+            reason_code: select(valid, proof.reason_code, 31)
         },
         UNKNOWN => SelectiveProof {
             ..proof,
@@ -148,48 +464,45 @@ fn observe(proof: SelectiveProof, consumer: ConsumerObservation) -> (result: Sel
             total: total,
             unknown: proof.unknown +% 1,
             invalid: invalid,
-            reusable: false
+            proof_identity: proof_identity,
+            reusable: false,
+            reason_code: 32
         }
     };
 }
 
 fn finalize(proof: SelectiveProof) -> (result: SelectiveProof) {
     if proof.invalid > 0 {
-        return SelectiveProof { ..proof, verdict: Verdict.UNKNOWN, reusable: false };
+        return SelectiveProof { ..proof, verdict: Verdict.UNKNOWN, reusable: false, reason_code: 31 };
     }
     if proof.failed > 0 {
-        return SelectiveProof { ..proof, verdict: Verdict.FAIL, reusable: false };
+        return SelectiveProof { ..proof, verdict: Verdict.FAIL, reusable: false, reason_code: 1 };
     }
     if proof.unknown > 0 {
-        return SelectiveProof { ..proof, verdict: Verdict.UNKNOWN, reusable: false };
+        return SelectiveProof { ..proof, verdict: Verdict.UNKNOWN, reusable: false, reason_code: 2 };
     }
     return proof;
 }
 
-record SelectedProofInput {
-    observations: [ConsumerObservation; 8],
-    count: u64,
-    overflow: bool
-}
-
-fn include_slot(index: u64, count: u64, overflow: bool) -> (result: bool) {
-    if overflow { return false; }
-    return index < count;
-}
-
-fn selected_proof(input: SelectedProofInput) -> (result: SelectiveProof) {
+fn selected_proof(input: SelectedProofInput) -> (result: SelectiveProof)
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    if input.overflow || input.count != input.observations.len {
+        return SelectiveProof {
+            verdict: Verdict.UNKNOWN,
+            total: input.count,
+            passed: 0,
+            failed: 0,
+            unknown: 0,
+            invalid: 1,
+            reusable: false,
+            reason_code: 30,
+            proof_identity: [0; 32]
+        };
+    }
     iterate i over input.observations carrying proof: SelectiveProof = empty_proof() {
-        let include: bool = include_slot(i as u64, input.count, input.overflow);
-        next proof = observe_if(proof, input.observations[i], include);
+        next proof = observe(proof, input.observations[i]);
     }
     return finalize(proof);
-}
-
-fn observe_if(
-    proof: SelectiveProof,
-    consumer: ConsumerObservation,
-    include: bool
-) -> (result: SelectiveProof) {
-    if include { return observe(proof, consumer); }
-    return proof;
 }

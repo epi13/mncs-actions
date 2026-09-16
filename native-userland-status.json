@@ -4,19 +4,20 @@
   "status": "native_shadow",
   "canonical_entrypoint": "scripts/selective_family_verify.py",
   "native_sources": {
-    "family-check": "native/mncs/actions/family/v1.mncs"
+    "family-check": "native/mncs/actions/family/v1.mncs",
+    "selected-proof": "native/mncs/actions/family/v1.mncs"
   },
   "shadow_launcher": "mncs call",
   "semantic_modules": [
     "native/mncs/actions/family/v1.mncs"
   ],
-  "next_migration_slice": "native verification-plan ingestion and native family-check response composition",
+  "next_migration_slice": "native provider invocation and typed artifact/receipt ingress",
   "host_paths": [
     {
       "path": "scripts/selective_family_verify.py",
-      "role": "canonical_transport_and_compatibility_oracle",
+      "role": "external_boundary_adapter_and_compatibility_oracle",
       "canonical": true,
-      "semantic_authority": "native shadow only for the enabled family-check slice"
+      "semantic_authority": "native family binding, verdict, receipt, reuse, and proof decisions; host remains the provider/evidence adapter"
     },
     {
       "path": "actions/mncs-test/test.sh",
@@ -28,7 +29,7 @@
   "host_fallback": {
     "allowed": true,
     "failure_mode": "explicit_compatibility_oracle",
-    "canonical_native_shadow": "--native-actions-shadow",
+    "canonical_native_shadow": "--native-actions-source <path>",
     "silent_fallback": false
   }
 }

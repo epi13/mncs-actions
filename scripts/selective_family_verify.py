@@ -248,34 +248,29 @@ def _run_native_mncs_call(
     arguments: str,
     cwd: Path,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Invoke one generic MNCS call through the bounded process capability."""
+    """Invoke the generic MNCS application boundary.
+
+    This adapter is transport only: the called MNCS module owns the semantic
+    decision and receives an explicit structured-value identity grant. The
+    historical ``mncs process`` wrapper is intentionally not part of the
+    canonical path; it used to make Python the intermediary that launched a
+    second Rust CLI and parsed its stdout.
+    """
 
     try:
         completed = subprocess.run(
             [
                 mncs_binary,
-                "process",
-                mncs_binary,
-                "--cwd",
-                str(cwd),
-                "--arg",
                 "call",
-                "--arg",
                 str(source_path),
-                "--arg",
                 "--module",
-                "--arg",
                 "mncs.actions.family.v1",
-                "--arg",
                 "--function",
-                "--arg",
                 function,
-                "--arg",
                 "--args-json",
-                "--arg",
                 arguments,
-                "--deadline-ms",
-                "300000",
+                "--grant-structured",
+                "actions_digest",
             ],
             cwd=str(cwd),
             capture_output=True,
@@ -287,58 +282,338 @@ def _run_native_mncs_call(
         raise SelectiveFamilyError(f"bounded native process launcher could not be started: {error}") from error
     if completed.returncode != 0:
         raise SelectiveFamilyError(
-            "bounded native process launcher failed: "
+            "generic native application call failed: "
             + (completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}")
         )
     try:
-        process_document = json.loads(completed.stdout)
-        if not process_document.get("success") or process_document.get("timed_out"):
-            raise SelectiveFamilyError(
-                "bounded native process returned failure: "
-                + (process_document.get("stderr") or str(process_document))
-            )
-        call_text = process_document.get("stdout")
-        if not isinstance(call_text, str):
-            raise SelectiveFamilyError("bounded native process returned no UTF-8 call output")
-        return json.loads(call_text), process_document
+        document = json.loads(completed.stdout)
+        if not isinstance(document, Mapping):
+            raise SelectiveFamilyError("generic native application call returned no document")
+        return dict(document), {
+            "schema_version": "mncs.application-call/1",
+            "subprocess_count": 1,
+            "transport": "generic-mncs-call",
+        }
     except (TypeError, ValueError, json.JSONDecodeError) as error:
         raise SelectiveFamilyError(
-            f"bounded native process returned invalid structured output: {error}"
+            f"generic native application call returned invalid structured output: {error}"
         ) from error
+
+
+def _byte_sequence(value: str) -> dict[str, Any]:
+    """Encode one semantic identity as the typed 32-byte MNCS value."""
+
+    if not isinstance(value, str) or not SHA256_RE.fullmatch(value):
+        value = sha256_hex(canonical_bytes(value))
+    return {
+        "sequence": {
+            "values": [
+                {"byte": {"value": byte}}
+                for byte in bytes.fromhex(value)
+            ]
+        }
+    }
+
+
+def _finite_verdict(value: str) -> dict[str, Any]:
+    return {"finite": {"type": "Verdict", "variant": value}}
+
+
+def _typed_record(type_name: str, fields: Mapping[str, Any]) -> dict[str, Any]:
+    return {"record": {"type": type_name, "fields": dict(fields)}}
+
+
+def _identity_value(value: Any) -> str:
+    if isinstance(value, str) and SHA256_RE.fullmatch(value):
+        return value
+    return sha256_hex(canonical_bytes(value))
+
+
+def _family_evidence(
+    *,
+    plan: Mapping[str, Any],
+    plan_digest: str,
+    graph_identity: str,
+    edge: Mapping[str, Any],
+    behavioral_result: Mapping[str, Any],
+    behavioral_check: Mapping[str, Any],
+    producer_repository: str,
+    producer_repository_revision: str,
+    prior_receipt: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Project actual external documents into the native typed ABI.
+
+    This is deliberately a structural codec. It hashes named identity
+    documents only where the external contract uses a string identity; it
+    never computes a validity or sufficiency boolean for the native module.
+    """
+
+    verification = edge.get("verification", {})
+    selector = verification.get("selector", {}) if isinstance(verification, Mapping) else {}
+    test_identity = _identity_value(
+        _canonical_selector(selector).get("test_identities", [])
+    )
+    source_identity = _identity_value(plan.get("source", {}).get("sha256", ""))
+    plan_value = _identity_value(plan.get("plan_id", ""))
+    graph_value = _identity_value(graph_identity)
+    edge_identity = _identity_value(edge.get("fingerprint", ""))
+    contract_identity = _identity_value(edge.get("contract_identity", ""))
+    consumer_identity = _identity_value(edge.get("consumer_manifest_identity", ""))
+    family_identity = _identity_value(
+        {"family": "mncs", "graph_identity": graph_identity}
+    )
+    check_identity = _identity_value(verification.get("check_identity", ""))
+    producer_identity = _identity_value(producer_repository)
+    producer_revision_identity = _identity_value(producer_repository_revision)
+    test_result_identity = _identity_value(behavioral_result)
+    check_result_identity = _identity_value(behavioral_check)
+    execution = behavioral_result.get("execution", {})
+    execution_identity = _identity_value(
+        execution.get("run_identity", execution) if isinstance(execution, Mapping) else execution
+    )
+    evidence_identity = _identity_value(
+        {"test_result": test_result_identity, "check_result": check_result_identity}
+    )
+    material = {
+        "family_identity": family_identity,
+        "plan_identity": plan_value,
+        "graph_identity": graph_value,
+        "edge_identity": edge_identity,
+        "source_identity": source_identity,
+        "consumer_identity": consumer_identity,
+        "test_result_identity": test_result_identity,
+        "check_result_identity": check_result_identity,
+        "receipt_identity": _identity_value(
+            (prior_receipt or {}).get("receipt_identity", "")
+        ),
+        "execution_identity": execution_identity,
+        "evidence_identity": evidence_identity,
+        "verdict": str(behavioral_result.get("verdict", "UNKNOWN")),
+    }
+    prior = prior_receipt or {
+        "receipt_identity": "0" * 64,
+        "family_identity": "0" * 64,
+        "plan_identity": "0" * 64,
+        "graph_identity": "0" * 64,
+        "edge_identity": "0" * 64,
+        "source_identity": "0" * 64,
+        "consumer_identity": "0" * 64,
+        "test_result_identity": "0" * 64,
+        "check_result_identity": "0" * 64,
+        "execution_identity": "0" * 64,
+        "evidence_identity": "0" * 64,
+        "producer_identity": "0" * 64,
+        "producer_revision_identity": "0" * 64,
+        "verdict": "UNKNOWN",
+    }
+    return {
+        "plan": {
+            "family_identity": family_identity,
+            "plan_identity": plan_value,
+            "graph_identity": graph_value,
+            "edge_identity": edge_identity,
+            "source_identity": source_identity,
+            "contract_identity": contract_identity,
+            "consumer_identity": consumer_identity,
+            "test_identity": test_identity,
+            "check_identity": check_identity,
+        },
+        "graph": {
+            "family_identity": family_identity,
+            "graph_identity": graph_value,
+            "edge_identity": edge_identity,
+            "source_identity": source_identity,
+            "contract_identity": contract_identity,
+            "consumer_identity": consumer_identity,
+        },
+        "edge": {
+            "edge_identity": edge_identity,
+            "source_identity": source_identity,
+            "contract_identity": contract_identity,
+            "consumer_identity": consumer_identity,
+            "producer_identity": producer_identity,
+            "producer_revision_identity": producer_revision_identity,
+        },
+        "test_result": {
+            "result_identity": test_result_identity,
+            "plan_identity": plan_value,
+            "graph_identity": graph_value,
+            "edge_identity": edge_identity,
+            "source_identity": source_identity,
+            "consumer_identity": consumer_identity,
+            "test_identity": test_identity,
+            "execution_identity": execution_identity,
+            "evidence_identity": evidence_identity,
+            "verdict": str(behavioral_result.get("verdict", "UNKNOWN")),
+        },
+        "check_result": {
+            "result_identity": check_result_identity,
+            "check_identity": check_identity,
+            "plan_identity": plan_value,
+            "graph_identity": graph_value,
+            "edge_identity": edge_identity,
+            "source_identity": source_identity,
+            "consumer_identity": consumer_identity,
+            "test_result_identity": test_result_identity,
+            "evidence_identity": evidence_identity,
+            "verdict": str(behavioral_check.get("verdict", "UNKNOWN")),
+        },
+        "prior_receipt": prior,
+        "material": material,
+    }
+
+
+def _family_arguments(evidence: Mapping[str, Any]) -> str:
+    def identity_fields(values: Mapping[str, Any], names: list[str]) -> dict[str, Any]:
+        return {name: _byte_sequence(str(values[name])) for name in names}
+
+    plan = evidence["plan"]
+    graph = evidence["graph"]
+    edge = evidence["edge"]
+    test_result = evidence["test_result"]
+    check_result = evidence["check_result"]
+    prior = evidence["prior_receipt"]
+    plan_names = [
+        "family_identity", "plan_identity", "graph_identity", "edge_identity",
+        "source_identity", "contract_identity", "consumer_identity",
+        "test_identity", "check_identity",
+    ]
+    graph_names = [
+        "family_identity", "graph_identity", "edge_identity", "source_identity",
+        "contract_identity", "consumer_identity",
+    ]
+    edge_names = [
+        "edge_identity", "source_identity", "contract_identity", "consumer_identity",
+        "producer_identity", "producer_revision_identity",
+    ]
+    test_names = [
+        "result_identity", "plan_identity", "graph_identity", "edge_identity",
+        "source_identity", "consumer_identity", "test_identity",
+        "execution_identity", "evidence_identity",
+    ]
+    check_names = [
+        "result_identity", "check_identity", "plan_identity", "graph_identity",
+        "edge_identity", "source_identity", "consumer_identity",
+        "test_result_identity", "evidence_identity",
+    ]
+    receipt_names = [
+        "receipt_identity", "family_identity", "plan_identity", "graph_identity",
+        "edge_identity", "source_identity", "consumer_identity",
+        "test_result_identity", "check_result_identity", "execution_identity",
+        "evidence_identity", "producer_identity", "producer_revision_identity",
+    ]
+    fields = {
+        "plan": _typed_record("PlanEvidence", identity_fields(plan, plan_names)),
+        "graph": _typed_record("GraphEvidence", identity_fields(graph, graph_names)),
+        "edge": _typed_record("EdgeEvidence", identity_fields(edge, edge_names)),
+        "test_result": _typed_record(
+            "TestResultEvidence",
+            {
+                **identity_fields(test_result, test_names),
+                "verdict": _finite_verdict(str(test_result["verdict"])),
+            },
+        ),
+        "check_result": _typed_record(
+            "CheckResultEvidence",
+            {
+                **identity_fields(check_result, check_names),
+                "verdict": _finite_verdict(str(check_result["verdict"])),
+            },
+        ),
+        "prior_receipt": _typed_record(
+            "ReceiptEvidence",
+            {
+                **identity_fields(prior, receipt_names),
+                "verdict": _finite_verdict(str(prior.get("verdict", "UNKNOWN"))),
+            },
+        ),
+    }
+    return json.dumps(
+        [{"record": {"type": "FamilyCheckInput", "fields": fields}}],
+        separators=(",", ":"),
+    )
+
+
+def _decode_typed_digest(value: Mapping[str, Any]) -> str:
+    values = value.get("sequence", {}).get("values", [])
+    try:
+        return bytes(int(item["byte"]["value"]) for item in values).hex()
+    except (KeyError, TypeError, ValueError):
+        raise SelectiveFamilyError("native Actions returned a non-byte identity")
+
+
+def _decode_typed_record(value: Mapping[str, Any]) -> dict[str, Any]:
+    fields = dict(value.get("record", {}).get("fields", []))
+    decoded: dict[str, Any] = {}
+    for name, item in fields.items():
+        if "sequence" in item:
+            decoded[name] = _decode_typed_digest(item)
+        elif "boolean" in item:
+            decoded[name] = bool(item["boolean"]["value"])
+        elif "integer" in item:
+            decoded[name] = int(item["integer"]["value"])
+        elif "finite" in item:
+            decoded[name] = str(item["finite"].get("variant_identity", "")).rsplit("::", 1)[-1]
+        elif "record" in item:
+            decoded[name] = _decode_typed_record(item)
+        else:
+            raise SelectiveFamilyError(f"native Actions returned an unsupported field {name}")
+    return decoded
 
 
 def _run_native_actions_family_check(
     *,
     mncs_binary: str,
     source_path: Path,
-    verdict: str,
     cwd: Path,
+    evidence: Mapping[str, Any] | None = None,
+    verdict: str | None = None,
 ) -> dict[str, Any]:
-    """Run the Actions semantic core through the generic MNCS launcher.
+    """Run native Actions over actual typed family records.
 
-    This adapter performs only name-oriented transport.  It does not decide a
-    family verdict; the returned finite Verdict and proof fields are owned by
-    ``mncs.actions.family.v1``.
+    ``verdict`` is retained only as a compatibility-test convenience: when
+    no evidence is supplied, a fully populated synthetic record set is built
+    so the test still exercises the typed ABI. The campaign path always
+    supplies evidence projected from real plan/graph/TestResult/CheckResult
+    documents.
     """
 
-    boolean = lambda value: {"boolean": {"value": bool(value)}}
-    fields = {
-        "family_binding_valid": boolean(True),
-        "plan_binding_valid": boolean(True),
-        "graph_binding_valid": boolean(True),
-        "edge_binding_valid": boolean(True),
-        "receipt_valid": boolean(False),
-        "test_result_bound": boolean(True),
-        "check_result_bound": boolean(True),
-        "proof_sufficient": boolean(True),
-        "test_verdict": {
-            "finite": {"type": "Verdict", "variant": verdict},
-        },
-    }
-    arguments = json.dumps(
-        [{"record": {"type": "FamilyCheckInput", "fields": fields}}],
-        separators=(",", ":"),
-    )
+    compatibility_fixture = evidence is None
+    if evidence is None:
+        marker = sha256_hex(canonical_bytes({"test": verdict or "PASS", "fixture": True}))
+        synthetic = {
+            "plan": {key: marker for key in (
+                "family_identity", "plan_identity", "graph_identity", "edge_identity",
+                "source_identity", "contract_identity", "consumer_identity", "test_identity",
+                "check_identity",
+            )},
+            "graph": {key: marker for key in (
+                "family_identity", "graph_identity", "edge_identity", "source_identity",
+                "contract_identity", "consumer_identity",
+            )},
+            "edge": {key: marker for key in (
+                "edge_identity", "source_identity", "contract_identity", "consumer_identity",
+                "producer_identity", "producer_revision_identity",
+            )},
+            "test_result": {key: marker for key in (
+                "result_identity", "plan_identity", "graph_identity", "edge_identity",
+                "source_identity", "consumer_identity", "test_identity", "execution_identity",
+                "evidence_identity",
+            )} | {"verdict": verdict or "PASS"},
+            "check_result": {key: marker for key in (
+                "result_identity", "check_identity", "plan_identity", "graph_identity",
+                "edge_identity", "source_identity", "consumer_identity", "test_result_identity",
+                "evidence_identity",
+            )} | {"verdict": verdict or "PASS"},
+            "prior_receipt": {key: "0" * 64 for key in (
+                "receipt_identity", "family_identity", "plan_identity", "graph_identity",
+                "edge_identity", "source_identity", "consumer_identity", "test_result_identity",
+                "check_result_identity", "execution_identity", "evidence_identity",
+                "producer_identity", "producer_revision_identity",
+            )} | {"verdict": "UNKNOWN"},
+        }
+        evidence = synthetic
+    arguments = _family_arguments(evidence)
     document, process_document = _run_native_mncs_call(
         mncs_binary=mncs_binary,
         source_path=source_path,
@@ -350,19 +625,21 @@ def _run_native_actions_family_check(
         call = document["call"]
         returned = call["returned"]
         record = returned[0]["record"]
-        fields = dict(record["fields"])
-        finite = fields["verdict"]["finite"]
-        native_verdict = str(finite["variant_identity"]).rsplit("::", 1)[-1]
+        decoded = _decode_typed_record({"record": record})
+        native_verdict = str(decoded["verdict"])
         native_result = {
-            "proof_sufficient": fields["proof_sufficient"]["boolean"]["value"],
-            "reusable": fields["reusable"]["boolean"]["value"],
-            "reason_code": fields["reason_code"]["integer"]["value"],
+            "proof_sufficient": bool(decoded["proof_sufficient"]),
+            "reusable": bool(decoded["reusable"]),
+            "reason_code": int(decoded["reason_code"]),
+            "receipt": decoded["receipt"],
+            "proof_identity": decoded["proof_identity"],
+            "family_result": decoded,
         }
     except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as error:
         raise SelectiveFamilyError(
             f"native Actions semantic core returned an invalid typed result: {error}"
         ) from error
-    if native_verdict != verdict:
+    if compatibility_fixture and verdict is not None and native_verdict != verdict:
         raise SelectiveFamilyError(
             f"native Actions semantic core verdict {native_verdict} disagrees with mncs-test {verdict}"
         )
@@ -378,9 +655,8 @@ def _run_native_actions_family_check(
         "steps": call.get("steps"),
         "process": {
             "schema_version": process_document.get("schema_version"),
-            "timed_out": process_document.get("timed_out"),
-            "stdout_truncated": process_document.get("stdout_truncated"),
-            "stderr_truncated": process_document.get("stderr_truncated"),
+            "subprocess_count": process_document.get("subprocess_count", 1),
+            "transport": process_document.get("transport", "generic-mncs-call"),
         },
     }
 
@@ -391,38 +667,65 @@ def _run_native_actions_selected_proof(
     source_path: Path,
     records: list[Mapping[str, Any]],
     cwd: Path,
+    strict_native: bool = False,
 ) -> dict[str, Any]:
-    """Ask the bounded native reducer to aggregate selected consumers."""
+    """Ask the native reducer to aggregate actual consumer proof records.
+
+    The source ABI is a bounded dynamic sequence (`up_to 64`). A set larger
+    than that is sent as an explicit overflow refusal; it is never truncated
+    or padded with synthetic PASS observations.
+    """
 
     observations: list[dict[str, Any]] = []
-    for record in records[:8]:
-        verdict = str(record.get("verdict", "UNKNOWN"))
-        if verdict not in {"PASS", "FAIL", "UNKNOWN"}:
-            verdict = "UNKNOWN"
+    for record in records if len(records) <= 64 else []:
+        family_result = record.get("native_family_result")
+        if not isinstance(family_result, Mapping):
+            if strict_native:
+                raise SelectiveFamilyError(
+                    "canonical Actions proof input is missing a native family result"
+                )
+            native = _run_native_actions_family_check(
+                mncs_binary=mncs_binary,
+                source_path=source_path,
+                verdict=str(record.get("verdict", "UNKNOWN")),
+                cwd=cwd,
+            )
+            family_result = native["family_result"]
+        receipt = family_result.get("receipt")
+        if not isinstance(receipt, Mapping):
+            raise SelectiveFamilyError("native family result omitted its receipt record")
+        material = {
+            "family_identity": receipt["family_identity"],
+            "plan_identity": family_result["plan_identity"],
+            "graph_identity": family_result["graph_identity"],
+            "edge_identity": family_result["edge_identity"],
+            "source_identity": family_result["source_identity"],
+            "consumer_identity": family_result["consumer_identity"],
+            "test_result_identity": family_result["test_result_identity"],
+            "check_result_identity": family_result["check_result_identity"],
+            "receipt_identity": receipt["receipt_identity"],
+            "execution_identity": family_result["execution_identity"],
+            "evidence_identity": family_result["evidence_identity"],
+            "verdict": family_result["verdict"],
+        }
         observations.append(
-            {
-                "record": {
-                    "type": "ConsumerObservation",
-                    "fields": {
-                        "verdict": {"finite": {"type": "Verdict", "variant": verdict}},
-                        "receipt_valid": {"boolean": {"value": True}},
-                        "proof_sufficient": {"boolean": {"value": True}},
-                    },
-                }
-            }
-        )
-    while len(observations) < 8:
-        observations.append(
-            {
-                "record": {
-                    "type": "ConsumerObservation",
-                    "fields": {
-                        "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
-                        "receipt_valid": {"boolean": {"value": True}},
-                        "proof_sufficient": {"boolean": {"value": True}},
-                    },
-                }
-            }
+            _typed_record(
+                "ConsumerObservation",
+                {
+                    "material": _typed_record(
+                        "ProofMaterial",
+                        {
+                            **{
+                                key: _byte_sequence(str(value))
+                                for key, value in material.items()
+                                if key != "verdict"
+                            },
+                            "verdict": _finite_verdict(str(material["verdict"])),
+                        },
+                    ),
+                    "proof_identity": _byte_sequence(str(family_result["proof_identity"])),
+                },
+            )
         )
     arguments = json.dumps(
         [
@@ -432,7 +735,7 @@ def _run_native_actions_selected_proof(
                     "fields": {
                         "observations": {"sequence": {"values": observations}},
                         "count": {"integer": {"value": len(records)}},
-                        "overflow": {"boolean": {"value": len(records) > 8}},
+                        "overflow": {"boolean": {"value": len(records) > 64}},
                     },
                 }
             }
@@ -459,6 +762,8 @@ def _run_native_actions_selected_proof(
             "unknown": fields["unknown"]["integer"]["value"],
             "invalid": fields["invalid"]["integer"]["value"],
             "reusable": fields["reusable"]["boolean"]["value"],
+            "reason_code": fields["reason_code"]["integer"]["value"],
+            "proof_identity": _decode_typed_digest(fields["proof_identity"]),
         }
     except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as error:
         raise SelectiveFamilyError(
@@ -476,9 +781,8 @@ def _run_native_actions_selected_proof(
         "steps": call.get("steps"),
         "process": {
             "schema_version": process_document.get("schema_version"),
-            "timed_out": process_document.get("timed_out"),
-            "stdout_truncated": process_document.get("stdout_truncated"),
-            "stderr_truncated": process_document.get("stderr_truncated"),
+            "subprocess_count": process_document.get("subprocess_count", 1),
+            "transport": process_document.get("transport", "generic-mncs-call"),
         },
     }
 
@@ -785,14 +1089,6 @@ def _consumer_check(
             raise SelectiveFamilyError(f"{repository_id} mncs-test runner contract revision disagrees")
         if response.get("runner") != "mncs-test" or response.get("verdict") not in {"PASS", "FAIL", "UNKNOWN"}:
             raise SelectiveFamilyError(f"{repository_id} mncs-test runner response verdict is invalid")
-        native_actions_shadow = None
-        if native_actions_shadow_source is not None and response.get("runner") == "mncs-test":
-            native_actions_shadow = _run_native_actions_family_check(
-                mncs_binary=mncs_binary,
-                source_path=native_actions_shadow_source,
-                verdict=str(response["verdict"]),
-                cwd=checkout,
-            )
         binding = response.get("family_binding")
         if not isinstance(binding, Mapping):
             raise SelectiveFamilyError(f"{repository_id} mncs-test runner omitted family bindings")
@@ -880,6 +1176,36 @@ def _consumer_check(
                     "digest": check_ref["digest"],
                 },
             )
+        native_actions = None
+        native_evidence = None
+        if native_actions_shadow_source is not None:
+            native_evidence = _family_evidence(
+                plan=plan,
+                plan_digest=plan_digest,
+                graph_identity=graph_identity,
+                edge=edge,
+                behavioral_result=behavioral_result,
+                behavioral_check=behavioral_check,
+                producer_repository=str(edge.get("producer_repository", "")),
+                producer_repository_revision=producer_repository_revision,
+            )
+            native_actions = _run_native_actions_family_check(
+                mncs_binary=mncs_binary,
+                source_path=native_actions_shadow_source,
+                evidence=native_evidence,
+                cwd=checkout,
+            )
+            # The native family result is authoritative for the selected
+            # family boundary. The host keeps the provider documents as
+            # evidence, but does not reinterpret their verdict.
+            response = dict(response)
+            response["verdict"] = native_actions["verdict"]
+            behavioral_check = dict(behavioral_check)
+            behavioral_check["verdict"] = native_actions["verdict"]
+            response["check_result"] = behavioral_check
+            behavioral_result = dict(behavioral_result)
+            behavioral_result["verdict"] = native_actions["verdict"]
+            response["test_result"] = behavioral_result
         result = {
             "schema_version": "mncs.check-result/1",
             "id": check_identity,
@@ -901,9 +1227,13 @@ def _consumer_check(
                 "inventory_identity": execution.get("inventory_identity") if isinstance(execution, Mapping) else None,
                 **dict(runtime_bindings),
                 "test_result": dict(behavioral_result),
-                "actions_native_shadow": native_actions_shadow,
+                "actions_native": native_actions,
             },
         }
+        if native_actions is not None:
+            result["native_receipt"] = native_actions["receipt"]
+            result["native_family_result"] = native_actions["family_result"]
+            result["native_evidence"] = native_evidence
         return result, repository_revision
     result = {
         "schema_version": "mncs.check-result/1",
@@ -992,6 +1322,18 @@ def _write_consumer_evidence(
         produced_files=[{"path": check_path.name, "sha256": check_digest}],
         inputs=inputs,
     )
+    native_receipt = result.get("native_receipt")
+    native_family_result = result.get("native_family_result")
+    if isinstance(native_receipt, Mapping) and isinstance(native_family_result, Mapping):
+        # The generic execution-receipt schema remains the external adapter
+        # format. Its semantic identity and dependency set come from the
+        # native Actions receipt; Python contributes only transport metadata
+        # needed by GitHub/artifact consumers.
+        receipt["native_authority"] = "mncs.actions.family.v1"
+        receipt["native_receipt"] = dict(native_receipt)
+        receipt["native_receipt_identity"] = native_receipt.get("receipt_identity")
+        receipt["native_proof_identity"] = native_family_result.get("proof_identity")
+        receipt["native_verdict"] = native_family_result.get("verdict")
     receipt_path = evidence_dir / "execution-receipt.json"
     _write_json(receipt_path, receipt)
     receipt_digest = _file_digest(receipt_path)
@@ -1041,6 +1383,9 @@ def _write_consumer_evidence(
         "mncs_binary_identity": result.get("behavioral", {}).get("mncs_binary_identity"),
         "library_identities": list(result.get("behavioral", {}).get("library_identities", [])),
         "runtime_identity": result.get("behavioral", {}).get("runtime_identity"),
+        "native_receipt": result.get("native_receipt"),
+        "native_family_result": result.get("native_family_result"),
+        "native_evidence": result.get("native_evidence"),
     }
 
 
@@ -1072,6 +1417,11 @@ def _reuse_consumer(
     repository_revision: str,
     producer_repository_revision: str,
     runtime_bindings: Mapping[str, Any],
+    plan_digest: str,
+    graph_identity: str,
+    mncs_binary: str,
+    native_actions_shadow_source: Path | None,
+    workspace_checkout: Path,
 ) -> dict[str, Any] | None:
     if prior is None:
         return None
@@ -1183,6 +1533,61 @@ def _reuse_consumer(
     check = _read_json(prior_dir / "check-result.json", "prior consumer check")
     if validate_check_result(check) or check.get("verdict") != "PASS":
         return None
+    if native_actions_shadow_source is not None:
+        prior_evidence = match.get("native_evidence")
+        prior_receipt = match.get("native_receipt")
+        if not isinstance(prior_evidence, Mapping) or not isinstance(prior_receipt, Mapping):
+            return None
+        # Retain the actual provider TestResult/CheckResult identity records
+        # from the prior proof, but refresh the plan/graph/edge ingress with
+        # the current invocation. Native Actions then decides whether the
+        # receipt dependency set is identical; Python only handles safe file
+        # discovery/copying after that decision.
+        native_evidence = copy.deepcopy(dict(prior_evidence))
+        current_family = _identity_value({"family": "mncs", "graph_identity": graph_identity})
+        current_graph = _identity_value(graph_identity)
+        current_edge = _identity_value(edge.get("fingerprint", ""))
+        current_source = _identity_value(plan.get("source", {}).get("sha256", ""))
+        current_plan = _identity_value(plan.get("plan_id", ""))
+        current_contract = _identity_value(edge.get("contract_identity", ""))
+        current_consumer = _identity_value(edge.get("consumer_manifest_identity", ""))
+        current_check = _identity_value(edge.get("verification", {}).get("check_identity", ""))
+        native_evidence["plan"] = {
+            **dict(native_evidence["plan"]),
+            "family_identity": current_family,
+            "plan_identity": current_plan,
+            "graph_identity": current_graph,
+            "edge_identity": current_edge,
+            "source_identity": current_source,
+            "contract_identity": current_contract,
+            "consumer_identity": current_consumer,
+            "check_identity": current_check,
+        }
+        native_evidence["graph"] = {
+            **dict(native_evidence["graph"]),
+            "family_identity": current_family,
+            "graph_identity": current_graph,
+            "edge_identity": current_edge,
+            "source_identity": current_source,
+            "contract_identity": current_contract,
+            "consumer_identity": current_consumer,
+        }
+        native_evidence["edge"] = {
+            **dict(native_evidence["edge"]),
+            "edge_identity": current_edge,
+            "source_identity": current_source,
+            "contract_identity": current_contract,
+            "consumer_identity": current_consumer,
+        }
+        native_evidence["prior_receipt"] = dict(prior_receipt)
+        native = _run_native_actions_family_check(
+            mncs_binary=mncs_binary,
+            source_path=native_actions_shadow_source,
+            evidence=native_evidence,
+            cwd=workspace_checkout,
+        )
+        if native["verdict"] != "PASS" or not native["reusable"]:
+            return None
     destination = output_dir / relative
     destination.mkdir(parents=True, exist_ok=True)
     for name in required:
@@ -1191,6 +1596,9 @@ def _reuse_consumer(
         **dict(match),
         "status": "reused",
         "evidence_directory": relative,
+        "native_receipt": match.get("native_receipt"),
+        "native_family_result": match.get("native_family_result"),
+        "native_evidence": match.get("native_evidence"),
     }
 
 
@@ -1262,6 +1670,11 @@ def build_selective_proof(
             repository_revision=revision,
             producer_repository_revision=producer["repository_revision"],
             runtime_bindings=runtime_bindings,
+            plan_digest=plan_digest,
+            graph_identity=graph["graph_identity"],
+            mncs_binary=mncs_binary,
+            native_actions_shadow_source=native_actions_shadow_source,
+            workspace_checkout=checkout,
         )
         if record is not None:
             records.append(record)
@@ -1313,7 +1726,7 @@ def build_selective_proof(
         )
         generated += 1
     verdicts = [record["verdict"] for record in records]
-    status = "FAIL" if "FAIL" in verdicts else ("UNKNOWN" if "UNKNOWN" in verdicts else "PASS")
+    compatibility_status = "FAIL" if "FAIL" in verdicts else ("UNKNOWN" if "UNKNOWN" in verdicts else "PASS")
     native_actions_proof = None
     if native_actions_shadow_source is not None:
         native_actions_proof = _run_native_actions_selected_proof(
@@ -1321,12 +1734,14 @@ def build_selective_proof(
             source_path=native_actions_shadow_source,
             records=records,
             cwd=workspace_root,
+            strict_native=True,
         )
-        if native_actions_proof["verdict"] != status:
-            raise SelectiveFamilyError(
-                "native selected-proof reducer disagrees with the compatibility projection: "
-                f"{native_actions_proof['verdict']} != {status}"
-            )
+        status = str(native_actions_proof["verdict"])
+    else:
+        # Explicit compatibility/oracle mode only. The canonical path is
+        # required to supply the native Actions source and therefore never
+        # silently falls back to this projection.
+        status = compatibility_status
     contract_identities = sorted({edge["contract_identity"] for edge in exact_edges})
     core: dict[str, Any] = {
         "schema_version": PROOF_SCHEMA,
@@ -1380,6 +1795,10 @@ def build_selective_proof(
         },
     }
     if native_actions_proof is not None:
+        core["native_actions"] = native_actions_proof
+        core["native_proof_identity"] = native_actions_proof["proof_identity"]
+        # Compatibility readers may still look for the Phase II shadow key;
+        # it aliases the same native result and carries no alternate authority.
         core["native_actions_shadow"] = native_actions_proof
     core["proof_identity"] = sha256_hex(canonical_bytes(core))
     _write_json(output_dir / "composite-proof.json", core)
@@ -1396,12 +1815,33 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--mncs-test", dest="mncs_test_runner", default="mncs-test")
     parser.add_argument("--mncs", dest="mncs_binary", default="mncs")
     parser.add_argument("--mncs-test-library", action="append", default=[])
-    parser.add_argument(
-        "--native-actions-shadow",
+    native_group = parser.add_mutually_exclusive_group()
+    native_group.add_argument(
+        "--native-actions-source",
+        dest="native_actions_source",
         type=Path,
-        help="Run the Actions semantic core through generic `mncs call` for parity evidence.",
+        help="Run the canonical Actions application through generic `mncs call`.",
+    )
+    native_group.add_argument(
+        "--native-actions-shadow",
+        dest="native_actions_source",
+        type=Path,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--python-compatibility-oracle",
+        action="store_true",
+        help="Use the legacy Python projection explicitly; never used by the canonical path.",
     )
     args = parser.parse_args(argv)
+    default_native_source = Path(__file__).resolve().parents[1] / "native/mncs/actions/family/v1.mncs"
+    native_actions_source = None
+    if not args.python_compatibility_oracle:
+        native_actions_source = (
+            args.native_actions_source.resolve()
+            if args.native_actions_source
+            else default_native_source
+        )
     try:
         proof = build_selective_proof(
             plan_path=args.plan.resolve(),
@@ -1412,9 +1852,7 @@ def main(argv: list[str] | None = None) -> int:
             mncs_test_runner=args.mncs_test_runner,
             mncs_binary=args.mncs_binary,
             mncs_test_libraries=args.mncs_test_library,
-            native_actions_shadow_source=args.native_actions_shadow.resolve()
-            if args.native_actions_shadow
-            else None,
+            native_actions_shadow_source=native_actions_source,
         )
     except (OSError, SelectiveFamilyError, ValueError) as error:
         print(f"SELECTIVE FAMILY VERIFICATION REFUSED: {error}", file=sys.stderr)
