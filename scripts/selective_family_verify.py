@@ -257,6 +257,31 @@ def _run_native_mncs_call(
     second Rust CLI and parsed its stdout.
     """
 
+    library_arguments: list[str] = []
+    configured = os.environ.get("MNCS_LIBRARY_PATH", "")
+    library_roots = [Path(item) for item in configured.split(os.pathsep) if item]
+    # Native family records live in Commons and the generic application
+    # contract lives in the language repository. These are dependency roots,
+    # not semantic projections; callers may still override them through the
+    # environment when repositories are mounted elsewhere.
+    for candidate in (
+        cwd / "mncs-language" / "library",
+        cwd.parent / "mncs-language" / "library",
+        cwd / "MNCS-Commons" / "src" / "mncs_commons" / "mesh",
+        cwd.parent / "MNCS-Commons" / "src" / "mncs_commons" / "mesh",
+        # Actions imports the native test provider as a typed module. Keep
+        # both the provider root and the repository root visible so its
+        # `tests.self_suite` dependency resolves without a host projection.
+        cwd / "mncs-test" / "native",
+        cwd.parent / "mncs-test" / "native",
+        cwd / "mncs-test",
+        cwd.parent / "mncs-test",
+    ):
+        if candidate.is_dir() and candidate not in library_roots:
+            library_roots.append(candidate)
+    for library in library_roots:
+        library_arguments.extend(("--library", str(library)))
+
     try:
         completed = subprocess.run(
             [
@@ -271,7 +296,7 @@ def _run_native_mncs_call(
                 arguments,
                 "--grant-structured",
                 "actions_digest",
-            ],
+            ] + library_arguments,
             cwd=str(cwd),
             capture_output=True,
             text=True,
@@ -316,7 +341,7 @@ def _byte_sequence(value: str) -> dict[str, Any]:
 
 
 def _finite_verdict(value: str) -> dict[str, Any]:
-    return {"finite": {"type": "Verdict", "variant": value}}
+    return {"finite": {"type": "FamilyVerdict", "variant": value}}
 
 
 def _typed_record(type_name: str, fields: Mapping[str, Any]) -> dict[str, Any]:
@@ -332,7 +357,6 @@ def _identity_value(value: Any) -> str:
 def _family_evidence(
     *,
     plan: Mapping[str, Any],
-    plan_digest: str,
     graph_identity: str,
     edge: Mapping[str, Any],
     behavioral_result: Mapping[str, Any],
@@ -346,6 +370,13 @@ def _family_evidence(
     This is deliberately a structural codec. It hashes named identity
     documents only where the external contract uses a string identity; it
     never computes a validity or sufficiency boolean for the native module.
+
+    The Commons-owned ``plan_id`` is the semantic plan identity. The
+    whole-file ``plan_digest`` used by the surrounding compatibility flow is
+    intentionally not projected here: it binds the external transport file,
+    while native receipt material binds the canonical plan contract. This
+    keeps incidental envelope metadata from changing semantic reuse and
+    avoids treating a Python file hash as a family identity.
     """
 
     verification = edge.get("verification", {})
@@ -367,6 +398,10 @@ def _family_evidence(
     producer_revision_identity = _identity_value(producer_repository_revision)
     test_result_identity = _identity_value(behavioral_result)
     check_result_identity = _identity_value(behavioral_check)
+    # This is the owning Commons contract identity, not a digest of this
+    # Python projection. Carrying it on every native result record prevents a
+    # self-consistent projection from moving evidence between contracts.
+    contract_value = contract_identity
     execution = behavioral_result.get("execution", {})
     execution_identity = _identity_value(
         execution.get("run_identity", execution) if isinstance(execution, Mapping) else execution
@@ -380,6 +415,7 @@ def _family_evidence(
         "graph_identity": graph_value,
         "edge_identity": edge_identity,
         "source_identity": source_identity,
+        "contract_identity": contract_value,
         "consumer_identity": consumer_identity,
         "test_result_identity": test_result_identity,
         "check_result_identity": check_result_identity,
@@ -390,13 +426,14 @@ def _family_evidence(
         "evidence_identity": evidence_identity,
         "verdict": str(behavioral_result.get("verdict", "UNKNOWN")),
     }
-    prior = prior_receipt or {
+    prior = dict(prior_receipt) if isinstance(prior_receipt, Mapping) else {
         "receipt_identity": "0" * 64,
         "family_identity": "0" * 64,
         "plan_identity": "0" * 64,
         "graph_identity": "0" * 64,
         "edge_identity": "0" * 64,
         "source_identity": "0" * 64,
+        "contract_identity": "0" * 64,
         "consumer_identity": "0" * 64,
         "test_result_identity": "0" * 64,
         "check_result_identity": "0" * 64,
@@ -406,6 +443,11 @@ def _family_evidence(
         "producer_revision_identity": "0" * 64,
         "verdict": "UNKNOWN",
     }
+    # Receipts created before the Commons contract gained an explicit
+    # contract binding remain readable only as non-reusable evidence. A zero
+    # value makes the native decoder accept the transport shape while
+    # receipt_matches rejects reuse fail-closed.
+    prior.setdefault("contract_identity", "0" * 64)
     return {
         "plan": {
             "family_identity": family_identity,
@@ -440,6 +482,7 @@ def _family_evidence(
             "graph_identity": graph_value,
             "edge_identity": edge_identity,
             "source_identity": source_identity,
+            "contract_identity": contract_value,
             "consumer_identity": consumer_identity,
             "test_identity": test_identity,
             "execution_identity": execution_identity,
@@ -453,6 +496,7 @@ def _family_evidence(
             "graph_identity": graph_value,
             "edge_identity": edge_identity,
             "source_identity": source_identity,
+            "contract_identity": contract_value,
             "consumer_identity": consumer_identity,
             "test_result_identity": test_result_identity,
             "evidence_identity": evidence_identity,
@@ -488,17 +532,17 @@ def _family_arguments(evidence: Mapping[str, Any]) -> str:
     ]
     test_names = [
         "result_identity", "plan_identity", "graph_identity", "edge_identity",
-        "source_identity", "consumer_identity", "test_identity",
+        "source_identity", "contract_identity", "consumer_identity", "test_identity",
         "execution_identity", "evidence_identity",
     ]
     check_names = [
         "result_identity", "check_identity", "plan_identity", "graph_identity",
-        "edge_identity", "source_identity", "consumer_identity",
+        "edge_identity", "source_identity", "contract_identity", "consumer_identity",
         "test_result_identity", "evidence_identity",
     ]
     receipt_names = [
         "receipt_identity", "family_identity", "plan_identity", "graph_identity",
-        "edge_identity", "source_identity", "consumer_identity",
+        "edge_identity", "source_identity", "contract_identity", "consumer_identity",
         "test_result_identity", "check_result_identity", "execution_identity",
         "evidence_identity", "producer_identity", "producer_revision_identity",
     ]
@@ -597,17 +641,17 @@ def _run_native_actions_family_check(
             )},
             "test_result": {key: marker for key in (
                 "result_identity", "plan_identity", "graph_identity", "edge_identity",
-                "source_identity", "consumer_identity", "test_identity", "execution_identity",
+                "source_identity", "contract_identity", "consumer_identity", "test_identity", "execution_identity",
                 "evidence_identity",
             )} | {"verdict": verdict or "PASS"},
             "check_result": {key: marker for key in (
                 "result_identity", "check_identity", "plan_identity", "graph_identity",
-                "edge_identity", "source_identity", "consumer_identity", "test_result_identity",
+                "edge_identity", "source_identity", "contract_identity", "consumer_identity", "test_result_identity",
                 "evidence_identity",
             )} | {"verdict": verdict or "PASS"},
             "prior_receipt": {key: "0" * 64 for key in (
                 "receipt_identity", "family_identity", "plan_identity", "graph_identity",
-                "edge_identity", "source_identity", "consumer_identity", "test_result_identity",
+                "edge_identity", "source_identity", "contract_identity", "consumer_identity", "test_result_identity",
                 "check_result_identity", "execution_identity", "evidence_identity",
                 "producer_identity", "producer_revision_identity",
             )} | {"verdict": "UNKNOWN"},
@@ -700,6 +744,7 @@ def _run_native_actions_selected_proof(
             "graph_identity": family_result["graph_identity"],
             "edge_identity": family_result["edge_identity"],
             "source_identity": family_result["source_identity"],
+            "contract_identity": family_result["contract_identity"],
             "consumer_identity": family_result["consumer_identity"],
             "test_result_identity": family_result["test_result_identity"],
             "check_result_identity": family_result["check_result_identity"],
@@ -1181,7 +1226,6 @@ def _consumer_check(
         if native_actions_shadow_source is not None:
             native_evidence = _family_evidence(
                 plan=plan,
-                plan_digest=plan_digest,
                 graph_identity=graph_identity,
                 edge=edge,
                 behavioral_result=behavioral_result,

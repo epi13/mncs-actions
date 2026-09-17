@@ -1,0 +1,16 @@
+{
+  "schema_version": "mncs.native-application/1",
+  "application_identity": "mncs-actions.direct-test-provider-canary",
+  "source": "../native/mncs/actions/provider_canary/v1.mncs",
+  "module": "mncs.actions.provider_canary.v1",
+  "entry_function": "direct_provider_app",
+  "profile": "0.18",
+  "interface_identity": "e8d7c2bf85a33da68098e6b54ba23967bf95eb021b2bb25866d86a6afa73e06a",
+  "libraries": [
+    "../../mncs-language/library",
+    "../../mncs-test",
+    "../../mncs-test/native"
+  ],
+  "environment_keys": [],
+  "required_capabilities": []
+}

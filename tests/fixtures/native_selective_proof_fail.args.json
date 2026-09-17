@@ -10,7 +10,7 @@
                 "record": {
                   "type": "ConsumerObservation",
                   "fields": {
-                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "verdict": {"finite": {"type": "FamilyVerdict", "variant": "PASS"}},
                     "receipt_valid": {"boolean": {"value": true}},
                     "proof_sufficient": {"boolean": {"value": true}}
                   }
@@ -20,7 +20,7 @@
                 "record": {
                   "type": "ConsumerObservation",
                   "fields": {
-                    "verdict": {"finite": {"type": "Verdict", "variant": "FAIL"}},
+                    "verdict": {"finite": {"type": "FamilyVerdict", "variant": "FAIL"}},
                     "receipt_valid": {"boolean": {"value": false}},
                     "proof_sufficient": {"boolean": {"value": true}}
                   }
@@ -30,7 +30,7 @@
                 "record": {
                   "type": "ConsumerObservation",
                   "fields": {
-                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "verdict": {"finite": {"type": "FamilyVerdict", "variant": "PASS"}},
                     "receipt_valid": {"boolean": {"value": true}},
                     "proof_sufficient": {"boolean": {"value": true}}
                   }
@@ -40,7 +40,7 @@
                 "record": {
                   "type": "ConsumerObservation",
                   "fields": {
-                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "verdict": {"finite": {"type": "FamilyVerdict", "variant": "PASS"}},
                     "receipt_valid": {"boolean": {"value": true}},
                     "proof_sufficient": {"boolean": {"value": true}}
                   }
@@ -50,7 +50,7 @@
                 "record": {
                   "type": "ConsumerObservation",
                   "fields": {
-                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "verdict": {"finite": {"type": "FamilyVerdict", "variant": "PASS"}},
                     "receipt_valid": {"boolean": {"value": true}},
                     "proof_sufficient": {"boolean": {"value": true}}
                   }
@@ -60,7 +60,7 @@
                 "record": {
                   "type": "ConsumerObservation",
                   "fields": {
-                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "verdict": {"finite": {"type": "FamilyVerdict", "variant": "PASS"}},
                     "receipt_valid": {"boolean": {"value": true}},
                     "proof_sufficient": {"boolean": {"value": true}}
                   }
@@ -70,7 +70,7 @@
                 "record": {
                   "type": "ConsumerObservation",
                   "fields": {
-                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "verdict": {"finite": {"type": "FamilyVerdict", "variant": "PASS"}},
                     "receipt_valid": {"boolean": {"value": true}},
                     "proof_sufficient": {"boolean": {"value": true}}
                   }
@@ -80,7 +80,7 @@
                 "record": {
                   "type": "ConsumerObservation",
                   "fields": {
-                    "verdict": {"finite": {"type": "Verdict", "variant": "PASS"}},
+                    "verdict": {"finite": {"type": "FamilyVerdict", "variant": "PASS"}},
                     "receipt_valid": {"boolean": {"value": true}},
                     "proof_sufficient": {"boolean": {"value": true}}
                   }

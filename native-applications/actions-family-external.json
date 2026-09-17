@@ -1,0 +1,20 @@
+{
+  "schema_version": "mncs.native-application/1",
+  "application_identity": "mncs-actions.family-proof-external-artifacts",
+  "source": "../native/mncs/actions/family/v1.mncs",
+  "module": "mncs.actions.family.v1",
+  "entry_function": "family_check_external_app",
+  "profile": "0.18",
+  "interface_identity": "7e42a20cc47da5143bfec8e0b5ec2146634690d1489ed5629aed82931561abbb",
+  "libraries": [
+    "../../mncs-language/library",
+    "../../MNCS-Commons/src/mncs_commons/mesh/mncs",
+    "../../mncs-test",
+    "../../mncs-test/native"
+  ],
+  "environment_keys": [],
+  "required_capabilities": [
+    "actions_artifact",
+    "actions_digest"
+  ]
+}

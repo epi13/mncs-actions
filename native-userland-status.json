@@ -5,13 +5,28 @@
   "canonical_entrypoint": "scripts/selective_family_verify.py",
   "native_sources": {
     "family-check": "native/mncs/actions/family/v1.mncs",
-    "selected-proof": "native/mncs/actions/family/v1.mncs"
+    "selected-proof": "native/mncs/actions/family/v1.mncs",
+    "family-artifact-app": "native/mncs/actions/family/v1.mncs",
+    "family-artifacts-app": "native/mncs/actions/family/v1.mncs",
+    "family-external-artifact-app": "native/mncs/actions/family/v1.mncs",
+    "direct-provider-canary": "native/mncs/actions/provider_canary/v1.mncs",
+    "direct-provider-app": "native/mncs/actions/family/v1.mncs",
+    "direct-provider-reuse-app": "native/mncs/actions/family/v1.mncs"
+  },
+  "native_application_descriptor": "native-applications/actions-family-external.json",
+  "native_application_descriptors": {
+    "family-external": "native-applications/actions-family-external.json",
+    "direct-provider": "native-applications/actions-family-direct-provider.json",
+    "direct-provider-reuse": "native-applications/actions-family-direct-provider-reuse.json"
+  },
+  "native_provider_descriptors": {
+    "mncs-test": "../mncs-test/native-applications/test-provider.json"
   },
   "shadow_launcher": "mncs call",
   "semantic_modules": [
     "native/mncs/actions/family/v1.mncs"
   ],
-  "next_migration_slice": "native provider invocation and typed artifact/receipt ingress",
+  "next_migration_slice": "native selected-provider orchestration and provider revision ingress",
   "host_paths": [
     {
       "path": "scripts/selective_family_verify.py",

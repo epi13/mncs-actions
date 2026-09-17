@@ -1,0 +1,16 @@
+{
+  "schema_version": "mncs.family-semantic-edge/1",
+  "producer_repository": "mncs-test",
+  "consumer_repository": "mncs-test",
+  "contract_identity": "mncs.test-result/1",
+  "contract_revision": "1",
+  "consuming_identity": "mncs-test:result",
+  "fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "consumer_manifest_identity": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "verification": {
+    "check_identity": "mncs-test:check",
+    "selector": {
+      "test_identities": ["test:one"]
+    }
+  }
+}

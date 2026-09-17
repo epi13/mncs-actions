@@ -1,4 +1,4 @@
-mncs 0.16;
+mncs 0.18;
 
 // mncs.actions.family.v1 — native selected-family evidence authority.
 //
@@ -9,139 +9,14 @@ mncs 0.16;
 // composition.
 module mncs.actions.family.v1;
 
-enum Verdict { PASS, FAIL, UNKNOWN }
+// Commons owns the nominal family evidence records. Actions imports them so
+// its proof policy cannot silently fork the external artifact contract.
+use mncs.commons.family.evidence.v1;
+use mncs.commons.family.artifact.v1;
+use mncs.std.application.v1;
+use mncs.test.assertions.v1;
+use mncs.test.provider.v1 as provider;
 
-record PlanEvidence {
-    family_identity: [byte; 32],
-    plan_identity: [byte; 32],
-    graph_identity: [byte; 32],
-    edge_identity: [byte; 32],
-    source_identity: [byte; 32],
-    contract_identity: [byte; 32],
-    consumer_identity: [byte; 32],
-    test_identity: [byte; 32],
-    check_identity: [byte; 32]
-}
-
-record GraphEvidence {
-    family_identity: [byte; 32],
-    graph_identity: [byte; 32],
-    edge_identity: [byte; 32],
-    source_identity: [byte; 32],
-    contract_identity: [byte; 32],
-    consumer_identity: [byte; 32]
-}
-
-record EdgeEvidence {
-    edge_identity: [byte; 32],
-    source_identity: [byte; 32],
-    contract_identity: [byte; 32],
-    consumer_identity: [byte; 32],
-    producer_identity: [byte; 32],
-    producer_revision_identity: [byte; 32]
-}
-
-record TestResultEvidence {
-    result_identity: [byte; 32],
-    plan_identity: [byte; 32],
-    graph_identity: [byte; 32],
-    edge_identity: [byte; 32],
-    source_identity: [byte; 32],
-    consumer_identity: [byte; 32],
-    test_identity: [byte; 32],
-    execution_identity: [byte; 32],
-    evidence_identity: [byte; 32],
-    verdict: Verdict
-}
-
-record CheckResultEvidence {
-    result_identity: [byte; 32],
-    check_identity: [byte; 32],
-    plan_identity: [byte; 32],
-    graph_identity: [byte; 32],
-    edge_identity: [byte; 32],
-    source_identity: [byte; 32],
-    consumer_identity: [byte; 32],
-    test_result_identity: [byte; 32],
-    evidence_identity: [byte; 32],
-    verdict: Verdict
-}
-
-record ReceiptMaterial {
-    family_identity: [byte; 32],
-    plan_identity: [byte; 32],
-    graph_identity: [byte; 32],
-    edge_identity: [byte; 32],
-    source_identity: [byte; 32],
-    contract_identity: [byte; 32],
-    consumer_identity: [byte; 32],
-    test_result_identity: [byte; 32],
-    check_result_identity: [byte; 32],
-    execution_identity: [byte; 32],
-    evidence_identity: [byte; 32],
-    producer_identity: [byte; 32],
-    producer_revision_identity: [byte; 32],
-    verdict: Verdict
-}
-
-record ReceiptEvidence {
-    receipt_identity: [byte; 32],
-    family_identity: [byte; 32],
-    plan_identity: [byte; 32],
-    graph_identity: [byte; 32],
-    edge_identity: [byte; 32],
-    source_identity: [byte; 32],
-    consumer_identity: [byte; 32],
-    test_result_identity: [byte; 32],
-    check_result_identity: [byte; 32],
-    execution_identity: [byte; 32],
-    evidence_identity: [byte; 32],
-    producer_identity: [byte; 32],
-    producer_revision_identity: [byte; 32],
-    verdict: Verdict
-}
-
-record FamilyCheckInput {
-    plan: PlanEvidence,
-    graph: GraphEvidence,
-    edge: EdgeEvidence,
-    test_result: TestResultEvidence,
-    check_result: CheckResultEvidence,
-    prior_receipt: ReceiptEvidence
-}
-
-record ProofMaterial {
-    family_identity: [byte; 32],
-    plan_identity: [byte; 32],
-    graph_identity: [byte; 32],
-    edge_identity: [byte; 32],
-    source_identity: [byte; 32],
-    consumer_identity: [byte; 32],
-    test_result_identity: [byte; 32],
-    check_result_identity: [byte; 32],
-    receipt_identity: [byte; 32],
-    execution_identity: [byte; 32],
-    evidence_identity: [byte; 32],
-    verdict: Verdict
-}
-
-record FamilyCheckResult {
-    verdict: Verdict,
-    proof_sufficient: bool,
-    reusable: bool,
-    reason_code: u64,
-    plan_identity: [byte; 32],
-    graph_identity: [byte; 32],
-    edge_identity: [byte; 32],
-    source_identity: [byte; 32],
-    consumer_identity: [byte; 32],
-    test_result_identity: [byte; 32],
-    check_result_identity: [byte; 32],
-    execution_identity: [byte; 32],
-    evidence_identity: [byte; 32],
-    receipt: ReceiptEvidence,
-    proof_identity: [byte; 32]
-}
 
 fn bytes_equal(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
     iterate i over left carrying equal: bool = true {
@@ -157,7 +32,7 @@ fn bytes_present(value: [byte; 32]) -> (result: bool) {
     return present;
 }
 
-fn verdict_equal(left: Verdict, right: Verdict) -> (result: bool) {
+fn verdict_equal(left: FamilyVerdict, right: FamilyVerdict) -> (result: bool) {
     return match left {
         PASS => match right { PASS => true, FAIL => false, UNKNOWN => false },
         FAIL => match right { PASS => false, FAIL => true, UNKNOWN => false },
@@ -165,15 +40,15 @@ fn verdict_equal(left: Verdict, right: Verdict) -> (result: bool) {
     };
 }
 
-fn verdict_is_unknown(value: Verdict) -> (result: bool) {
+fn verdict_is_unknown(value: FamilyVerdict) -> (result: bool) {
     return match value { PASS => false, FAIL => false, UNKNOWN => true };
 }
 
-fn verdict_is_fail(value: Verdict) -> (result: bool) {
+fn verdict_is_fail(value: FamilyVerdict) -> (result: bool) {
     return match value { PASS => false, FAIL => true, UNKNOWN => false };
 }
 
-fn verdict_is_pass(value: Verdict) -> (result: bool) {
+fn verdict_is_pass(value: FamilyVerdict) -> (result: bool) {
     return match value { PASS => true, FAIL => false, UNKNOWN => false };
 }
 
@@ -213,6 +88,8 @@ fn edge_binding(input: FamilyCheckInput) -> (result: bool) {
         && bytes_equal(input.edge.edge_identity, input.check_result.edge_identity)
         && bytes_equal(input.edge.source_identity, input.test_result.source_identity)
         && bytes_equal(input.edge.source_identity, input.check_result.source_identity)
+        && bytes_equal(input.edge.contract_identity, input.test_result.contract_identity)
+        && bytes_equal(input.edge.contract_identity, input.check_result.contract_identity)
         && bytes_equal(input.edge.consumer_identity, input.test_result.consumer_identity)
         && bytes_equal(input.edge.consumer_identity, input.check_result.consumer_identity);
 }
@@ -224,6 +101,7 @@ fn test_binding(input: FamilyCheckInput) -> (result: bool) {
         && bytes_present(input.test_result.evidence_identity)
         && bytes_equal(input.test_result.plan_identity, input.plan.plan_identity)
         && bytes_equal(input.test_result.graph_identity, input.plan.graph_identity)
+        && bytes_equal(input.test_result.contract_identity, input.plan.contract_identity)
         && bytes_equal(input.test_result.test_identity, input.plan.test_identity)
         && bytes_equal(input.test_result.consumer_identity, input.plan.consumer_identity);
 }
@@ -235,6 +113,7 @@ fn check_binding(input: FamilyCheckInput) -> (result: bool) {
         && bytes_equal(input.check_result.check_identity, input.plan.check_identity)
         && bytes_equal(input.check_result.plan_identity, input.plan.plan_identity)
         && bytes_equal(input.check_result.graph_identity, input.plan.graph_identity)
+        && bytes_equal(input.check_result.contract_identity, input.plan.contract_identity)
         && bytes_equal(input.check_result.consumer_identity, input.plan.consumer_identity)
         && bytes_equal(input.check_result.test_result_identity, input.test_result.result_identity)
         && bytes_equal(input.check_result.evidence_identity, input.test_result.evidence_identity)
@@ -249,6 +128,7 @@ fn receipt_matches(receipt: ReceiptEvidence, material: ReceiptMaterial, identity
         && bytes_equal(receipt.graph_identity, material.graph_identity)
         && bytes_equal(receipt.edge_identity, material.edge_identity)
         && bytes_equal(receipt.source_identity, material.source_identity)
+        && bytes_equal(receipt.contract_identity, material.contract_identity)
         && bytes_equal(receipt.consumer_identity, material.consumer_identity)
         && bytes_equal(receipt.test_result_identity, material.test_result_identity)
         && bytes_equal(receipt.check_result_identity, material.check_result_identity)
@@ -291,6 +171,7 @@ fn family_check(input: FamilyCheckInput) -> (result: FamilyCheckResult)
         graph_identity: material.graph_identity,
         edge_identity: material.edge_identity,
         source_identity: material.source_identity,
+        contract_identity: material.contract_identity,
         consumer_identity: material.consumer_identity,
         test_result_identity: material.test_result_identity,
         check_result_identity: material.check_result_identity,
@@ -302,14 +183,14 @@ fn family_check(input: FamilyCheckInput) -> (result: FamilyCheckResult)
     };
     let reusable: bool = bindings && receipt_matches(input.prior_receipt, material, receipt_identity);
     let sufficient: bool = bindings && !verdict_is_unknown(input.test_result.verdict) && !verdict_is_unknown(input.check_result.verdict);
-    let verdict: Verdict = select(
+    let verdict: FamilyVerdict = select(
         !bindings,
-        Verdict.UNKNOWN,
+        FamilyVerdict.UNKNOWN,
         select(verdict_is_fail(input.test_result.verdict) || verdict_is_fail(input.check_result.verdict),
-            Verdict.FAIL,
+            FamilyVerdict.FAIL,
             select(sufficient && verdict_is_pass(input.test_result.verdict) && verdict_is_pass(input.check_result.verdict),
-                Verdict.PASS,
-                Verdict.UNKNOWN)));
+                FamilyVerdict.PASS,
+                FamilyVerdict.UNKNOWN)));
     let final_sufficient: bool = sufficient && !verdict_is_unknown(verdict);
     let proof_material: ProofMaterial = ProofMaterial {
         family_identity: material.family_identity,
@@ -317,6 +198,7 @@ fn family_check(input: FamilyCheckInput) -> (result: FamilyCheckResult)
         graph_identity: material.graph_identity,
         edge_identity: material.edge_identity,
         source_identity: material.source_identity,
+        contract_identity: material.contract_identity,
         consumer_identity: material.consumer_identity,
         test_result_identity: material.test_result_identity,
         check_result_identity: material.check_result_identity,
@@ -335,6 +217,7 @@ fn family_check(input: FamilyCheckInput) -> (result: FamilyCheckResult)
         graph_identity: material.graph_identity,
         edge_identity: material.edge_identity,
         source_identity: material.source_identity,
+        contract_identity: material.contract_identity,
         consumer_identity: material.consumer_identity,
         test_result_identity: material.test_result_identity,
         check_result_identity: material.check_result_identity,
@@ -345,44 +228,9 @@ fn family_check(input: FamilyCheckInput) -> (result: FamilyCheckResult)
     };
 }
 
-record ConsumerObservation {
-    material: ProofMaterial,
-    proof_identity: [byte; 32]
-}
-
-// One fixed-size reduction step keeps the final proof identity bounded even
-// when the selected family contains many consumers. The consumer proof
-// identity already binds its full typed material; this fold adds deterministic
-// ordering and the native aggregate's prior state without hashing the whole
-// dynamic sequence as one oversized external document.
-record ProofIdentityStep {
-    prior_identity: [byte; 32],
-    consumer_identity: [byte; 32],
-    ordinal: u64,
-    verdict: Verdict
-}
-
-record SelectiveProof {
-    verdict: Verdict,
-    total: u64,
-    passed: u64,
-    failed: u64,
-    unknown: u64,
-    invalid: u64,
-    reusable: bool,
-    reason_code: u64,
-    proof_identity: [byte; 32]
-}
-
-record SelectedProofInput {
-    observations: [ConsumerObservation; up_to 64],
-    count: u64,
-    overflow: bool
-}
-
 fn empty_proof() -> (result: SelectiveProof) {
     return SelectiveProof {
-        verdict: Verdict.PASS,
+        verdict: FamilyVerdict.PASS,
         total: 0,
         passed: 0,
         failed: 0,
@@ -450,7 +298,7 @@ fn observe(proof: SelectiveProof, consumer: ConsumerObservation) -> (result: Sel
         },
         FAIL => SelectiveProof {
             ..proof,
-            verdict: Verdict.FAIL,
+            verdict: FamilyVerdict.FAIL,
             total: total,
             failed: proof.failed +% 1,
             invalid: invalid,
@@ -460,7 +308,7 @@ fn observe(proof: SelectiveProof, consumer: ConsumerObservation) -> (result: Sel
         },
         UNKNOWN => SelectiveProof {
             ..proof,
-            verdict: Verdict.UNKNOWN,
+            verdict: FamilyVerdict.UNKNOWN,
             total: total,
             unknown: proof.unknown +% 1,
             invalid: invalid,
@@ -473,13 +321,13 @@ fn observe(proof: SelectiveProof, consumer: ConsumerObservation) -> (result: Sel
 
 fn finalize(proof: SelectiveProof) -> (result: SelectiveProof) {
     if proof.invalid > 0 {
-        return SelectiveProof { ..proof, verdict: Verdict.UNKNOWN, reusable: false, reason_code: 31 };
+        return SelectiveProof { ..proof, verdict: FamilyVerdict.UNKNOWN, reusable: false, reason_code: 31 };
     }
     if proof.failed > 0 {
-        return SelectiveProof { ..proof, verdict: Verdict.FAIL, reusable: false, reason_code: 1 };
+        return SelectiveProof { ..proof, verdict: FamilyVerdict.FAIL, reusable: false, reason_code: 1 };
     }
     if proof.unknown > 0 {
-        return SelectiveProof { ..proof, verdict: Verdict.UNKNOWN, reusable: false, reason_code: 2 };
+        return SelectiveProof { ..proof, verdict: FamilyVerdict.UNKNOWN, reusable: false, reason_code: 2 };
     }
     return proof;
 }
@@ -490,7 +338,7 @@ fn selected_proof(input: SelectedProofInput) -> (result: SelectiveProof)
 {
     if input.overflow || input.count != input.observations.len {
         return SelectiveProof {
-            verdict: Verdict.UNKNOWN,
+            verdict: FamilyVerdict.UNKNOWN,
             total: input.count,
             passed: 0,
             failed: 0,
@@ -505,4 +353,501 @@ fn selected_proof(input: SelectedProofInput) -> (result: SelectiveProof)
         next proof = observe(proof, input.observations[i]);
     }
     return finalize(proof);
+}
+
+// The material used for an Actions family identity is owned by this module;
+// it is not a hash of a Python-created dictionary.
+record FamilyIdentityMaterial {
+    family_name: [byte; 4],
+    graph_identity: [byte; 32]
+}
+
+record EvidenceIdentityMaterial {
+    test_result_identity: [byte; 32],
+    check_result_identity: [byte; 32]
+}
+
+fn digest_view(value: [byte; up_to 256]) -> (result: [byte; 32])
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    return copy_digest(structured_digest(value));
+}
+
+fn digest_tests(value: [[byte; up_to 1024]; up_to 64]) -> (result: [byte; 32])
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    return copy_digest(structured_digest(value));
+}
+
+fn view_equal(left: [byte; up_to 256], right: [byte; up_to 256]) -> (result: bool) {
+    if left.len != right.len { return false; }
+    iterate i over left carrying equal: bool = true {
+        next equal = equal && left[i] == right[i];
+    }
+    return equal;
+}
+
+fn selected_repository(selection: ArtifactSelection, candidate: [byte; up_to 256]) -> (result: bool) {
+    iterate i over selection.selected_repositories carrying found: bool = false {
+        next found = found || view_equal(selection.selected_repositories[i], candidate);
+    }
+    return found;
+}
+
+fn first_test_selector(edge: SemanticEdgeArtifact) -> (result: [byte; up_to 1024]) {
+    if edge.verification.selector.test_identities.len != 1 {
+        return [0; 0];
+    }
+    let selectors: [[byte; up_to 1024]; up_to 64] = edge.verification.selector.test_identities;
+    return selectors[0];
+}
+
+fn artifact_verdict(value: ArtifactVerdict) -> (result: FamilyVerdict) {
+    return match value {
+        ArtifactVerdict.PASS => FamilyVerdict.PASS,
+        ArtifactVerdict.FAIL => FamilyVerdict.FAIL,
+        ArtifactVerdict.UNKNOWN => FamilyVerdict.UNKNOWN
+    };
+}
+
+// Keep provider execution behind the native binding guard.  A malformed
+// selection or declaration must not cause an unrelated provider call merely
+// because the caller supplied a path-shaped artifact set.
+fn direct_provider_verdict(valid: bool, selector: [byte; up_to 1024]) -> (result: ArtifactVerdict) {
+    if !valid {
+        return ArtifactVerdict.UNKNOWN;
+    }
+    let provider_result: TestResult = provider.run_selected(selector);
+    return match provider_result.verdict {
+        Verdict.PASS => ArtifactVerdict.PASS,
+        Verdict.FAIL => ArtifactVerdict.FAIL,
+        Verdict.SKIP => ArtifactVerdict.UNKNOWN,
+        Verdict.UNSUPPORTED => ArtifactVerdict.UNKNOWN,
+    };
+}
+
+fn external_family_input(
+    plan: VerificationPlanArtifact,
+    edge: SemanticEdgeArtifact,
+    test_result: TestResultArtifact,
+    check_result: CheckResultArtifact,
+    provider: ProviderDeclarationArtifact,
+    prior_receipt: ReceiptEvidence
+) -> (result: FamilyCheckInput)
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    let family_material: FamilyIdentityMaterial = FamilyIdentityMaterial {
+        family_name: [109, 110, 99, 115],
+        graph_identity: plan.impact.cross_repository.graph_identity
+    };
+    let family_identity: [byte; 32] = copy_digest(structured_digest(family_material));
+    let contract_identity: [byte; 32] = digest_view(edge.contract_identity);
+    let consumer_identity: [byte; 32] = edge.consumer_manifest_identity;
+    let test_identity: [byte; 32] = digest_tests(edge.verification.selector.test_identities);
+    let check_identity: [byte; 32] = digest_view(edge.verification.check_identity);
+    let test_result_identity: [byte; 32] = copy_digest(structured_digest(test_result));
+    let check_result_identity: [byte; 32] = copy_digest(structured_digest(check_result));
+    let evidence_identity: [byte; 32] = copy_digest(structured_digest(EvidenceIdentityMaterial {
+        test_result_identity: test_result_identity,
+        check_result_identity: check_result_identity
+    }));
+    let execution_identity: [byte; 32] = digest_view(test_result.execution.run_identity);
+    let producer_identity: [byte; 32] = digest_view(edge.producer_repository);
+    let producer_revision_identity: [byte; 32] = digest_view(provider.revision);
+    return FamilyCheckInput {
+        plan: PlanEvidence {
+            family_identity: family_identity,
+            plan_identity: plan.plan_id,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: consumer_identity,
+            test_identity: test_identity,
+            check_identity: check_identity
+        },
+        graph: GraphEvidence {
+            family_identity: family_identity,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: consumer_identity
+        },
+        edge: EdgeEvidence {
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: consumer_identity,
+            producer_identity: producer_identity,
+            producer_revision_identity: producer_revision_identity
+        },
+        test_result: TestResultEvidence {
+            result_identity: test_result_identity,
+            plan_identity: plan.plan_id,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: consumer_identity,
+            test_identity: test_identity,
+            execution_identity: execution_identity,
+            evidence_identity: evidence_identity,
+            verdict: artifact_verdict(test_result.verdict)
+        },
+        check_result: CheckResultEvidence {
+            result_identity: check_result_identity,
+            check_identity: check_identity,
+            plan_identity: plan.plan_id,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: consumer_identity,
+            test_result_identity: test_result_identity,
+            evidence_identity: evidence_identity,
+            verdict: artifact_verdict(check_result.verdict)
+        },
+        prior_receipt: prior_receipt
+    };
+}
+
+// Host-free ingress for actual schema-versioned plan, edge, TestResult,
+// CheckResult, provider-declaration, and receipt documents. The host supplies
+// only bounded relative paths; the generic runtime decodes each document
+// against the Commons-owned wire view and Actions computes all evidence
+// identities from those typed values.
+fn family_check_external_app(context: ApplicationContext) -> (result: ApplicationExit)
+    capability actions_artifact
+    capability actions_digest
+    effect structured_read authorized_by actions_artifact
+    effect structured_write authorized_by actions_artifact
+    effect structured_digest authorized_by actions_digest
+{
+    if !context_is_bounded(context) {
+        return failure([98, 111, 117, 110, 100, 115], 2);
+    }
+    if context.argv_count < 8 {
+        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 56, 32, 105, 110, 112, 117, 116, 32, 97, 114, 116, 105, 102, 97, 99, 116, 32, 112, 97, 116, 104, 115], 2);
+    }
+    let plan_schema: [byte; 24] = [109, 110, 99, 115, 46, 118, 101, 114, 105, 102, 105, 99, 97, 116, 105, 111, 110, 45, 112, 108, 97, 110, 47, 49];
+    let edge_schema: [byte; 27] = [109, 110, 99, 115, 46, 102, 97, 109, 105, 108, 121, 45, 115, 101, 109, 97, 110, 116, 105, 99, 45, 101, 100, 103, 101, 47, 49];
+    let test_schema: [byte; 18] = [109, 110, 99, 115, 46, 116, 101, 115, 116, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let check_schema: [byte; 19] = [109, 110, 99, 115, 46, 99, 104, 101, 99, 107, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let provider_schema: [byte; 46] = [99, 111, 109, 109, 111, 110, 115, 46, 109, 110, 99, 115, 46, 115, 101, 109, 97, 110, 116, 105, 99, 45, 99, 111, 110, 116, 114, 97, 99, 116, 45, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 115, 47, 118, 49];
+    let result_schema: [byte; 28] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 102, 97, 109, 105, 108, 121, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let receipt_schema: [byte; 31] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 114, 101, 99, 101, 105, 112, 116, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let plan: VerificationPlanArtifact = structured_read(context.argv[0], plan_schema);
+    let edge: SemanticEdgeArtifact = structured_read(context.argv[1], edge_schema);
+    let test_result: TestResultArtifact = structured_read(context.argv[2], test_schema);
+    let check_result: CheckResultArtifact = structured_read(context.argv[3], check_schema);
+    let provider: ProviderDeclarationArtifact = structured_read(context.argv[4], provider_schema);
+    let prior_receipt: ReceiptEvidence = structured_read(context.argv[5], receipt_schema);
+    let selector_identity: [byte; 32] = digest_tests(plan.selection.selected_test_identities);
+    let edge_selector_identity: [byte; 32] = digest_tests(edge.verification.selector.test_identities);
+    let test_selector_identity: [byte; 32] = digest_tests(test_result.selection.selected_test_identities);
+    let selected: bool = selected_repository(plan.selection, edge.consumer_repository);
+    let check_id_matches: bool = view_equal(edge.verification.check_identity, check_result.id);
+    let provider_matches: bool = view_equal(edge.producer_repository, provider.repository_id);
+    let selectors_match: bool = bytes_equal(selector_identity, edge_selector_identity)
+        && bytes_equal(edge_selector_identity, test_selector_identity);
+    let input: FamilyCheckInput = external_family_input(plan, edge, test_result, check_result, provider, prior_receipt);
+    let result_value: FamilyCheckResult = select(
+        selected && check_id_matches && provider_matches && selectors_match,
+        family_check(input),
+        FamilyCheckResult {
+            verdict: FamilyVerdict.UNKNOWN,
+            proof_sufficient: false,
+            reusable: false,
+            reason_code: 10,
+            plan_identity: plan.plan_id,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: [0; 32],
+            consumer_identity: edge.consumer_manifest_identity,
+            test_result_identity: [0; 32],
+            check_result_identity: [0; 32],
+            execution_identity: [0; 32],
+            evidence_identity: [0; 32],
+            receipt: prior_receipt,
+            proof_identity: [0; 32]
+        });
+    let published: u64 = structured_write(context.argv[6], result_schema, result_value);
+    let published_receipt: u64 = structured_write(context.argv[7], receipt_schema, result_value.receipt);
+    if published == 0 || published_receipt == 0 {
+        return failure([112, 117, 98, 108, 105, 115, 104, 32, 102, 97, 105, 108, 101, 100], 3);
+    }
+    return success([]);
+}
+
+// Direct provider composition for the selected mncs-test surface.  The
+// provider is linked into this MNCS session and receives the selected test
+// identity as a typed bounded view.  There is no Python projection, shell
+// command, or `mncs call` subprocess between Actions and mncs-test.
+//
+// This first provider descriptor deliberately admits one selected test: it
+// is the exact shape of the current family canary and lets the provider own
+// identity-to-test resolution.  A multi-test provider interface can extend
+// this contract without moving selection policy back to a host adapter.
+fn family_check_direct_provider_app(context: ApplicationContext) -> (result: ApplicationExit)
+    capability actions_artifact
+    capability actions_digest
+    effect structured_read authorized_by actions_artifact
+    effect structured_write authorized_by actions_artifact
+    effect structured_digest authorized_by actions_digest
+{
+    if !context_is_bounded(context) {
+        return failure([98, 111, 117, 110, 100, 115], 2);
+    }
+    if context.argv_count < 8 {
+        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 56, 32, 97, 114, 116, 105, 102, 97, 99, 116, 32, 112, 97, 116, 104, 115], 2);
+    }
+    let plan_schema: [byte; 24] = [109, 110, 99, 115, 46, 118, 101, 114, 105, 102, 105, 99, 97, 116, 105, 111, 110, 45, 112, 108, 97, 110, 47, 49];
+    let edge_schema: [byte; 27] = [109, 110, 99, 115, 46, 102, 97, 109, 105, 108, 121, 45, 115, 101, 109, 97, 110, 116, 105, 99, 45, 101, 100, 103, 101, 47, 49];
+    let provider_schema: [byte; 46] = [99, 111, 109, 109, 111, 110, 115, 46, 109, 110, 99, 115, 46, 115, 101, 109, 97, 110, 116, 105, 99, 45, 99, 111, 110, 116, 114, 97, 99, 116, 45, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 115, 47, 118, 49];
+    let receipt_schema: [byte; 31] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 114, 101, 99, 101, 105, 112, 116, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let result_schema: [byte; 28] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 102, 97, 109, 105, 108, 121, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let test_schema: [byte; 18] = [109, 110, 99, 115, 46, 116, 101, 115, 116, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let plan: VerificationPlanArtifact = structured_read(context.argv[0], plan_schema);
+    let edge: SemanticEdgeArtifact = structured_read(context.argv[1], edge_schema);
+    let provider_declaration: ProviderDeclarationArtifact = structured_read(context.argv[2], provider_schema);
+    let prior_receipt: ReceiptEvidence = structured_read(context.argv[3], receipt_schema);
+    let selector: [byte; up_to 1024] = first_test_selector(edge);
+    let selected: bool = selected_repository(plan.selection, edge.consumer_repository);
+    let check_id_matches: bool = view_equal(edge.verification.check_identity, [109, 110, 99, 115, 45, 116, 101, 115, 116, 58, 99, 104, 101, 99, 107]);
+    let provider_matches: bool = view_equal(edge.producer_repository, provider_declaration.repository_id)
+        && view_equal(provider_declaration.repository_id, [109, 110, 99, 115, 45, 116, 101, 115, 116]);
+    let selector_identity: [byte; 32] = digest_tests(plan.selection.selected_test_identities);
+    let edge_selector_identity: [byte; 32] = digest_tests(edge.verification.selector.test_identities);
+    let selectors_match: bool = bytes_equal(selector_identity, edge_selector_identity);
+    let provider_binding_valid: bool = selected
+        && check_id_matches
+        && provider_matches
+        && selectors_match
+        && edge.verification.selector.test_identities.len == 1;
+    let artifact_verdict: ArtifactVerdict = direct_provider_verdict(provider_binding_valid, selector);
+    let execution: TestExecutionArtifact = TestExecutionArtifact {
+        run_identity: [109, 110, 99, 115, 45, 116, 101, 115, 116, 45, 110, 97, 116, 105, 118, 101, 45, 100, 105, 114, 101, 99, 116],
+        test_case_identities: edge.verification.selector.test_identities
+    };
+    let test_result: TestResultArtifact = TestResultArtifact {
+        verdict: artifact_verdict,
+        execution: execution,
+        selection: TestSelectionArtifact {
+            selected_test_identities: edge.verification.selector.test_identities
+        }
+    };
+    let check_result: CheckResultArtifact = CheckResultArtifact {
+        id: edge.verification.check_identity,
+        provider: provider_declaration.repository_id,
+        verdict: artifact_verdict
+    };
+    let input: FamilyCheckInput = external_family_input(
+        plan,
+        edge,
+        test_result,
+        check_result,
+        provider_declaration,
+        prior_receipt
+    );
+    let result_value: FamilyCheckResult = select(
+        provider_binding_valid,
+        family_check(input),
+        FamilyCheckResult {
+            verdict: FamilyVerdict.UNKNOWN,
+            proof_sufficient: false,
+            reusable: false,
+            reason_code: 11,
+            plan_identity: plan.plan_id,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: [0; 32],
+            consumer_identity: edge.consumer_manifest_identity,
+            test_result_identity: [0; 32],
+            check_result_identity: [0; 32],
+            execution_identity: [0; 32],
+            evidence_identity: [0; 32],
+            receipt: prior_receipt,
+            proof_identity: [0; 32]
+        }
+    );
+    let check_schema: [byte; 19] = [109, 110, 99, 115, 46, 99, 104, 101, 99, 107, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let published: u64 = structured_write(context.argv[4], result_schema, result_value);
+    let published_receipt: u64 = structured_write(context.argv[5], receipt_schema, result_value.receipt);
+    let provider_status: u64 = structured_write(context.argv[6], test_schema, test_result);
+    let check_status: u64 = structured_write(context.argv[7], check_schema, check_result);
+    if published == 0 || published_receipt == 0 || provider_status == 0 || check_status == 0 {
+        return failure([112, 117, 98, 108, 105, 115, 104, 32, 102, 97, 105, 108, 101, 100], 3);
+    }
+    return success([]);
+}
+
+// Receipt reuse is a separate native entrypoint so the no-execution branch is
+// visible in the provider boundary: it consumes the previously published
+// TestResult and CheckResult artifacts, validates their bindings and the
+// native receipt, and never calls mncs.test.provider.v1.  The caller supplies
+// the old artifacts rather than asking a host to copy or summarize them.
+fn family_check_direct_provider_reuse_app(context: ApplicationContext) -> (result: ApplicationExit)
+    capability actions_artifact
+    capability actions_digest
+    effect structured_read authorized_by actions_artifact
+    effect structured_write authorized_by actions_artifact
+    effect structured_digest authorized_by actions_digest
+{
+    if !context_is_bounded(context) {
+        return failure([98, 111, 117, 110, 100, 115], 2);
+    }
+    if context.argv_count < 10 {
+        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 49, 48, 32, 97, 114, 116, 105, 102, 97, 99, 116, 32, 112, 97, 116, 104, 115], 2);
+    }
+    let plan_schema: [byte; 24] = [109, 110, 99, 115, 46, 118, 101, 114, 105, 102, 105, 99, 97, 116, 105, 111, 110, 45, 112, 108, 97, 110, 47, 49];
+    let edge_schema: [byte; 27] = [109, 110, 99, 115, 46, 102, 97, 109, 105, 108, 121, 45, 115, 101, 109, 97, 110, 116, 105, 99, 45, 101, 100, 103, 101, 47, 49];
+    let provider_schema: [byte; 46] = [99, 111, 109, 109, 111, 110, 115, 46, 109, 110, 99, 115, 46, 115, 101, 109, 97, 110, 116, 105, 99, 45, 99, 111, 110, 116, 114, 97, 99, 116, 45, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 115, 47, 118, 49];
+    let receipt_schema: [byte; 31] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 114, 101, 99, 101, 105, 112, 116, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let result_schema: [byte; 28] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 102, 97, 109, 105, 108, 121, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let test_schema: [byte; 18] = [109, 110, 99, 115, 46, 116, 101, 115, 116, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let check_schema: [byte; 19] = [109, 110, 99, 115, 46, 99, 104, 101, 99, 107, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let plan: VerificationPlanArtifact = structured_read(context.argv[0], plan_schema);
+    let edge: SemanticEdgeArtifact = structured_read(context.argv[1], edge_schema);
+    let provider_declaration: ProviderDeclarationArtifact = structured_read(context.argv[2], provider_schema);
+    let prior_receipt: ReceiptEvidence = structured_read(context.argv[3], receipt_schema);
+    let previous_test: TestResultArtifact = structured_read(context.argv[4], test_schema);
+    let previous_check: CheckResultArtifact = structured_read(context.argv[5], check_schema);
+    let selector_identity: [byte; 32] = digest_tests(plan.selection.selected_test_identities);
+    let edge_selector_identity: [byte; 32] = digest_tests(edge.verification.selector.test_identities);
+    let previous_selection_identity: [byte; 32] = digest_tests(previous_test.selection.selected_test_identities);
+    let previous_execution_identity: [byte; 32] = digest_tests(previous_test.execution.test_case_identities);
+    let selected: bool = selected_repository(plan.selection, edge.consumer_repository);
+    let check_id_matches: bool = view_equal(edge.verification.check_identity, previous_check.id)
+        && view_equal(previous_check.provider, provider_declaration.repository_id);
+    let selector_matches: bool = bytes_equal(selector_identity, edge_selector_identity)
+        && bytes_equal(edge_selector_identity, previous_selection_identity)
+        && bytes_equal(edge_selector_identity, previous_execution_identity);
+    let verdicts_match: bool = verdict_equal(artifact_verdict(previous_test.verdict), artifact_verdict(previous_check.verdict));
+    let reuse_binding_valid: bool = selected
+        && check_id_matches
+        && selector_matches
+        && verdicts_match
+        && edge.verification.selector.test_identities.len == 1;
+    let input: FamilyCheckInput = external_family_input(
+        plan,
+        edge,
+        previous_test,
+        previous_check,
+        provider_declaration,
+        prior_receipt
+    );
+    let result_value: FamilyCheckResult = select(
+        reuse_binding_valid,
+        family_check(input),
+        FamilyCheckResult {
+            verdict: FamilyVerdict.UNKNOWN,
+            proof_sufficient: false,
+            reusable: false,
+            reason_code: 12,
+            plan_identity: plan.plan_id,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: [0; 32],
+            consumer_identity: edge.consumer_manifest_identity,
+            test_result_identity: [0; 32],
+            check_result_identity: [0; 32],
+            execution_identity: [0; 32],
+            evidence_identity: [0; 32],
+            receipt: prior_receipt,
+            proof_identity: [0; 32]
+        }
+    );
+    let published: u64 = structured_write(context.argv[6], result_schema, result_value);
+    let published_receipt: u64 = structured_write(context.argv[7], receipt_schema, result_value.receipt);
+    let published_test: u64 = structured_write(context.argv[8], test_schema, previous_test);
+    let published_check: u64 = structured_write(context.argv[9], check_schema, previous_check);
+    if published == 0 || published_receipt == 0 || published_test == 0 || published_check == 0 {
+        return failure([112, 117, 98, 108, 105, 115, 104, 32, 102, 97, 105, 108, 101, 100], 3);
+    }
+    return success([]);
+}
+
+// Generic application entrypoint for the first native artifact slice.
+// argv[0] is a bounded relative input path and argv[1] is a bounded relative
+// output path, both interpreted only by the runtime's explicit artifact-root
+// grant. The application receives the actual typed FamilyCheckInput envelope;
+// it does not receive a host-built projection or validity booleans.
+fn family_check_artifact_app(context: ApplicationContext) -> (result: ApplicationExit)
+    capability actions_artifact
+    capability actions_digest
+    effect structured_read authorized_by actions_artifact
+    effect structured_write authorized_by actions_artifact
+    effect structured_digest authorized_by actions_digest
+{
+    if !context_is_bounded(context) {
+        return failure([105, 110, 118, 97, 108, 105, 100, 32, 97, 112, 112, 108, 105, 99, 97, 116, 105, 111, 110, 32, 99, 111, 110, 116, 101, 120, 116], 2);
+    }
+    if context.argv_count < 2 {
+        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 105, 110, 112, 117, 116, 32, 97, 110, 100, 32, 111, 117, 116, 112, 117, 116], 2);
+    }
+    let evidence_schema: [byte; 30] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 102, 97, 109, 105, 108, 121, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let result_schema: [byte; 28] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 102, 97, 109, 105, 108, 121, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let input: FamilyCheckInput = structured_read(context.argv[0], evidence_schema);
+    let result_value: FamilyCheckResult = family_check(input);
+    let published: u64 = structured_write(context.argv[1], result_schema, result_value);
+    if published == 0 {
+        return failure([115, 116, 114, 117, 99, 116, 117, 114, 101, 100, 32, 112, 117, 98, 108, 105, 99, 97, 116, 105, 111, 110, 32, 119, 97, 115, 32, 101, 109, 112, 116, 121], 3);
+    }
+    return success([]);
+}
+
+// Multi-artifact form for the canonical migration.  Each bounded external
+// document is decoded against the Commons-owned nominal contract before the
+// family decision is entered.  Actions receives no host-computed validity
+// flags and no application-specific JSON tree. argv[6] publishes the result
+// and argv[7] publishes the native receipt as separate artifacts, so a later
+// invocation can feed the receipt back without a host copy/reconstruction.
+fn family_check_artifacts_app(context: ApplicationContext) -> (result: ApplicationExit)
+    capability actions_artifact
+    capability actions_digest
+    effect structured_read authorized_by actions_artifact
+    effect structured_write authorized_by actions_artifact
+    effect structured_digest authorized_by actions_digest
+{
+    if !context_is_bounded(context) {
+        return failure([105, 110, 118, 97, 108, 105, 100, 32, 97, 112, 112, 108, 105, 99, 97, 116, 105, 111, 110, 32, 99, 111, 110, 116, 101, 120, 116], 2);
+    }
+    if context.argv_count < 8 {
+        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 56, 32, 97, 114, 116, 105, 102, 97, 99, 116, 32, 112, 97, 116, 104, 115], 2);
+    }
+    let plan_schema: [byte; 28] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 112, 108, 97, 110, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let graph_schema: [byte; 29] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 103, 114, 97, 112, 104, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let edge_schema: [byte; 28] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 101, 100, 103, 101, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let test_schema: [byte; 35] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 116, 101, 115, 116, 45, 114, 101, 115, 117, 108, 116, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let check_schema: [byte; 36] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 99, 104, 101, 99, 107, 45, 114, 101, 115, 117, 108, 116, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let receipt_schema: [byte; 31] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 114, 101, 99, 101, 105, 112, 116, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let output_schema: [byte; 28] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 102, 97, 109, 105, 108, 121, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let plan: PlanEvidence = structured_read(context.argv[0], plan_schema);
+    let graph: GraphEvidence = structured_read(context.argv[1], graph_schema);
+    let edge: EdgeEvidence = structured_read(context.argv[2], edge_schema);
+    let test_result: TestResultEvidence = structured_read(context.argv[3], test_schema);
+    let check_result: CheckResultEvidence = structured_read(context.argv[4], check_schema);
+    let prior_receipt: ReceiptEvidence = structured_read(context.argv[5], receipt_schema);
+    let input: FamilyCheckInput = FamilyCheckInput {
+        plan: plan,
+        graph: graph,
+        edge: edge,
+        test_result: test_result,
+        check_result: check_result,
+        prior_receipt: prior_receipt,
+    };
+    let result_value: FamilyCheckResult = family_check(input);
+    let published: u64 = structured_write(context.argv[6], output_schema, result_value);
+    let published_receipt: u64 = structured_write(context.argv[7], receipt_schema, result_value.receipt);
+    if published == 0 || published_receipt == 0 {
+        return failure([115, 116, 114, 117, 99, 116, 117, 114, 101, 100, 32, 112, 117, 98, 108, 105, 99, 97, 116, 105, 111, 110, 32, 119, 97, 115, 32, 101, 109, 112, 116, 121], 3);
+    }
+    return success([]);
 }
