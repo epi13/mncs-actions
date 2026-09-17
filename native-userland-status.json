@@ -4,29 +4,31 @@
   "status": "native_shadow",
   "canonical_entrypoint": "scripts/selective_family_verify.py",
   "native_sources": {
-    "family-check": "native/mncs/actions/family/v1.mncs",
-    "selected-proof": "native/mncs/actions/family/v1.mncs",
-    "family-artifact-app": "native/mncs/actions/family/v1.mncs",
-    "family-artifacts-app": "native/mncs/actions/family/v1.mncs",
-    "family-external-artifact-app": "native/mncs/actions/family/v1.mncs",
-    "direct-provider-canary": "native/mncs/actions/provider_canary/v1.mncs",
-    "direct-provider-app": "native/mncs/actions/family/v1.mncs",
-    "direct-provider-reuse-app": "native/mncs/actions/family/v1.mncs"
+    "family-orchestration": "native/mncs/actions/family/v1.mncs"
   },
-  "native_application_descriptor": "native-applications/actions-family-external.json",
+  "native_application_descriptor": "native-applications/actions-family.json",
   "native_application_descriptors": {
-    "family-external": "native-applications/actions-family-external.json",
-    "direct-provider": "native-applications/actions-family-direct-provider.json",
-    "direct-provider-reuse": "native-applications/actions-family-direct-provider-reuse.json"
+    "family": "native-applications/actions-family.json"
+  },
+  "compatibility_surfaces": {
+    "retained_canary_sources": [
+      "native/mncs/actions/provider_canary/v1.mncs"
+    ],
+    "retained_canary_descriptors": [
+      "native-applications/actions-family-external.json",
+      "native-applications/actions-family-direct-provider.json",
+      "native-applications/actions-family-direct-provider-reuse.json"
+    ],
+    "removal_criterion": "remove after the complete family application is canonical and its parity suite no longer needs isolated entrypoints"
   },
   "native_provider_descriptors": {
-    "mncs-test": "../mncs-test/native-applications/test-provider.json"
+    "mncs-test": "../mncs-test/native-applications/test-provider-batch.json"
   },
   "shadow_launcher": "mncs call",
   "semantic_modules": [
     "native/mncs/actions/family/v1.mncs"
   ],
-  "next_migration_slice": "native selected-provider orchestration and provider revision ingress",
+  "next_migration_slice": "canonical launcher cutover and complete plan/edge contract ingress",
   "host_paths": [
     {
       "path": "scripts/selective_family_verify.py",
