@@ -14,6 +14,7 @@ module mncs.actions.family.v1;
 use mncs.commons.family.evidence.v1;
 use mncs.commons.family.artifact.v1;
 use mncs.commons.family.contracts.v1 as contracts;
+use mncs.core.sequences.v1 as sequences;
 use mncs.std.application.v1;
 use mncs.test.assertions.v1;
 use mncs.test.provider.v1 as provider;
@@ -21,17 +22,11 @@ use mncs.test.provider.v2 as provider_v2;
 
 
 fn bytes_equal(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
-    iterate i over left carrying equal: bool = true {
-        next equal = equal && left[i] == right[i];
-    }
-    return equal;
+    return sequences.equals_bytes<32>(left, right);
 }
 
 fn bytes_present(value: [byte; 32]) -> (result: bool) {
-    iterate i over value carrying present: bool = false {
-        next present = present || value[i] != 0;
-    }
-    return present;
+    return sequences.any_nonzero<32>(value);
 }
 
 fn verdict_equal(left: FamilyVerdict, right: FamilyVerdict) -> (result: bool) {
@@ -391,11 +386,7 @@ fn digest_complete_tests(value: [[byte; up_to 1024]; up_to 256]) -> (result: [by
 }
 
 fn view_equal(left: [byte; up_to 256], right: [byte; up_to 256]) -> (result: bool) {
-    if left.len != right.len { return false; }
-    iterate i over left carrying equal: bool = true {
-        next equal = equal && left[i] == right[i];
-    }
-    return equal;
+    return sequences.equals_byte_view<256>(left, right);
 }
 
 fn selected_repository(selection: ArtifactSelection, candidate: [byte; up_to 256]) -> (result: bool) {

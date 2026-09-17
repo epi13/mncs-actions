@@ -5,7 +5,7 @@
   "module": "mncs.actions.family.v1",
   "entry_function": "family_orchestrate_provider_app",
   "profile": "0.18",
-  "interface_identity": "d9a26ec503cbf8cae6f8ee6ab8a97a107c5ec7248ffa08752b96ac57c8901c6a",
+  "interface_identity": "c23aae47566a5642ee28a9b23cb475b56ee2bc98c25e1396c46988e2f3cb3215",
   "libraries": [
     "../../mncs-language/library",
     "../../MNCS-Commons/src/mncs_commons/mesh/mncs",
