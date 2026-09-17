@@ -1,0 +1,25 @@
+{
+  "schema_version": "mncs.verification-plan/1",
+  "plan_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source": {
+    "path": "source.mncs",
+    "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  },
+  "impact": {
+    "graph_identity": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "cross_repository": {
+      "graph_identity": "1111111111111111111111111111111111111111111111111111111111111111",
+      "edges": []
+    }
+  },
+  "selection": {
+    "level": "selected_repositories",
+    "selected_test_identities": ["test:one"],
+    "selected_repositories": ["mncs-test"],
+    "available_test_count": 1,
+    "available_repository_count": 1,
+    "escalation_reasons": []
+  },
+  "proof": {},
+  "provenance": {}
+}

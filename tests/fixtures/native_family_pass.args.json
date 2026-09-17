@@ -11,7 +11,7 @@
         "test_result_bound": {"boolean": {"value": true}},
         "check_result_bound": {"boolean": {"value": true}},
         "proof_sufficient": {"boolean": {"value": true}},
-        "test_verdict": {"finite": {"type": "Verdict", "variant": "PASS"}}
+        "test_verdict": {"finite": {"type": "FamilyVerdict", "variant": "PASS"}}
       }
     }
   }

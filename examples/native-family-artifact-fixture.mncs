@@ -1,0 +1,44 @@
+mncs 0.18;
+
+// Test/interop fixture writer for the generic structured artifact canary.
+// This is not a production Actions entrypoint: it supplies a typed value to
+// the reusable runtime encoder so tests can prove that the canonical app
+// reads the same Commons-owned contract from bytes.
+module examples.native_family_artifact_fixture;
+
+use mncs.commons.family.evidence.v1;
+
+fn write(path: [byte; up_to 1024], value: FamilyCheckInput) -> (result: u64)
+    capability artifact_root
+    effect structured_write authorized_by artifact_root
+{
+    let schema: [byte; 30] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 102, 97, 109, 105, 108, 121, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    return structured_write(path, schema, value);
+}
+
+fn write_parts(
+    plan_path: [byte; up_to 1024],
+    graph_path: [byte; up_to 1024],
+    edge_path: [byte; up_to 1024],
+    test_path: [byte; up_to 1024],
+    check_path: [byte; up_to 1024],
+    receipt_path: [byte; up_to 1024],
+    value: FamilyCheckInput
+) -> (result: u64)
+    capability artifact_root
+    effect structured_write authorized_by artifact_root
+{
+    let plan_schema: [byte; 28] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 112, 108, 97, 110, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let graph_schema: [byte; 29] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 103, 114, 97, 112, 104, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let edge_schema: [byte; 28] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 101, 100, 103, 101, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let test_schema: [byte; 35] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 116, 101, 115, 116, 45, 114, 101, 115, 117, 108, 116, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let check_schema: [byte; 36] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 99, 104, 101, 99, 107, 45, 114, 101, 115, 117, 108, 116, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let receipt_schema: [byte; 31] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 114, 101, 99, 101, 105, 112, 116, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let a: u64 = structured_write(plan_path, plan_schema, value.plan);
+    let b: u64 = structured_write(graph_path, graph_schema, value.graph);
+    let c: u64 = structured_write(edge_path, edge_schema, value.edge);
+    let d: u64 = structured_write(test_path, test_schema, value.test_result);
+    let e: u64 = structured_write(check_path, check_schema, value.check_result);
+    let f: u64 = structured_write(receipt_path, receipt_schema, value.prior_receipt);
+    return a +% b +% c +% d +% e +% f;
+}

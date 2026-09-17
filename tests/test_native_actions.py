@@ -107,7 +107,6 @@ def _actual_evidence(
     }
     return _family_evidence(
         plan=plan,
-        plan_digest="0" * 64,
         graph_identity="1" * 64,
         edge=edge,
         behavioral_result=behavioral_result,

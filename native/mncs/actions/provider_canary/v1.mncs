@@ -1,0 +1,24 @@
+mncs 0.18;
+
+// Same-session provider canary.  The Actions repository owns this tiny
+// adapter only as a conformance fixture: the call below is a typed MNCS
+// module call resolved from the mncs-test library, not a process_run or a
+// JSON subprocess round trip.
+module mncs.actions.provider_canary.v1;
+
+use mncs.test.assertions.v1;
+use mncs.std.application.v1;
+use tests.self_suite;
+
+fn direct_provider_app(context: ApplicationContext) -> (result: ApplicationExit) {
+    if !context_is_bounded(context) {
+        return failure([98, 111, 117, 110, 100, 115], 2);
+    }
+    let provider_result: TestResult = tests.self_suite.arithmetic();
+    return match provider_result.verdict {
+        PASS => success([80, 65, 83, 83]),
+        FAIL => success([70, 65, 73, 76]),
+        SKIP => success([83, 75, 73, 80]),
+        UNSUPPORTED => success([85, 78, 83, 85, 80, 80, 79, 82, 84]),
+    };
+}
