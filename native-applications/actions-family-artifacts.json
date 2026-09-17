@@ -5,7 +5,7 @@
   "module": "mncs.actions.family.v1",
   "entry_function": "family_check_artifacts_app",
   "profile": "0.18",
-  "interface_identity": "7e42a20cc47da5143bfec8e0b5ec2146634690d1489ed5629aed82931561abbb",
+  "interface_identity": "c23aae47566a5642ee28a9b23cb475b56ee2bc98c25e1396c46988e2f3cb3215",
   "libraries": [
     "../../mncs-language/library",
     "../../MNCS-Commons/src/mncs_commons/mesh/mncs",
