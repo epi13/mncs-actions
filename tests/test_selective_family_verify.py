@@ -103,6 +103,7 @@ def _plan(graph: dict) -> dict:
                 "selected_repositories": ["mncs-actions", "mncs-test"],
                 "complete": True,
                 "limitations": [],
+                "coverage": graph["coverage"],
             },
         },
         "selection": {
@@ -197,7 +198,7 @@ def test_contract_change_runs_selected_consumers_and_reuses_exact_receipts(tmp_p
         "registered_family_projects": 4,
         "coverage_classified_projects": 4,
         "unclassified_projects": 0,
-        "coverage_status": "complete",
+        "coverage_status": "incomplete",
         "checks_executed": 2,
         "checks_available": 2,
         "receipts_reused": 0,

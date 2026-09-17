@@ -5,7 +5,7 @@
   "module": "mncs.actions.family.v1",
   "entry_function": "family_check_direct_provider_app",
   "profile": "0.18",
-  "interface_identity": "c23aae47566a5642ee28a9b23cb475b56ee2bc98c25e1396c46988e2f3cb3215",
+  "interface_identity": "6e8e4d1d789d6853db2b8320e917e6cf6398f646f90aa899e95e04cd5f2a8d23",
   "libraries": [
     "../../mncs-language/library",
     "../../MNCS-Commons/src/mncs_commons/mesh/mncs",

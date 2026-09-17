@@ -371,18 +371,40 @@ fn digest_view(value: [byte; up_to 256]) -> (result: [byte; 32])
     return copy_digest(structured_digest(value));
 }
 
+// Normalize a bounded provider/test selection through the shared functional
+// builder before hashing. This preserves order and runtime length while
+// giving identity code the same owned-sequence boundary used by RAVEL and
+// mncs-test; it is still bounded by the family contract's 64-item view.
+fn materialize_tests(value: [[byte; up_to 1024]; up_to 64]) -> (result: [[byte; up_to 1024]; up_to 64]) {
+    let seed_builder: sequences.ByteViewBuilder64 = sequences.byte_view_builder64_empty();
+    iterate i over value carrying builder: sequences.ByteViewBuilder64 = seed_builder {
+        next builder = sequences.byte_view_builder64_push(builder, value[i], true);
+    }
+    return sequences.byte_view_builder64_finish(builder);
+}
+
+fn materialize_complete_tests(value: [[byte; up_to 1024]; up_to 256]) -> (result: [[byte; up_to 1024]; up_to 256]) {
+    let seed_builder: sequences.ByteViewBuilder256 = sequences.byte_view_builder_empty();
+    iterate i over value carrying builder: sequences.ByteViewBuilder256 = seed_builder {
+        next builder = sequences.byte_view_builder_push(builder, value[i], true);
+    }
+    return sequences.byte_view_builder_finish(builder);
+}
+
 fn digest_tests(value: [[byte; up_to 1024]; up_to 64]) -> (result: [byte; 32])
     capability actions_digest
     effect structured_digest authorized_by actions_digest
 {
-    return copy_digest(structured_digest(value));
+    let stable: [[byte; up_to 1024]; up_to 64] = materialize_tests(value);
+    return copy_digest(structured_digest(stable));
 }
 
 fn digest_complete_tests(value: [[byte; up_to 1024]; up_to 256]) -> (result: [byte; 32])
     capability actions_digest
     effect structured_digest authorized_by actions_digest
 {
-    return copy_digest(structured_digest(value));
+    let stable: [[byte; up_to 1024]; up_to 256] = materialize_complete_tests(value);
+    return copy_digest(structured_digest(stable));
 }
 
 fn view_equal(left: [byte; up_to 256], right: [byte; up_to 256]) -> (result: bool) {
@@ -1182,21 +1204,20 @@ fn family_orchestrate_provider_app(context: ApplicationContext) -> (result: Appl
     if !context_is_bounded(context) || context.argv_count < 11 {
         return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 49, 49, 32, 112, 114, 111, 118, 105, 100, 101, 114, 32, 97, 114, 116, 105, 102, 97, 99, 116, 32, 112, 97, 116, 104, 115], 2);
     }
-    let plan_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 118, 101, 114, 105, 102, 105, 99, 97, 116, 105, 111, 110, 45, 112, 108, 97, 110, 47, 49];
-    let edge_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 102, 97, 109, 105, 108, 121, 45, 115, 101, 109, 97, 110, 116, 105, 99, 45, 101, 100, 103, 101, 47, 49];
-    let provider_schema: [byte; up_to 64] = [99, 111, 109, 109, 111, 110, 115, 46, 109, 110, 99, 115, 46, 115, 101, 109, 97, 110, 116, 105, 99, 45, 99, 111, 110, 116, 114, 97, 99, 116, 45, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 115, 47, 118, 49];
-    let request_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 116, 101, 115, 116, 45, 112, 114, 111, 118, 105, 100, 101, 114, 45, 114, 101, 113, 117, 101, 115, 116, 47, 49];
+    let edge_schema: [byte; up_to 64] = contracts.semantic_edge_schema();
+    let provider_schema: [byte; up_to 64] = contracts.provider_declaration_schema();
+    let request_schema: [byte; up_to 64] = provider_v2.provider_request_schema();
     let receipt_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 114, 101, 99, 101, 105, 112, 116, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
-    let provider_result_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 116, 101, 115, 116, 45, 112, 114, 111, 118, 105, 100, 101, 114, 45, 114, 101, 115, 117, 108, 116, 47, 49];
-    let provider_check_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 116, 101, 115, 116, 45, 112, 114, 111, 118, 105, 100, 101, 114, 45, 99, 104, 101, 99, 107, 47, 49];
+    let provider_result_schema: [byte; up_to 64] = provider_v2.provider_result_schema();
+    let provider_check_schema: [byte; up_to 64] = provider_v2.provider_check_schema();
     let output_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 102, 97, 109, 105, 108, 121, 45, 114, 101, 115, 117, 108, 116, 47, 49];
-    let plan: contracts.VerificationPlan = structured_read(context.argv[0], plan_schema);
-    let edge: contracts.SemanticEdgeContract = structured_read(context.argv[1], edge_schema);
-    let declaration: contracts.ProviderDeclarationContract = structured_read(context.argv[2], provider_schema);
-    let request: provider_v2.ProviderRequest = structured_read(context.argv[3], request_schema);
+    let plan: contracts.VerificationPlan = structured_read(context.argv[0], contracts.verification_plan_schema());
+    let edge: contracts.SemanticEdgeContract = structured_read(context.argv[1], contracts.semantic_edge_schema());
+    let declaration: contracts.ProviderDeclarationContract = structured_read(context.argv[2], contracts.provider_declaration_schema());
+    let request: provider_v2.ProviderRequest = structured_read(context.argv[3], provider_v2.provider_request_schema());
     let prior_receipt: ReceiptEvidence = structured_read(context.argv[4], receipt_schema);
-    let previous_test: provider_v2.ProviderTestResult = structured_read(context.argv[5], provider_result_schema);
-    let previous_check: provider_v2.ProviderCheckResult = structured_read(context.argv[6], provider_check_schema);
+    let previous_test: provider_v2.ProviderTestResult = structured_read(context.argv[5], provider_v2.provider_result_schema());
+    let previous_check: provider_v2.ProviderCheckResult = structured_read(context.argv[6], provider_v2.provider_check_schema());
     let previous_run: provider_v2.ProviderRun = provider_v2.ProviderRun {
         test_result: previous_test,
         check_result: previous_check
@@ -1233,8 +1254,8 @@ fn family_orchestrate_provider_app(context: ApplicationContext) -> (result: Appl
     );
     let published: u64 = structured_write(context.argv[7], output_schema, result_value);
     let published_receipt: u64 = structured_write(context.argv[8], receipt_schema, result_value.receipt);
-    let published_test: u64 = structured_write(context.argv[9], provider_result_schema, run.test_result);
-    let published_check: u64 = structured_write(context.argv[10], provider_check_schema, run.check_result);
+    let published_test: u64 = structured_write(context.argv[9], provider_v2.provider_result_schema(), run.test_result);
+    let published_check: u64 = structured_write(context.argv[10], provider_v2.provider_check_schema(), run.check_result);
     if published == 0 || published_receipt == 0 || published_test == 0 || published_check == 0 {
         return failure([112, 114, 111, 100, 117, 99, 116, 105, 111, 110, 32, 112, 117, 98, 108, 105, 115, 104, 32, 102, 97, 105, 108, 101, 100], 3);
     }
