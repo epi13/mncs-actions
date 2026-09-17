@@ -25,16 +25,22 @@
     "mncs-test": "../mncs-test/native-applications/test-provider-batch.json"
   },
   "shadow_launcher": "mncs call",
+  "native_shadow_slices": [
+    "Commons-owned VerificationPlan, SemanticEdge, and ProviderDeclaration ingress",
+    "same-session statically bound mncs-test provider execution",
+    "provider-owned TestResult and CheckResult verification",
+    "native receipt/reuse decision and selected-family family-result composition"
+  ],
   "semantic_modules": [
     "native/mncs/actions/family/v1.mncs"
   ],
-  "next_migration_slice": "canonical launcher cutover and complete plan/edge contract ingress",
+  "next_migration_slice": "generic authoritative provider descriptor/revision admission, then native canonical receipt/evidence/selected-proof publication",
   "host_paths": [
     {
       "path": "scripts/selective_family_verify.py",
       "role": "external_boundary_adapter_and_compatibility_oracle",
       "canonical": true,
-      "semantic_authority": "native family binding, verdict, receipt, reuse, and proof decisions; host remains the provider/evidence adapter"
+      "semantic_authority": "host remains the normal family traversal/orchestration authority and assembles external receipt/evidence/proof envelopes; the native application is authoritative only for its admitted one-edge provider binding and reuse result"
     },
     {
       "path": "actions/mncs-test/test.sh",

@@ -49,6 +49,17 @@ def test_run_check_binds_verification_plan_to_receipt_and_manifest(tmp_path: Pat
                 "selected_repositories": [],
                 "complete": True,
                 "limitations": ["fixture does not exercise family topology"],
+                "coverage": {
+                    "registry_identity": "e" * 64,
+                    "registered_family_project_count": 0,
+                    "classified_project_count": 0,
+                    "semantic_graph_participant_count": 0,
+                    "explicit_nonparticipant_count": 0,
+                    "unclassified_project_count": 0,
+                    "unclassified_repositories": [],
+                    "coverage_status": "not_requested",
+                    "topology_status": "not_requested",
+                },
             },
         },
         "selection": {
