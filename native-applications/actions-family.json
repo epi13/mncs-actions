@@ -1,11 +1,11 @@
 {
   "schema_version": "mncs.native-application/1",
-  "application_identity": "mncs-actions.family-proof",
+  "application_identity": "mncs-actions.family-orchestration",
   "source": "../native/mncs/actions/family/v1.mncs",
   "module": "mncs.actions.family.v1",
-  "entry_function": "family_check_artifact_app",
+  "entry_function": "family_orchestrate_provider_app",
   "profile": "0.18",
-  "interface_identity": "7e42a20cc47da5143bfec8e0b5ec2146634690d1489ed5629aed82931561abbb",
+  "interface_identity": "d9a26ec503cbf8cae6f8ee6ab8a97a107c5ec7248ffa08752b96ac57c8901c6a",
   "libraries": [
     "../../mncs-language/library",
     "../../MNCS-Commons/src/mncs_commons/mesh/mncs",
@@ -15,6 +15,7 @@
   "environment_keys": [],
   "required_capabilities": [
     "actions_artifact",
-    "actions_digest"
+    "actions_digest",
+    "provider_digest"
   ]
 }

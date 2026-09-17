@@ -1,0 +1,16 @@
+{
+  "schema_version": "mncs.family-semantic-edge/1",
+  "producer_repository": "mncs-test",
+  "consumer_repository": "mncs-test",
+  "contract_identity": "mncs.test-result/1",
+  "contract_revision": "1",
+  "consuming_identity": "mncs-test:result",
+  "provenance": "commons:family-graph",
+  "fingerprint": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "consumer_manifest_identity": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "check_identity": "mncs-test:check",
+  "selected_test_identities": [
+    "mncs:0.2:test-case:tests.self_suite::arithmetic::f678e5ec3041e45e78e5ebefe4e87172fd2fbdd385846a2641a8e9cfd212b911",
+    "mncs:0.2:test-case:tests.self_suite::boolean::aed88ee42cd04283f1a415c36c95a3ef6e1db7c20cc63d6b7b28104f90f28500"
+  ]
+}

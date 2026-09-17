@@ -13,9 +13,11 @@ module mncs.actions.family.v1;
 // its proof policy cannot silently fork the external artifact contract.
 use mncs.commons.family.evidence.v1;
 use mncs.commons.family.artifact.v1;
+use mncs.commons.family.contracts.v1 as contracts;
 use mncs.std.application.v1;
 use mncs.test.assertions.v1;
 use mncs.test.provider.v1 as provider;
+use mncs.test.provider.v2 as provider_v2;
 
 
 fn bytes_equal(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
@@ -381,6 +383,13 @@ fn digest_tests(value: [[byte; up_to 1024]; up_to 64]) -> (result: [byte; 32])
     return copy_digest(structured_digest(value));
 }
 
+fn digest_complete_tests(value: [[byte; up_to 1024]; up_to 256]) -> (result: [byte; 32])
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    return copy_digest(structured_digest(value));
+}
+
 fn view_equal(left: [byte; up_to 256], right: [byte; up_to 256]) -> (result: bool) {
     if left.len != right.len { return false; }
     iterate i over left carrying equal: bool = true {
@@ -390,6 +399,13 @@ fn view_equal(left: [byte; up_to 256], right: [byte; up_to 256]) -> (result: boo
 }
 
 fn selected_repository(selection: ArtifactSelection, candidate: [byte; up_to 256]) -> (result: bool) {
+    iterate i over selection.selected_repositories carrying found: bool = false {
+        next found = found || view_equal(selection.selected_repositories[i], candidate);
+    }
+    return found;
+}
+
+fn selected_complete_repository(selection: contracts.SelectionContract, candidate: [byte; up_to 256]) -> (result: bool) {
     iterate i over selection.selected_repositories carrying found: bool = false {
         next found = found || view_equal(selection.selected_repositories[i], candidate);
     }
@@ -848,6 +864,388 @@ fn family_check_artifacts_app(context: ApplicationContext) -> (result: Applicati
     let published_receipt: u64 = structured_write(context.argv[7], receipt_schema, result_value.receipt);
     if published == 0 || published_receipt == 0 {
         return failure([115, 116, 114, 117, 99, 116, 117, 114, 101, 100, 32, 112, 117, 98, 108, 105, 99, 97, 116, 105, 111, 110, 32, 119, 97, 115, 32, 101, 109, 112, 116, 121], 3);
+    }
+    return success([]);
+}
+
+// Production provider composition. This is one normal application path: it
+// validates the plan/edge/request binding, evaluates a prior receipt, and
+// either reuses the prior provider-owned records or calls the selected typed
+// provider in the same MNCS session. Actions never manufactures a provider
+// verdict or replaces the provider's evidence with a reduced boolean view.
+fn provider_verdict(value: provider_v2.ProviderTestResult) -> (result: FamilyVerdict) {
+    return match value.native_result.verdict {
+        Verdict.PASS => FamilyVerdict.PASS,
+        Verdict.FAIL => FamilyVerdict.FAIL,
+        Verdict.SKIP => FamilyVerdict.PASS,
+        Verdict.UNSUPPORTED => FamilyVerdict.UNKNOWN
+    };
+}
+
+fn provider_check_verdict(value: provider_v2.ProviderCheckResult) -> (result: FamilyVerdict) {
+    return match value.verdict {
+        Verdict.PASS => FamilyVerdict.PASS,
+        Verdict.FAIL => FamilyVerdict.FAIL,
+        Verdict.SKIP => FamilyVerdict.PASS,
+        Verdict.UNSUPPORTED => FamilyVerdict.UNKNOWN
+    };
+}
+
+fn provider_family_input(
+    plan: VerificationPlanArtifact,
+    edge: SemanticEdgeArtifact,
+    run: provider_v2.ProviderRun,
+    prior_receipt: ReceiptEvidence
+) -> (result: FamilyCheckInput)
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    let selected: [[byte; up_to 1024]; up_to 64] = run.test_result.selected_test_identities;
+    let family_material: FamilyIdentityMaterial = FamilyIdentityMaterial {
+        family_name: [109, 110, 99, 115],
+        graph_identity: plan.impact.cross_repository.graph_identity
+    };
+    let family_identity: [byte; 32] = copy_digest(structured_digest(family_material));
+    let contract_identity: [byte; 32] = digest_view(edge.contract_identity);
+    let test_identity: [byte; 32] = digest_tests(selected);
+    let check_identity: [byte; 32] = digest_view(run.check_result.check_identity);
+    let producer_identity: [byte; 32] = digest_view(edge.producer_repository);
+    let evidence_identity: [byte; 32] = run.test_result.evidence_identity;
+    return FamilyCheckInput {
+        plan: PlanEvidence {
+            family_identity: family_identity,
+            plan_identity: plan.plan_id,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: edge.consumer_manifest_identity,
+            test_identity: test_identity,
+            check_identity: check_identity
+        },
+        graph: GraphEvidence {
+            family_identity: family_identity,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: edge.consumer_manifest_identity
+        },
+        edge: EdgeEvidence {
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: edge.consumer_manifest_identity,
+            producer_identity: producer_identity,
+            producer_revision_identity: run.test_result.provider_revision_identity
+        },
+        test_result: TestResultEvidence {
+            result_identity: run.test_result.result_identity,
+            plan_identity: plan.plan_id,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: edge.consumer_manifest_identity,
+            test_identity: test_identity,
+            execution_identity: run.test_result.execution_identity,
+            evidence_identity: evidence_identity,
+            verdict: provider_verdict(run.test_result)
+        },
+        check_result: CheckResultEvidence {
+            result_identity: run.check_result.result_identity,
+            check_identity: check_identity,
+            plan_identity: plan.plan_id,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: edge.consumer_manifest_identity,
+            test_result_identity: run.test_result.result_identity,
+            evidence_identity: evidence_identity,
+            verdict: provider_check_verdict(run.check_result)
+        },
+        prior_receipt: prior_receipt
+    };
+}
+
+// The production ingress uses the complete Commons-owned contracts.  The
+// family evidence record below is an internal Actions proof view, derived in
+// MNCS from those complete records; no host process projects a partial plan
+// or edge before this function runs.
+fn provider_family_input_complete(
+    plan: contracts.VerificationPlan,
+    edge: contracts.SemanticEdgeContract,
+    run: provider_v2.ProviderRun,
+    prior_receipt: ReceiptEvidence
+) -> (result: FamilyCheckInput)
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    let selected: [[byte; up_to 1024]; up_to 64] = run.test_result.selected_test_identities;
+    let family_material: FamilyIdentityMaterial = FamilyIdentityMaterial {
+        family_name: [109, 110, 99, 115],
+        graph_identity: plan.impact.cross_repository.graph_identity
+    };
+    let family_identity: [byte; 32] = copy_digest(structured_digest(family_material));
+    let contract_identity: [byte; 32] = digest_view(edge.contract_identity);
+    let test_identity: [byte; 32] = digest_tests(selected);
+    let check_identity: [byte; 32] = digest_view(run.check_result.check_identity);
+    let producer_identity: [byte; 32] = digest_view(edge.producer_repository);
+    let evidence_identity: [byte; 32] = run.test_result.evidence_identity;
+    return FamilyCheckInput {
+        plan: PlanEvidence {
+            family_identity: family_identity,
+            plan_identity: plan.plan_id,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: edge.consumer_manifest_identity,
+            test_identity: test_identity,
+            check_identity: check_identity
+        },
+        graph: GraphEvidence {
+            family_identity: family_identity,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: edge.consumer_manifest_identity
+        },
+        edge: EdgeEvidence {
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: edge.consumer_manifest_identity,
+            producer_identity: producer_identity,
+            producer_revision_identity: run.test_result.provider_revision_identity
+        },
+        test_result: TestResultEvidence {
+            result_identity: run.test_result.result_identity,
+            plan_identity: plan.plan_id,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: edge.consumer_manifest_identity,
+            test_identity: test_identity,
+            execution_identity: run.test_result.execution_identity,
+            evidence_identity: evidence_identity,
+            verdict: provider_verdict(run.test_result)
+        },
+        check_result: CheckResultEvidence {
+            result_identity: run.check_result.result_identity,
+            check_identity: check_identity,
+            plan_identity: plan.plan_id,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: contract_identity,
+            consumer_identity: edge.consumer_manifest_identity,
+            test_result_identity: run.test_result.result_identity,
+            evidence_identity: evidence_identity,
+            verdict: provider_check_verdict(run.check_result)
+        },
+        prior_receipt: prior_receipt
+    };
+}
+
+fn identity_view_equal(value: [byte; up_to 512], expected: [byte; 32]) -> (result: bool) {
+    if value.len != expected.len {
+        return false;
+    }
+    iterate i over expected carrying equal: bool = true {
+        next equal = equal && value[i] == expected[i];
+    }
+    return equal;
+}
+
+fn provider_binding_valid_complete(
+    plan: contracts.VerificationPlan,
+    edge: contracts.SemanticEdgeContract,
+    declaration: contracts.ProviderDeclarationContract,
+    request: provider_v2.ProviderRequest
+) -> (result: bool)
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    let plan_selector: [byte; 32] = digest_complete_tests(plan.selection.selected_test_identities);
+    let edge_selector: [byte; 32] = digest_complete_tests(edge.selected_test_identities);
+    let request_selector: [[byte; up_to 1024]; up_to 64] = request.selected_test_identities;
+    let request_selector_identity: [byte; 32] = digest_tests(request_selector);
+    let selected: bool = selected_complete_repository(plan.selection, edge.consumer_repository);
+    let provider_matches: bool = view_equal(declaration.repository_id, edge.producer_repository)
+        && identity_view_equal(declaration.provider_identity, provider_v2.provider_identity());
+    let declaration_matches: bool = bytes_equal(declaration.interface_identity, request.interface_identity)
+        && bytes_equal(declaration.inventory_identity, request.inventory_identity)
+        && bytes_equal(declaration.revision_identity, request.provider_revision_identity);
+    let edge_contract_matches: bool = view_equal(edge.check_identity, [109, 110, 99, 115, 45, 116, 101, 115, 116, 58, 99, 104, 101, 99, 107]);
+    return selected
+        && provider_matches
+        && declaration_matches
+        && edge_contract_matches
+        && bytes_equal(plan_selector, edge_selector)
+        && bytes_equal(edge_selector, request_selector_identity)
+        && edge.selected_test_identities.len == request.selected_test_identities.len
+        && request.selection_count == request.selected_test_identities.len
+        && request.selection_count > 0
+        && request.selection_count <= 8
+        && bytes_equal(request.interface_identity, provider_v2.interface_identity())
+        && bytes_equal(request.inventory_identity, provider_v2.inventory_identity())
+        && bytes_equal(request.provider_revision_identity, provider_v2.revision_identity());
+}
+
+fn provider_result_binding_valid(
+    plan: contracts.VerificationPlan,
+    edge: contracts.SemanticEdgeContract,
+    declaration: contracts.ProviderDeclarationContract,
+    request: provider_v2.ProviderRequest,
+    run: provider_v2.ProviderRun
+) -> (result: bool)
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    let requested: [[byte; up_to 1024]; up_to 64] = request.selected_test_identities;
+    let returned: [[byte; up_to 1024]; up_to 64] = run.test_result.selected_test_identities;
+    let requested_identity: [byte; 32] = digest_tests(requested);
+    let returned_identity: [byte; 32] = digest_tests(returned);
+    let selected_plan: [byte; 32] = digest_complete_tests(plan.selection.selected_test_identities);
+    let selected_edge: [byte; 32] = digest_complete_tests(edge.selected_test_identities);
+    return bytes_present(run.test_result.result_identity)
+        && bytes_present(run.test_result.execution_identity)
+        && bytes_present(run.test_result.evidence_identity)
+        && bytes_present(run.check_result.result_identity)
+        && bytes_present(run.check_result.execution_identity)
+        && bytes_present(run.check_result.evidence_identity)
+        && bytes_equal(run.test_result.provider_identity, declaration.provider_identity)
+        && bytes_equal(run.test_result.provider_revision_identity, declaration.revision_identity)
+        && bytes_equal(run.test_result.interface_identity, declaration.interface_identity)
+        && bytes_equal(run.test_result.inventory_identity, declaration.inventory_identity)
+        && bytes_equal(run.check_result.provider_identity, declaration.provider_identity)
+        && bytes_equal(run.check_result.provider_revision_identity, declaration.revision_identity)
+        && bytes_equal(run.check_result.interface_identity, declaration.interface_identity)
+        && bytes_equal(run.check_result.inventory_identity, declaration.inventory_identity)
+        && bytes_equal(run.test_result.execution_identity, run.check_result.execution_identity)
+        && bytes_equal(run.test_result.evidence_identity, run.check_result.evidence_identity)
+        && bytes_equal(run.check_result.test_result_identity, run.test_result.result_identity)
+        && view_equal(run.check_result.check_identity, edge.check_identity)
+        && verdict_equal(provider_verdict(run.test_result), provider_check_verdict(run.check_result))
+        && bytes_equal(requested_identity, returned_identity)
+        && bytes_equal(selected_plan, selected_edge)
+        && bytes_equal(selected_edge, requested_identity)
+        && run.test_result.selection_count == request.selection_count
+        && returned.len == request.selected_test_identities.len;
+}
+
+fn provider_binding_valid(
+    plan: VerificationPlanArtifact,
+    edge: SemanticEdgeArtifact,
+    declaration: ProviderDeclarationArtifact,
+    request: provider_v2.ProviderRequest
+) -> (result: bool)
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    let plan_selector: [byte; 32] = digest_tests(plan.selection.selected_test_identities);
+    let edge_selector: [byte; 32] = digest_tests(edge.verification.selector.test_identities);
+    let request_selector: [[byte; up_to 1024]; up_to 64] = request.selected_test_identities;
+    let request_selector_identity: [byte; 32] = digest_tests(request_selector);
+    let selected: bool = selected_repository(plan.selection, edge.consumer_repository);
+    let provider_name: bool = view_equal(declaration.repository_id, edge.producer_repository)
+        && view_equal(declaration.repository_id, [109, 110, 99, 115, 45, 116, 101, 115, 116]);
+    return selected
+        && provider_name
+        && bytes_equal(plan_selector, edge_selector)
+        && bytes_equal(edge_selector, request_selector_identity)
+        && request.selection_count == request.selected_test_identities.len
+        && request.selection_count > 0
+        && request.selection_count <= 8
+        && bytes_equal(request.inventory_identity, [245, 194, 197, 102, 75, 36, 226, 126, 253, 190, 95, 78, 120, 172, 136, 142, 150, 101, 91, 85, 6, 49, 248, 177, 156, 170, 151, 49, 145, 39, 21, 219])
+        && bytes_equal(request.provider_revision_identity, provider_v2.revision_identity());
+}
+
+fn choose_provider_run(
+    reuse: bool,
+    previous: provider_v2.ProviderRun,
+    request: provider_v2.ProviderRequest
+) -> (result: provider_v2.ProviderRun)
+    capability provider_digest
+    effect structured_digest authorized_by provider_digest
+{
+    if reuse {
+        return previous;
+    }
+    return provider_v2.run_selected_batch(request);
+}
+
+fn family_orchestrate_provider_app(context: ApplicationContext) -> (result: ApplicationExit)
+    capability actions_artifact
+    capability actions_digest
+    capability provider_digest
+    effect structured_read authorized_by actions_artifact
+    effect structured_write authorized_by actions_artifact
+    effect structured_digest authorized_by actions_digest
+    effect structured_digest authorized_by provider_digest
+{
+    if !context_is_bounded(context) || context.argv_count < 11 {
+        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 49, 49, 32, 112, 114, 111, 118, 105, 100, 101, 114, 32, 97, 114, 116, 105, 102, 97, 99, 116, 32, 112, 97, 116, 104, 115], 2);
+    }
+    let plan_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 118, 101, 114, 105, 102, 105, 99, 97, 116, 105, 111, 110, 45, 112, 108, 97, 110, 47, 49];
+    let edge_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 102, 97, 109, 105, 108, 121, 45, 115, 101, 109, 97, 110, 116, 105, 99, 45, 101, 100, 103, 101, 47, 49];
+    let provider_schema: [byte; up_to 64] = [99, 111, 109, 109, 111, 110, 115, 46, 109, 110, 99, 115, 46, 115, 101, 109, 97, 110, 116, 105, 99, 45, 99, 111, 110, 116, 114, 97, 99, 116, 45, 100, 101, 99, 108, 97, 114, 97, 116, 105, 111, 110, 115, 47, 118, 49];
+    let request_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 116, 101, 115, 116, 45, 112, 114, 111, 118, 105, 100, 101, 114, 45, 114, 101, 113, 117, 101, 115, 116, 47, 49];
+    let receipt_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 114, 101, 99, 101, 105, 112, 116, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+    let provider_result_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 116, 101, 115, 116, 45, 112, 114, 111, 118, 105, 100, 101, 114, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let provider_check_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 116, 101, 115, 116, 45, 112, 114, 111, 118, 105, 100, 101, 114, 45, 99, 104, 101, 99, 107, 47, 49];
+    let output_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 102, 97, 109, 105, 108, 121, 45, 114, 101, 115, 117, 108, 116, 47, 49];
+    let plan: contracts.VerificationPlan = structured_read(context.argv[0], plan_schema);
+    let edge: contracts.SemanticEdgeContract = structured_read(context.argv[1], edge_schema);
+    let declaration: contracts.ProviderDeclarationContract = structured_read(context.argv[2], provider_schema);
+    let request: provider_v2.ProviderRequest = structured_read(context.argv[3], request_schema);
+    let prior_receipt: ReceiptEvidence = structured_read(context.argv[4], receipt_schema);
+    let previous_test: provider_v2.ProviderTestResult = structured_read(context.argv[5], provider_result_schema);
+    let previous_check: provider_v2.ProviderCheckResult = structured_read(context.argv[6], provider_check_schema);
+    let previous_run: provider_v2.ProviderRun = provider_v2.ProviderRun {
+        test_result: previous_test,
+        check_result: previous_check
+    };
+    let binding: bool = provider_binding_valid_complete(plan, edge, declaration, request);
+    let previous_result_binding: bool = provider_result_binding_valid(plan, edge, declaration, request, previous_run);
+    let previous_input: FamilyCheckInput = provider_family_input_complete(plan, edge, previous_run, prior_receipt);
+    let previous_evaluation: FamilyCheckResult = family_check(previous_input);
+    let reuse: bool = binding && previous_result_binding && previous_evaluation.reusable;
+    let run: provider_v2.ProviderRun = choose_provider_run(reuse, previous_run, request);
+    let result_binding: bool = provider_result_binding_valid(plan, edge, declaration, request, run);
+    let input: FamilyCheckInput = provider_family_input_complete(plan, edge, run, prior_receipt);
+    let result_value: FamilyCheckResult = select(
+        binding && result_binding,
+        family_check(input),
+        FamilyCheckResult {
+            verdict: FamilyVerdict.UNKNOWN,
+            proof_sufficient: false,
+            reusable: false,
+            reason_code: select(binding, 42, 41),
+            plan_identity: plan.plan_id,
+            graph_identity: plan.impact.cross_repository.graph_identity,
+            edge_identity: edge.fingerprint,
+            source_identity: plan.source.sha256,
+            contract_identity: [0; 32],
+            consumer_identity: edge.consumer_manifest_identity,
+            test_result_identity: run.test_result.result_identity,
+            check_result_identity: run.check_result.result_identity,
+            execution_identity: run.test_result.execution_identity,
+            evidence_identity: run.test_result.evidence_identity,
+            receipt: prior_receipt,
+            proof_identity: [0; 32]
+        }
+    );
+    let published: u64 = structured_write(context.argv[7], output_schema, result_value);
+    let published_receipt: u64 = structured_write(context.argv[8], receipt_schema, result_value.receipt);
+    let published_test: u64 = structured_write(context.argv[9], provider_result_schema, run.test_result);
+    let published_check: u64 = structured_write(context.argv[10], provider_check_schema, run.check_result);
+    if published == 0 || published_receipt == 0 || published_test == 0 || published_check == 0 {
+        return failure([112, 114, 111, 100, 117, 99, 116, 105, 111, 110, 32, 112, 117, 98, 108, 105, 115, 104, 32, 102, 97, 105, 108, 101, 100], 3);
     }
     return success([]);
 }

@@ -1,0 +1,26 @@
+{
+  "schema_version": "mncs.test-provider-result/1",
+  "result_identity": "1111111111111111111111111111111111111111111111111111111111111111",
+  "provider_identity": "48320f898f984848b4275c4adb465eb76427b035e3606827755e245d6a422e01",
+  "provider_revision_identity": "b5e5ef8c58ecf76ce0b36ee7ab636a9300b24f4c930d7d2f6f8ed7412198a265",
+  "interface_identity": "38bf9a1325913cee5db180f3f6ba446314b7f1cdb3d62b095eab0e58ae5e0a23",
+  "inventory_identity": "f5c2c5664b24e27efdbe5f4e78ac888e96655b550631f8b19caa9731912715db",
+  "execution_identity": "2222222222222222222222222222222222222222222222222222222222222222",
+  "evidence_identity": "3333333333333333333333333333333333333333333333333333333333333333",
+  "selected_test_identities": [
+    "mncs:0.2:test-case:tests.self_suite::arithmetic::f678e5ec3041e45e78e5ebefe4e87172fd2fbdd385846a2641a8e9cfd212b911",
+    "mncs:0.2:test-case:tests.self_suite::boolean::aed88ee42cd04283f1a415c36c95a3ef6e1db7c20cc63d6b7b28104f90f28500"
+  ],
+  "selection_count": 2,
+  "native_result": {
+    "verdict": "PASS",
+    "verdict_code": 0,
+    "failure_kind": "NoFailure",
+    "failure_code": 0,
+    "assertions": 2,
+    "failures": 0,
+    "expected": 1,
+    "actual": 1,
+    "assertion_code": 1
+  }
+}
