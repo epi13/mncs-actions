@@ -721,9 +721,11 @@ def _run_native_actions_selected_proof(
     """
 
     observations: list[dict[str, Any]] = []
-    for record in records if len(records) <= 64 else []:
-        family_result = record.get("native_family_result")
-        if not isinstance(family_result, Mapping):
+    for record in records:
+        family_results = record.get("native_family_results")
+        if not isinstance(family_results, list):
+            family_results = [record.get("native_family_result")]
+        if not family_results or any(not isinstance(item, Mapping) for item in family_results):
             if strict_native:
                 raise SelectiveFamilyError(
                     "canonical Actions proof input is missing a native family result"
@@ -734,44 +736,48 @@ def _run_native_actions_selected_proof(
                 verdict=str(record.get("verdict", "UNKNOWN")),
                 cwd=cwd,
             )
-            family_result = native["family_result"]
-        receipt = family_result.get("receipt")
-        if not isinstance(receipt, Mapping):
-            raise SelectiveFamilyError("native family result omitted its receipt record")
-        material = {
-            "family_identity": receipt["family_identity"],
-            "plan_identity": family_result["plan_identity"],
-            "graph_identity": family_result["graph_identity"],
-            "edge_identity": family_result["edge_identity"],
-            "source_identity": family_result["source_identity"],
-            "contract_identity": family_result["contract_identity"],
-            "consumer_identity": family_result["consumer_identity"],
-            "test_result_identity": family_result["test_result_identity"],
-            "check_result_identity": family_result["check_result_identity"],
-            "receipt_identity": receipt["receipt_identity"],
-            "execution_identity": family_result["execution_identity"],
-            "evidence_identity": family_result["evidence_identity"],
-            "verdict": family_result["verdict"],
-        }
-        observations.append(
-            _typed_record(
-                "ConsumerObservation",
-                {
-                    "material": _typed_record(
-                        "ProofMaterial",
-                        {
-                            **{
-                                key: _byte_sequence(str(value))
-                                for key, value in material.items()
-                                if key != "verdict"
+            family_results = [native["family_result"]]
+        for family_result in family_results:
+            receipt = family_result.get("receipt")
+            if not isinstance(receipt, Mapping):
+                raise SelectiveFamilyError("native family result omitted its receipt record")
+            material = {
+                "family_identity": receipt["family_identity"],
+                "plan_identity": family_result["plan_identity"],
+                "graph_identity": family_result["graph_identity"],
+                "edge_identity": family_result["edge_identity"],
+                "source_identity": family_result["source_identity"],
+                "contract_identity": family_result["contract_identity"],
+                "consumer_identity": family_result["consumer_identity"],
+                "test_result_identity": family_result["test_result_identity"],
+                "check_result_identity": family_result["check_result_identity"],
+                "receipt_identity": receipt["receipt_identity"],
+                "execution_identity": family_result["execution_identity"],
+                "evidence_identity": family_result["evidence_identity"],
+                "verdict": family_result["verdict"],
+            }
+            observations.append(
+                _typed_record(
+                    "ConsumerObservation",
+                    {
+                        "material": _typed_record(
+                            "ProofMaterial",
+                            {
+                                **{
+                                    key: _byte_sequence(str(value))
+                                    for key, value in material.items()
+                                    if key != "verdict"
+                                },
+                                "verdict": _finite_verdict(str(material["verdict"])),
                             },
-                            "verdict": _finite_verdict(str(material["verdict"])),
-                        },
-                    ),
-                    "proof_identity": _byte_sequence(str(family_result["proof_identity"])),
-                },
+                        ),
+                        "proof_identity": _byte_sequence(str(family_result["proof_identity"])),
+                    },
+                )
             )
-        )
+    observation_count = len(observations)
+    if observation_count > 64:
+        observations = []
     arguments = json.dumps(
         [
             {
@@ -779,8 +785,8 @@ def _run_native_actions_selected_proof(
                     "type": "SelectedProofInput",
                     "fields": {
                         "observations": {"sequence": {"values": observations}},
-                        "count": {"integer": {"value": len(records)}},
-                        "overflow": {"boolean": {"value": len(records) > 64}},
+                        "count": {"integer": {"value": observation_count}},
+                        "overflow": {"boolean": {"value": observation_count > 64}},
                     },
                 }
             }
@@ -897,6 +903,514 @@ def _producer_binding(
     }
 
 
+def _native_provider_descriptor(
+    *, actions_root: Path, provider_repository: str
+) -> tuple[Path, dict[str, Any], dict[str, Any]]:
+    """Resolve a repository-owned admitted provider descriptor.
+
+    This is a transport lookup only.  Provider identity, interface identity,
+    revision identity, source identity, and inventory identity are copied
+    from the descriptor and are established again by the runtime admission
+    step; this adapter does not calculate or vouch for any of them.
+    """
+
+    status = _read_json(
+        actions_root / "native-userland-status.json",
+        "mncs-actions native userland status",
+    )
+    descriptors = status.get("native_provider_descriptors")
+    if not isinstance(descriptors, Mapping):
+        raise SelectiveFamilyError("Actions has no native provider descriptor registry")
+    relative = descriptors.get(provider_repository)
+    if not isinstance(relative, str) or not relative:
+        raise SelectiveFamilyError(
+            f"Actions has no admitted descriptor for provider {provider_repository}"
+        )
+    descriptor_path = (actions_root / relative).resolve()
+    workspace_root = actions_root.parent.resolve()
+    try:
+        descriptor_path.relative_to(workspace_root)
+    except ValueError as error:
+        raise SelectiveFamilyError(
+            f"provider descriptor escapes the MNCS workspace: {relative}"
+        ) from error
+    descriptor = _read_json(descriptor_path, f"{provider_repository} provider descriptor")
+    required = (
+        "repository_id",
+        "provider_identity",
+        "interface_identity",
+        "source_identity",
+        "revision_identity",
+        "inventory_identity",
+    )
+    if any(not isinstance(descriptor.get(key), str) or not descriptor[key] for key in required):
+        raise SelectiveFamilyError(
+            f"{provider_repository} provider descriptor omits admitted identity facts"
+        )
+    declaration = {
+        "schema_version": "commons.mncs.semantic-contract-declarations/v1",
+        "repository_id": descriptor["repository_id"],
+        "provider_identity": descriptor["provider_identity"],
+        "interface_identity": descriptor["interface_identity"],
+        "revision_identity": descriptor["revision_identity"],
+        "source_identity": descriptor["source_identity"],
+        "inventory_identity": descriptor["inventory_identity"],
+        "revision": f"{descriptor.get('module', provider_repository)}::{descriptor.get('entry_function', 'provider')}",
+        "capabilities": list(descriptor.get("required_capabilities", [])),
+    }
+    return descriptor_path, descriptor, declaration
+
+
+def _native_actions_provider_check(
+    *,
+    checkout: Path,
+    repository_id: str,
+    edge: Mapping[str, Any],
+    check: Mapping[str, Any],
+    selector: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    graph_identity: str,
+    producer_repository_revision: str,
+    repository_revision: str,
+    mncs_binary: str,
+    mncs_test_libraries: list[str],
+    runtime_bindings: Mapping[str, Any],
+) -> tuple[dict[str, Any], str]:
+    """Execute a selected consumer in deterministic provider-sized batches.
+
+    Eight is the provider execution bound, not the family selection bound.
+    Each batch enters the same native Actions application and yields a
+    provider-owned result/check pair.  Actions preserves all batch artifacts
+    and asks the native selected-proof reducer to aggregate them; it never
+    replaces those records with a Python boolean projection.
+    """
+
+    selected_tests = list(selector.get("test_identities", []))
+    if len(selected_tests) <= 8:
+        return _native_actions_provider_check_one_batch(
+            checkout=checkout,
+            repository_id=repository_id,
+            edge=edge,
+            check=check,
+            selector=selector,
+            plan=plan,
+            graph_identity=graph_identity,
+            producer_repository_revision=producer_repository_revision,
+            repository_revision=repository_revision,
+            mncs_binary=mncs_binary,
+            mncs_test_libraries=mncs_test_libraries,
+            runtime_bindings=runtime_bindings,
+        )
+    if len(selected_tests) > 256:
+        raise SelectiveFamilyError(
+            f"{repository_id} selected test set exceeds the bounded 256-test family limit"
+        )
+
+    batch_results: list[dict[str, Any]] = []
+    revision = ""
+    for start in range(0, len(selected_tests), 8):
+        batch_tests = selected_tests[start : start + 8]
+        batch_selector = copy.deepcopy(dict(selector))
+        batch_selector["test_identities"] = batch_tests
+        batch_plan = copy.deepcopy(dict(plan))
+        batch_selection = batch_plan.get("selection")
+        if not isinstance(batch_selection, dict):
+            raise SelectiveFamilyError("native Actions batch plan has no selection object")
+        batch_selection["selected_test_identities"] = batch_tests
+        result, revision = _native_actions_provider_check_one_batch(
+            checkout=checkout,
+            repository_id=repository_id,
+            edge=edge,
+            check=check,
+            selector=batch_selector,
+            plan=batch_plan,
+            graph_identity=graph_identity,
+            producer_repository_revision=producer_repository_revision,
+            repository_revision=repository_revision,
+            mncs_binary=mncs_binary,
+            mncs_test_libraries=mncs_test_libraries,
+            runtime_bindings=runtime_bindings,
+        )
+        batch_results.append(result)
+
+    first = batch_results[0]
+    verdicts = [str(result.get("verdict", "UNKNOWN")) for result in batch_results]
+    verdict = "FAIL" if "FAIL" in verdicts else ("UNKNOWN" if "UNKNOWN" in verdicts else "PASS")
+    family_results = [
+        result["native_family_result"]
+        for result in batch_results
+        if isinstance(result.get("native_family_result"), Mapping)
+    ]
+    if len(family_results) != len(batch_results):
+        raise SelectiveFamilyError("native Actions batch omitted a family result")
+    canonical_batches = [
+        result.get("native_canonical_artifacts")
+        for result in batch_results
+    ]
+    native_actions = {
+        "schema_version": "mncs-actions.native-family-admission/1",
+        "authority": "mncs.actions.family.v1",
+        "verdict": verdict,
+        "batch_size": 8,
+        "batch_count": len(batch_results),
+        "proof_sufficient": all(bool(result.get("proof_sufficient")) for result in batch_results),
+        "reusable": all(bool(result.get("reusable")) for result in batch_results),
+        "reason_code": next(
+            (int(result.get("reason_code", 0)) for result in batch_results if int(result.get("reason_code", 0)) != 0),
+            0,
+        ),
+        "receipts": [result.get("native_receipt") for result in batch_results],
+        "family_results": family_results,
+        "canonical": {
+            "execution_receipts": [
+                batch.get("execution_receipt")
+                for batch in canonical_batches
+                if isinstance(batch, Mapping)
+            ],
+            "evidence_manifests": [
+                batch.get("evidence_manifest")
+                for batch in canonical_batches
+                if isinstance(batch, Mapping)
+            ],
+            "selected_family_proofs": [
+                batch.get("selected_family_proof")
+                for batch in canonical_batches
+                if isinstance(batch, Mapping)
+            ],
+        },
+    }
+    result = copy.deepcopy(first)
+    result["verdict"] = verdict
+    result["summary"] = (
+        "Actions executed the selected consumer through deterministic native "
+        f"provider batches ({len(batch_results)} batches of at most 8 tests)."
+    )
+    behavioral = result.get("behavioral")
+    if not isinstance(behavioral, dict):
+        behavioral = {}
+    behavioral["test_case_identities"] = selected_tests
+    behavioral["test_results"] = [
+        batch.get("behavioral", {}).get("test_result")
+        for batch in batch_results
+        if isinstance(batch.get("behavioral"), Mapping)
+    ]
+    behavioral["provider_checks"] = [
+        batch.get("behavioral", {}).get("provider_check")
+        for batch in batch_results
+        if isinstance(batch.get("behavioral"), Mapping)
+    ]
+    behavioral["actions_native"] = native_actions
+    result["behavioral"] = behavioral
+    result["native_actions"] = native_actions
+    result["native_family_results"] = family_results
+    result["native_receipts"] = [batch.get("native_receipt") for batch in batch_results]
+    result["native_canonical_artifacts"] = native_actions["canonical"]
+    result["native_evidence"] = {
+        "provider_descriptor_identity": first.get("native_evidence", {}).get("provider_descriptor_identity")
+        if isinstance(first.get("native_evidence"), Mapping)
+        else None,
+        "batches": [batch.get("native_evidence") for batch in batch_results],
+        "canonical": native_actions["canonical"],
+    }
+    result["references"] = [
+        reference
+        for batch in batch_results
+        for reference in batch.get("references", [])
+        if isinstance(reference, Mapping)
+    ]
+    return result, revision
+
+
+def _native_actions_provider_check_one_batch(
+    *,
+    checkout: Path,
+    repository_id: str,
+    edge: Mapping[str, Any],
+    check: Mapping[str, Any],
+    selector: Mapping[str, Any],
+    plan: Mapping[str, Any],
+    graph_identity: str,
+    producer_repository_revision: str,
+    repository_revision: str,
+    mncs_binary: str,
+    mncs_test_libraries: list[str],
+    runtime_bindings: Mapping[str, Any],
+) -> tuple[dict[str, Any], str]:
+    """Run the production Actions application with an admitted provider.
+
+    The returned external check document is an adapter view over native
+    artifacts.  Verdicts, receipt reuse, provider binding, and canonical
+    artifact identities come from the native application; this function only
+    supplies paths and copies bounded documents for existing external
+    consumers.
+    """
+
+    actions_root = Path(__file__).resolve().parents[1]
+    provider_descriptor_path, provider_descriptor, declaration = _native_provider_descriptor(
+        actions_root=actions_root,
+        provider_repository=repository_id,
+    )
+    selected_tests = list(selector.get("test_identities", []))
+    plan_tests = list(plan.get("selection", {}).get("selected_test_identities", []))
+    if selected_tests != plan_tests:
+        raise SelectiveFamilyError(
+            f"{repository_id} native provider selector is not the complete plan selection"
+        )
+    if not selected_tests or len(selected_tests) > 8:
+        raise SelectiveFamilyError(
+            f"{repository_id} native provider batch requires 1..8 selected tests; "
+            f"received {len(selected_tests)}"
+        )
+    verification = edge.get("verification")
+    if not isinstance(verification, Mapping) and isinstance(edge.get("check_identity"), str):
+        verification = {"check_identity": edge["check_identity"]}
+    if not isinstance(verification, Mapping):
+        raise SelectiveFamilyError("selected provider edge has no verification declaration")
+    native_edge = {
+        "schema_version": "mncs.family-semantic-edge/1",
+        "producer_repository": edge["producer_repository"],
+        "consumer_repository": edge["consumer_repository"],
+        "contract_identity": edge["contract_identity"],
+        "contract_revision": edge["contract_revision"],
+        "consuming_identity": edge["consuming_identity"],
+        "provenance": edge["provenance"],
+        "fingerprint": edge["fingerprint"],
+        "consumer_manifest_identity": edge["consumer_manifest_identity"],
+        "check_identity": verification["check_identity"],
+        "selected_test_identities": selected_tests,
+    }
+    provider_identity = provider_descriptor["provider_identity"]
+    provider_revision = provider_descriptor["revision_identity"]
+    provider_interface = provider_descriptor["interface_identity"]
+    provider_inventory = provider_descriptor["inventory_identity"]
+    native_request = {
+        "schema_version": "mncs.test-provider-request/1",
+        "inventory_identity": provider_inventory,
+        "selected_test_identities": selected_tests,
+        "selection_count": len(selected_tests),
+        "interface_identity": provider_interface,
+        "provider_revision_identity": provider_revision,
+    }
+    zero = "0" * 64
+    native_previous_result = {
+        "schema_version": "mncs.test-provider-result/1",
+        "result_identity": zero,
+        "provider_identity": provider_identity,
+        "provider_revision_identity": provider_revision,
+        "interface_identity": provider_interface,
+        "inventory_identity": provider_inventory,
+        "execution_identity": zero,
+        "evidence_identity": zero,
+        "selected_test_identities": [],
+        "selection_count": 0,
+        "native_result": {
+            "verdict": "UNSUPPORTED",
+            "verdict_code": 3,
+            "failure_kind": "Unsupported",
+            "failure_code": 0,
+            "assertions": 0,
+            "failures": 0,
+            "expected": 0,
+            "actual": 0,
+            "assertion_code": 0,
+        },
+    }
+    native_previous_check = {
+        "schema_version": "mncs.test-provider-check/1",
+        "result_identity": zero,
+        "check_identity": "mncs-test:check",
+        "provider_identity": provider_identity,
+        "provider_revision_identity": provider_revision,
+        "interface_identity": provider_interface,
+        "inventory_identity": provider_inventory,
+        "test_result_identity": zero,
+        "execution_identity": zero,
+        "evidence_identity": zero,
+        "verdict": "UNSUPPORTED",
+    }
+    native_prior_receipt = {
+        "schema_version": "mncs.commons.receipt-evidence/1",
+        "receipt_identity": zero,
+        "family_identity": zero,
+        "plan_identity": zero,
+        "graph_identity": zero,
+        "edge_identity": zero,
+        "source_identity": zero,
+        "contract_identity": zero,
+        "consumer_identity": zero,
+        "test_result_identity": zero,
+        "check_result_identity": zero,
+        "execution_identity": zero,
+        "evidence_identity": zero,
+        "producer_identity": zero,
+        "producer_revision_identity": zero,
+        "verdict": "UNKNOWN",
+    }
+    workspace_root = checkout.parent
+    descriptor = actions_root / "native-applications" / "actions-family.json"
+    if not descriptor.is_file():
+        raise SelectiveFamilyError(f"native Actions descriptor is unavailable: {descriptor}")
+    try:
+        with tempfile.TemporaryDirectory(
+            prefix=".mncs-actions-admission-", dir=workspace_root
+        ) as directory:
+            work = Path(directory)
+            paths = {
+                "plan": work / "verification-plan.json",
+                "edge": work / "semantic-edge.json",
+                "declaration": work / "provider-declaration.json",
+                "request": work / "provider-request.json",
+                "prior_receipt": work / "prior-receipt.json",
+                "previous_result": work / "previous-provider-result.json",
+                "previous_check": work / "previous-provider-check.json",
+                "family_result": work / "family-result.json",
+                "receipt": work / "receipt-evidence.json",
+                "provider_result": work / "provider-result.json",
+                "provider_check": work / "provider-check.json",
+                "execution_receipt": work / "execution-receipt.json",
+                "evidence_manifest": work / "evidence-manifest.json",
+                "selected_proof": work / "selected-family-proof.json",
+            }
+            for path, value in (
+                (paths["plan"], plan),
+                (paths["edge"], native_edge),
+                (paths["declaration"], declaration),
+                (paths["request"], native_request),
+                (paths["prior_receipt"], native_prior_receipt),
+                (paths["previous_result"], native_previous_result),
+                (paths["previous_check"], native_previous_check),
+            ):
+                _write_json(path, value)
+            relative_args = [
+                os.path.relpath(paths[key], workspace_root)
+                for key in (
+                    "plan",
+                    "edge",
+                    "declaration",
+                    "request",
+                    "prior_receipt",
+                    "previous_result",
+                    "previous_check",
+                    "family_result",
+                    "receipt",
+                    "provider_result",
+                    "provider_check",
+                    "execution_receipt",
+                    "evidence_manifest",
+                    "selected_proof",
+                )
+            ]
+            command = [
+                mncs_binary,
+                "run-app",
+                str(descriptor),
+                "--admit-provider",
+                str(provider_descriptor_path),
+                "--grant-provider",
+                "provider_digest=mncs-test-provider",
+                "--grant-structured",
+                "actions_artifact",
+                "--grant-structured",
+                "actions_digest",
+            ]
+            for library in mncs_test_libraries:
+                command.extend(("--library", library))
+            command.extend(("--", *relative_args))
+            completed = subprocess.run(
+                command,
+                cwd=str(workspace_root),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=360,
+                stdin=subprocess.DEVNULL,
+            )
+            if completed.returncode != 0:
+                raise SelectiveFamilyError(
+                    "native Actions provider application failed: "
+                    + (completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}")
+                )
+            family_result = _read_json(paths["family_result"], "native Actions family result")
+            internal_receipt = _read_json(paths["receipt"], "native Actions receipt")
+            provider_result = _read_json(paths["provider_result"], "native provider TestResult")
+            provider_check = _read_json(paths["provider_check"], "native provider CheckResult")
+            canonical_receipt = _read_json(paths["execution_receipt"], "canonical ExecutionReceipt")
+            evidence_manifest = _read_json(paths["evidence_manifest"], "canonical EvidenceManifest")
+            selected_proof = _read_json(paths["selected_proof"], "canonical SelectedFamilyProof")
+    except (OSError, subprocess.SubprocessError) as error:
+        raise SelectiveFamilyError(
+            f"native Actions provider application could not be started: {error}"
+        ) from error
+    verdict = family_result.get("verdict")
+    if verdict not in {"PASS", "FAIL", "UNKNOWN"}:
+        raise SelectiveFamilyError("native Actions provider result has an invalid verdict")
+    if provider_result.get("selected_test_identities") != selected_tests:
+        raise SelectiveFamilyError("native admitted provider did not return the exact selection")
+    execution_identity = provider_result.get("execution_identity")
+    if not isinstance(execution_identity, str) or not execution_identity:
+        raise SelectiveFamilyError("native admitted provider omitted execution identity")
+    execution = {
+        "test_case_identities": selected_tests,
+        "runner_version": provider_revision,
+        "run_identity": execution_identity,
+        "inventory_identity": provider_result.get("inventory_identity"),
+    }
+    native_actions = {
+        "schema_version": "mncs-actions.native-family-admission/1",
+        "authority": "mncs.actions.family.v1",
+        "verdict": verdict,
+        "proof_sufficient": bool(family_result.get("proof_sufficient")),
+        "reusable": bool(family_result.get("reusable")),
+        "reason_code": int(family_result.get("reason_code", 0)),
+        "receipt": internal_receipt,
+        "family_result": family_result,
+        "canonical": {
+            "execution_receipt": canonical_receipt,
+            "evidence_manifest": evidence_manifest,
+            "selected_family_proof": selected_proof,
+        },
+    }
+    native_evidence = {
+        "provider_descriptor_identity": provider_descriptor.get("descriptor_identity"),
+        "provider_result": provider_result,
+        "provider_check": provider_check,
+        "canonical": native_actions["canonical"],
+    }
+    result = {
+        "schema_version": "mncs.check-result/1",
+        "id": check["identity"],
+        "provider": repository_id,
+        "verdict": verdict,
+        "scope": check["surface"],
+        "claim": "selected consumer behavioral proof established by admitted native provider",
+        "summary": "Actions admitted the repository-owned provider descriptor and executed its typed protocol.",
+        "contract_revision": edge["contract_revision"],
+        "producer_revision": plan["source"]["sha256"],
+        "producer_repository_revision": producer_repository_revision,
+        "references": [
+            {"kind": "mncs-test-provider-result", "uri": "urn:mncs-test:provider-result", "digest": provider_result.get("result_identity", zero)},
+            {"kind": "mncs-test-provider-check", "uri": "urn:mncs-test:provider-check", "digest": provider_check.get("result_identity", zero)},
+        ],
+        "behavioral": {
+            "runner": "mncs-test",
+            "runner_version": provider_revision,
+            "selector": dict(selector),
+            "test_case_identities": selected_tests,
+            "run_identity": execution_identity,
+            "inventory_identity": provider_result.get("inventory_identity"),
+            **dict(runtime_bindings),
+            "test_result": provider_result,
+            "provider_check": provider_check,
+            "actions_native": native_actions,
+        },
+        "native_receipt": internal_receipt,
+        "native_family_result": family_result,
+        "native_evidence": native_evidence,
+        "native_canonical_artifacts": native_actions["canonical"],
+    }
+    return result, repository_revision
+
+
 def _consumer_check(
     *,
     checkout: Path,
@@ -976,6 +1490,21 @@ def _consumer_check(
         selector = check.get("selector")
         if not isinstance(selector, Mapping):
             raise SelectiveFamilyError(f"{check_identity} has no mncs-test selector")
+        if native_actions_shadow_source is not None:
+            return _native_actions_provider_check(
+                checkout=checkout,
+                repository_id=repository_id,
+                edge=edge,
+                check=check,
+                selector=selector,
+                plan=plan,
+                graph_identity=graph_identity,
+                producer_repository_revision=producer_repository_revision,
+                repository_revision=repository_revision,
+                mncs_binary=mncs_binary,
+                mncs_test_libraries=mncs_test_libraries,
+                runtime_bindings=runtime_bindings,
+            )
         request = {
             "schema_version": "mncs.family-check-request/1",
             "check_identity": check_identity,
@@ -1428,8 +1957,11 @@ def _write_consumer_evidence(
         "library_identities": list(result.get("behavioral", {}).get("library_identities", [])),
         "runtime_identity": result.get("behavioral", {}).get("runtime_identity"),
         "native_receipt": result.get("native_receipt"),
+        "native_receipts": result.get("native_receipts"),
         "native_family_result": result.get("native_family_result"),
+        "native_family_results": result.get("native_family_results"),
         "native_evidence": result.get("native_evidence"),
+        "native_canonical_artifacts": result.get("native_canonical_artifacts"),
     }
 
 
@@ -1641,8 +2173,11 @@ def _reuse_consumer(
         "status": "reused",
         "evidence_directory": relative,
         "native_receipt": match.get("native_receipt"),
+        "native_receipts": match.get("native_receipts"),
         "native_family_result": match.get("native_family_result"),
+        "native_family_results": match.get("native_family_results"),
         "native_evidence": match.get("native_evidence"),
+        "native_canonical_artifacts": match.get("native_canonical_artifacts"),
     }
 
 

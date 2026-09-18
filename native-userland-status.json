@@ -15,26 +15,23 @@
       "native/mncs/actions/provider_canary/v1.mncs"
     ],
     "retained_canary_descriptors": [
-      "native-applications/actions-family-external.json",
-      "native-applications/actions-family-direct-provider.json",
-      "native-applications/actions-family-direct-provider-reuse.json"
+      "native-applications/actions-family-external.json"
     ],
     "removal_criterion": "remove after the complete family application is canonical and its parity suite no longer needs isolated entrypoints"
   },
   "native_provider_descriptors": {
-    "mncs-test": "../mncs-test/native-applications/test-provider-batch.json"
+    "mncs-test": "../mncs-test/native-applications/provider-v2-admitted.json"
   },
   "shadow_launcher": "mncs call",
   "native_shadow_slices": [
     "Commons-owned VerificationPlan, SemanticEdge, and ProviderDeclaration ingress",
-    "same-session statically bound mncs-test provider execution",
-    "provider-owned TestResult and CheckResult verification",
-    "native receipt/reuse decision and selected-family family-result composition"
+    "selected-consumer traversal and multi-consumer aggregation in scripts/selective_family_verify.py",
+    "compatibility-envelope adaptation for callers that still request the Python family result"
   ],
   "semantic_modules": [
     "native/mncs/actions/family/v1.mncs"
   ],
-  "next_migration_slice": "generic authoritative provider descriptor/revision admission, then native canonical receipt/evidence/selected-proof publication",
+  "next_migration_slice": "move selected-consumer traversal, receipt reuse, and aggregate proof composition into the native Actions application; retain Python only as a transport adapter/oracle",
   "host_paths": [
     {
       "path": "scripts/selective_family_verify.py",

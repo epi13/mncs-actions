@@ -17,8 +17,7 @@ use mncs.commons.family.contracts.v1 as contracts;
 use mncs.core.sequences.v1 as sequences;
 use mncs.std.application.v1;
 use mncs.test.assertions.v1;
-use mncs.test.provider.v1 as provider;
-use mncs.test.provider.v2 as provider_v2;
+use mncs.test.provider_protocol.v1 as provider_protocol;
 
 
 fn bytes_equal(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
@@ -47,6 +46,14 @@ fn verdict_is_fail(value: FamilyVerdict) -> (result: bool) {
 
 fn verdict_is_pass(value: FamilyVerdict) -> (result: bool) {
     return match value { PASS => true, FAIL => false, UNKNOWN => false };
+}
+
+fn contract_verdict(value: FamilyVerdict) -> (result: contracts.ContractFamilyVerdict) {
+    return match value {
+        PASS => contracts.ContractFamilyVerdict.PASS,
+        FAIL => contracts.ContractFamilyVerdict.FAIL,
+        UNKNOWN => contracts.ContractFamilyVerdict.UNKNOWN
+    };
 }
 
 fn copy_digest(view: [byte; up_to 64]) -> (result: [byte; 32]) {
@@ -445,16 +452,12 @@ fn artifact_verdict(value: ArtifactVerdict) -> (result: FamilyVerdict) {
 // selection or declaration must not cause an unrelated provider call merely
 // because the caller supplied a path-shaped artifact set.
 fn direct_provider_verdict(valid: bool, selector: [byte; up_to 1024]) -> (result: ArtifactVerdict) {
-    if !valid {
+    // Retained only so the historical descriptor can fail closed if invoked;
+    // production Actions never links a concrete provider implementation.
+    if valid && selector.len > 0 {
         return ArtifactVerdict.UNKNOWN;
     }
-    let provider_result: TestResult = provider.run_selected(selector);
-    return match provider_result.verdict {
-        Verdict.PASS => ArtifactVerdict.PASS,
-        Verdict.FAIL => ArtifactVerdict.FAIL,
-        Verdict.SKIP => ArtifactVerdict.UNKNOWN,
-        Verdict.UNSUPPORTED => ArtifactVerdict.UNKNOWN,
-    };
+    return ArtifactVerdict.UNKNOWN;
 }
 
 fn external_family_input(
@@ -553,6 +556,7 @@ fn family_check_external_app(context: ApplicationContext) -> (result: Applicatio
     capability actions_artifact
     capability actions_digest
     effect structured_read authorized_by actions_artifact
+    effect structured_read_identity authorized_by actions_artifact
     effect structured_write authorized_by actions_artifact
     effect structured_digest authorized_by actions_digest
 {
@@ -886,7 +890,7 @@ fn family_check_artifacts_app(context: ApplicationContext) -> (result: Applicati
 // either reuses the prior provider-owned records or calls the selected typed
 // provider in the same MNCS session. Actions never manufactures a provider
 // verdict or replaces the provider's evidence with a reduced boolean view.
-fn provider_verdict(value: provider_v2.ProviderTestResult) -> (result: FamilyVerdict) {
+fn provider_verdict(value: provider_protocol.ProviderTestResult) -> (result: FamilyVerdict) {
     return match value.native_result.verdict {
         Verdict.PASS => FamilyVerdict.PASS,
         Verdict.FAIL => FamilyVerdict.FAIL,
@@ -895,7 +899,7 @@ fn provider_verdict(value: provider_v2.ProviderTestResult) -> (result: FamilyVer
     };
 }
 
-fn provider_check_verdict(value: provider_v2.ProviderCheckResult) -> (result: FamilyVerdict) {
+fn provider_check_verdict(value: provider_protocol.ProviderCheckResult) -> (result: FamilyVerdict) {
     return match value.verdict {
         Verdict.PASS => FamilyVerdict.PASS,
         Verdict.FAIL => FamilyVerdict.FAIL,
@@ -907,7 +911,7 @@ fn provider_check_verdict(value: provider_v2.ProviderCheckResult) -> (result: Fa
 fn provider_family_input(
     plan: VerificationPlanArtifact,
     edge: SemanticEdgeArtifact,
-    run: provider_v2.ProviderRun,
+    run: provider_protocol.ProviderRun,
     prior_receipt: ReceiptEvidence
 ) -> (result: FamilyCheckInput)
     capability actions_digest
@@ -922,7 +926,7 @@ fn provider_family_input(
     let contract_identity: [byte; 32] = digest_view(edge.contract_identity);
     let test_identity: [byte; 32] = digest_tests(selected);
     let check_identity: [byte; 32] = digest_view(run.check_result.check_identity);
-    let producer_identity: [byte; 32] = digest_view(edge.producer_repository);
+    let producer_identity: [byte; 32] = run.test_result.provider_identity;
     let evidence_identity: [byte; 32] = run.test_result.evidence_identity;
     return FamilyCheckInput {
         plan: PlanEvidence {
@@ -989,7 +993,7 @@ fn provider_family_input(
 fn provider_family_input_complete(
     plan: contracts.VerificationPlan,
     edge: contracts.SemanticEdgeContract,
-    run: provider_v2.ProviderRun,
+    run: provider_protocol.ProviderRun,
     prior_receipt: ReceiptEvidence
 ) -> (result: FamilyCheckInput)
     capability actions_digest
@@ -1003,8 +1007,12 @@ fn provider_family_input_complete(
     let family_identity: [byte; 32] = copy_digest(structured_digest(family_material));
     let contract_identity: [byte; 32] = digest_view(edge.contract_identity);
     let test_identity: [byte; 32] = digest_tests(selected);
-    let check_identity: [byte; 32] = digest_view(run.check_result.check_identity);
-    let producer_identity: [byte; 32] = digest_view(edge.producer_repository);
+    // The provider's check label is provider-owned evidence. The canonical
+    // family check identity belongs to the selected edge, so Actions binds
+    // the returned result to that edge here instead of requiring every
+    // provider to reuse one literal label.
+    let check_identity: [byte; 32] = digest_view(edge.check_identity);
+    let producer_identity: [byte; 32] = run.test_result.provider_identity;
     let evidence_identity: [byte; 32] = run.test_result.evidence_identity;
     return FamilyCheckInput {
         plan: PlanEvidence {
@@ -1064,7 +1072,7 @@ fn provider_family_input_complete(
     };
 }
 
-fn identity_view_equal(value: [byte; up_to 512], expected: [byte; 32]) -> (result: bool) {
+fn identity_view_equal(value: [byte; up_to 1024], expected: [byte; up_to 128]) -> (result: bool) {
     if value.len != expected.len {
         return false;
     }
@@ -1078,7 +1086,7 @@ fn provider_binding_valid_complete(
     plan: contracts.VerificationPlan,
     edge: contracts.SemanticEdgeContract,
     declaration: contracts.ProviderDeclarationContract,
-    request: provider_v2.ProviderRequest
+    request: provider_protocol.ProviderRequest
 ) -> (result: bool)
     capability actions_digest
     effect structured_digest authorized_by actions_digest
@@ -1088,12 +1096,15 @@ fn provider_binding_valid_complete(
     let request_selector: [[byte; up_to 1024]; up_to 64] = request.selected_test_identities;
     let request_selector_identity: [byte; 32] = digest_tests(request_selector);
     let selected: bool = selected_complete_repository(plan.selection, edge.consumer_repository);
-    let provider_matches: bool = view_equal(declaration.repository_id, edge.producer_repository)
-        && identity_view_equal(declaration.provider_identity, provider_v2.provider_identity());
+    // The edge producer is the producer of the VerificationPlan contract
+    // (RAVEL). The executable test provider is selected by its own family
+    // declaration, so these identities must remain separate.
+    let provider_matches: bool = declaration.repository_id.len > 0
+        && bytes_present(declaration.provider_identity);
     let declaration_matches: bool = bytes_equal(declaration.interface_identity, request.interface_identity)
         && bytes_equal(declaration.inventory_identity, request.inventory_identity)
         && bytes_equal(declaration.revision_identity, request.provider_revision_identity);
-    let edge_contract_matches: bool = view_equal(edge.check_identity, [109, 110, 99, 115, 45, 116, 101, 115, 116, 58, 99, 104, 101, 99, 107]);
+    let edge_contract_matches: bool = edge.check_identity.len > 0;
     return selected
         && provider_matches
         && declaration_matches
@@ -1104,17 +1115,17 @@ fn provider_binding_valid_complete(
         && request.selection_count == request.selected_test_identities.len
         && request.selection_count > 0
         && request.selection_count <= 8
-        && bytes_equal(request.interface_identity, provider_v2.interface_identity())
-        && bytes_equal(request.inventory_identity, provider_v2.inventory_identity())
-        && bytes_equal(request.provider_revision_identity, provider_v2.revision_identity());
+        && bytes_equal(request.interface_identity, declaration.interface_identity)
+        && bytes_equal(request.inventory_identity, declaration.inventory_identity)
+        && bytes_equal(request.provider_revision_identity, declaration.revision_identity);
 }
 
 fn provider_result_binding_valid(
     plan: contracts.VerificationPlan,
     edge: contracts.SemanticEdgeContract,
     declaration: contracts.ProviderDeclarationContract,
-    request: provider_v2.ProviderRequest,
-    run: provider_v2.ProviderRun
+    request: provider_protocol.ProviderRequest,
+    run: provider_protocol.ProviderRun
 ) -> (result: bool)
     capability actions_digest
     effect structured_digest authorized_by actions_digest
@@ -1125,6 +1136,12 @@ fn provider_result_binding_valid(
     let returned_identity: [byte; 32] = digest_tests(returned);
     let selected_plan: [byte; 32] = digest_complete_tests(plan.selection.selected_test_identities);
     let selected_edge: [byte; 32] = digest_complete_tests(edge.selected_test_identities);
+    let expected_result_identity: [byte; 32] = copy_digest(structured_digest(
+        provider_protocol.provider_test_result_identity_material(run.test_result)
+    ));
+    let expected_check_identity: [byte; 32] = copy_digest(structured_digest(
+        provider_protocol.provider_check_result_identity_material(run.check_result)
+    ));
     return bytes_present(run.test_result.result_identity)
         && bytes_present(run.test_result.execution_identity)
         && bytes_present(run.test_result.evidence_identity)
@@ -1141,8 +1158,10 @@ fn provider_result_binding_valid(
         && bytes_equal(run.check_result.inventory_identity, declaration.inventory_identity)
         && bytes_equal(run.test_result.execution_identity, run.check_result.execution_identity)
         && bytes_equal(run.test_result.evidence_identity, run.check_result.evidence_identity)
+        && bytes_equal(run.test_result.result_identity, expected_result_identity)
+        && bytes_equal(run.check_result.result_identity, expected_check_identity)
         && bytes_equal(run.check_result.test_result_identity, run.test_result.result_identity)
-        && view_equal(run.check_result.check_identity, edge.check_identity)
+        && run.check_result.check_identity.len > 0
         && verdict_equal(provider_verdict(run.test_result), provider_check_verdict(run.check_result))
         && bytes_equal(requested_identity, returned_identity)
         && bytes_equal(selected_plan, selected_edge)
@@ -1155,7 +1174,7 @@ fn provider_binding_valid(
     plan: VerificationPlanArtifact,
     edge: SemanticEdgeArtifact,
     declaration: ProviderDeclarationArtifact,
-    request: provider_v2.ProviderRequest
+    request: provider_protocol.ProviderRequest
 ) -> (result: bool)
     capability actions_digest
     effect structured_digest authorized_by actions_digest
@@ -1175,50 +1194,57 @@ fn provider_binding_valid(
         && request.selection_count > 0
         && request.selection_count <= 8
         && bytes_equal(request.inventory_identity, [245, 194, 197, 102, 75, 36, 226, 126, 253, 190, 95, 78, 120, 172, 136, 142, 150, 101, 91, 85, 6, 49, 248, 177, 156, 170, 151, 49, 145, 39, 21, 219])
-        && bytes_equal(request.provider_revision_identity, provider_v2.revision_identity());
+        && identity_view_equal(request.provider_revision_identity, declaration.revision);
 }
 
 fn choose_provider_run(
     reuse: bool,
-    previous: provider_v2.ProviderRun,
-    request: provider_v2.ProviderRequest
-) -> (result: provider_v2.ProviderRun)
-    capability provider_digest
-    effect structured_digest authorized_by provider_digest
+    previous: provider_protocol.ProviderRun,
+    request: provider_protocol.ProviderRequest,
+    provider_identity: [byte; up_to 32]
+) -> (result: provider_protocol.ProviderRun)
+    capability provider_call
+    effect provider_call authorized_by provider_call
 {
     if reuse {
         return previous;
     }
-    return provider_v2.run_selected_batch(request);
+    return provider_call(provider_identity, request);
 }
 
 fn family_orchestrate_provider_app(context: ApplicationContext) -> (result: ApplicationExit)
     capability actions_artifact
     capability actions_digest
-    capability provider_digest
+    capability provider_admission
+    capability provider_call
     effect structured_read authorized_by actions_artifact
+    effect structured_read_identity authorized_by actions_artifact
     effect structured_write authorized_by actions_artifact
     effect structured_digest authorized_by actions_digest
-    effect structured_digest authorized_by provider_digest
+    effect provider_call authorized_by provider_call
 {
-    if !context_is_bounded(context) || context.argv_count < 11 {
-        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 49, 49, 32, 112, 114, 111, 118, 105, 100, 101, 114, 32, 97, 114, 116, 105, 102, 97, 99, 116, 32, 112, 97, 116, 104, 115], 2);
+    if !context_is_bounded(context) || context.argv_count < 14 {
+        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 49, 52, 32, 112, 114, 111, 118, 105, 100, 101, 114, 32, 97, 114, 116, 105, 102, 97, 99, 116, 32, 112, 97, 116, 104, 115], 2);
     }
     let edge_schema: [byte; up_to 64] = contracts.semantic_edge_schema();
     let provider_schema: [byte; up_to 64] = contracts.provider_declaration_schema();
-    let request_schema: [byte; up_to 64] = provider_v2.provider_request_schema();
+    let extension_policy: [byte; up_to 128] = contracts.identity_extension_policy();
+    let request_schema: [byte; up_to 64] = provider_protocol.provider_request_schema();
     let receipt_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 114, 101, 99, 101, 105, 112, 116, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
-    let provider_result_schema: [byte; up_to 64] = provider_v2.provider_result_schema();
-    let provider_check_schema: [byte; up_to 64] = provider_v2.provider_check_schema();
+    let provider_result_schema: [byte; up_to 64] = provider_protocol.provider_result_schema();
+    let provider_check_schema: [byte; up_to 64] = provider_protocol.provider_check_schema();
     let output_schema: [byte; up_to 64] = [109, 110, 99, 115, 46, 99, 111, 109, 109, 111, 110, 115, 46, 102, 97, 109, 105, 108, 121, 45, 114, 101, 115, 117, 108, 116, 47, 49];
-    let plan: contracts.VerificationPlan = structured_read(context.argv[0], contracts.verification_plan_schema());
-    let edge: contracts.SemanticEdgeContract = structured_read(context.argv[1], contracts.semantic_edge_schema());
-    let declaration: contracts.ProviderDeclarationContract = structured_read(context.argv[2], contracts.provider_declaration_schema());
-    let request: provider_v2.ProviderRequest = structured_read(context.argv[3], provider_v2.provider_request_schema());
-    let prior_receipt: ReceiptEvidence = structured_read(context.argv[4], receipt_schema);
-    let previous_test: provider_v2.ProviderTestResult = structured_read(context.argv[5], provider_v2.provider_result_schema());
-    let previous_check: provider_v2.ProviderCheckResult = structured_read(context.argv[6], provider_v2.provider_check_schema());
-    let previous_run: provider_v2.ProviderRun = provider_v2.ProviderRun {
+    let receipt_contract_schema: [byte; up_to 64] = contracts.receipt_schema();
+    let evidence_manifest_schema: [byte; up_to 64] = contracts.evidence_manifest_schema();
+    let selected_proof_schema: [byte; up_to 64] = contracts.selected_proof_schema();
+    let plan: contracts.VerificationPlan = structured_read_identity(context.argv[0], contracts.verification_plan_schema(), extension_policy);
+    let edge: contracts.SemanticEdgeContract = structured_read_identity(context.argv[1], contracts.semantic_edge_schema(), extension_policy);
+    let declaration: contracts.ProviderDeclarationContract = structured_read_identity(context.argv[2], contracts.provider_declaration_schema(), extension_policy);
+    let request: provider_protocol.ProviderRequest = structured_read_identity(context.argv[3], provider_protocol.provider_request_schema(), extension_policy);
+    let prior_receipt: ReceiptEvidence = structured_read_identity(context.argv[4], receipt_schema, extension_policy);
+    let previous_test: provider_protocol.ProviderTestResult = structured_read_identity(context.argv[5], provider_protocol.provider_result_schema(), extension_policy);
+    let previous_check: provider_protocol.ProviderCheckResult = structured_read_identity(context.argv[6], provider_protocol.provider_check_schema(), extension_policy);
+    let previous_run: provider_protocol.ProviderRun = provider_protocol.ProviderRun {
         test_result: previous_test,
         check_result: previous_check
     };
@@ -1227,7 +1253,12 @@ fn family_orchestrate_provider_app(context: ApplicationContext) -> (result: Appl
     let previous_input: FamilyCheckInput = provider_family_input_complete(plan, edge, previous_run, prior_receipt);
     let previous_evaluation: FamilyCheckResult = family_check(previous_input);
     let reuse: bool = binding && previous_result_binding && previous_evaluation.reusable;
-    let run: provider_v2.ProviderRun = choose_provider_run(reuse, previous_run, request);
+    let run: provider_protocol.ProviderRun = choose_provider_run(
+        reuse,
+        previous_run,
+        request,
+        declaration.provider_identity
+    );
     let result_binding: bool = provider_result_binding_valid(plan, edge, declaration, request, run);
     let input: FamilyCheckInput = provider_family_input_complete(plan, edge, run, prior_receipt);
     let result_value: FamilyCheckResult = select(
@@ -1252,11 +1283,69 @@ fn family_orchestrate_provider_app(context: ApplicationContext) -> (result: Appl
             proof_identity: [0; 32]
         }
     );
+    let contract_family_verdict: contracts.ContractFamilyVerdict = contract_verdict(result_value.verdict);
+    let profile_identity: [byte; 32] = copy_digest(structured_digest(declaration));
+    let receipt_contract_material: contracts.ReceiptContract = contracts.ReceiptContract {
+        receipt_identity: [0; 32],
+        plan_identity: result_value.plan_identity,
+        graph_identity: result_value.graph_identity,
+        edge_identity: result_value.edge_identity,
+        source_identity: result_value.source_identity,
+        contract_identity: result_value.contract_identity,
+        consumer_identity: result_value.consumer_identity,
+        provider_identity: run.test_result.provider_identity,
+        provider_revision_identity: run.test_result.provider_revision_identity,
+        interface_identity: run.test_result.interface_identity,
+        inventory_identity: run.test_result.inventory_identity,
+        test_result_identity: run.test_result.result_identity,
+        check_result_identity: run.check_result.result_identity,
+        execution_identity: run.test_result.execution_identity,
+        evidence_identity: run.test_result.evidence_identity,
+        profile_identity: profile_identity,
+        verdict: contract_family_verdict
+    };
+    let receipt_identity: [byte; 32] = copy_digest(structured_digest(contracts.receipt_identity_material(receipt_contract_material)));
+    let receipt_contract: contracts.ReceiptContract = contracts.ReceiptContract {
+        ..receipt_contract_material,
+        receipt_identity: receipt_identity
+    };
+    let evidence_contract_material: contracts.EvidenceManifestContract = contracts.EvidenceManifestContract {
+        evidence_identity: run.test_result.evidence_identity,
+        test_result_identity: run.test_result.result_identity,
+        check_result_identity: run.check_result.result_identity,
+        execution_identity: run.test_result.execution_identity,
+        failure_material: [0; 0],
+        artifact_identities: [run.test_result.result_identity; 1]
+    };
+    let evidence_identity: [byte; 32] = copy_digest(structured_digest(contracts.evidence_manifest_identity_material(evidence_contract_material)));
+    let evidence_contract: contracts.EvidenceManifestContract = contracts.EvidenceManifestContract {
+        ..evidence_contract_material,
+        evidence_identity: evidence_identity
+    };
+    let selected_check_identities: [[byte; 32]; up_to 64] = [digest_view(edge.check_identity); 1];
+    let selected_proof_material: contracts.SelectedProofContract = contracts.SelectedProofContract {
+        proof_identity: [0; 32],
+        plan_identity: result_value.plan_identity,
+        selected_repositories: plan.selection.selected_repositories,
+        selected_check_identities: selected_check_identities,
+        required_evidence: plan.proof.required_evidence,
+        verdict: contract_family_verdict,
+        sufficient: result_value.proof_sufficient
+    };
+    let selected_proof_identity: [byte; 32] = copy_digest(structured_digest(contracts.selected_proof_identity_material(selected_proof_material)));
+    let selected_proof: contracts.SelectedProofContract = contracts.SelectedProofContract {
+        ..selected_proof_material,
+        proof_identity: selected_proof_identity
+    };
     let published: u64 = structured_write(context.argv[7], output_schema, result_value);
     let published_receipt: u64 = structured_write(context.argv[8], receipt_schema, result_value.receipt);
-    let published_test: u64 = structured_write(context.argv[9], provider_v2.provider_result_schema(), run.test_result);
-    let published_check: u64 = structured_write(context.argv[10], provider_v2.provider_check_schema(), run.check_result);
-    if published == 0 || published_receipt == 0 || published_test == 0 || published_check == 0 {
+    let published_test: u64 = structured_write(context.argv[9], provider_protocol.provider_result_schema(), run.test_result);
+    let published_check: u64 = structured_write(context.argv[10], provider_protocol.provider_check_schema(), run.check_result);
+    let published_contract_receipt: u64 = structured_write(context.argv[11], receipt_contract_schema, receipt_contract);
+    let published_evidence_manifest: u64 = structured_write(context.argv[12], evidence_manifest_schema, evidence_contract);
+    let published_selected_proof: u64 = structured_write(context.argv[13], selected_proof_schema, selected_proof);
+    if published == 0 || published_receipt == 0 || published_test == 0 || published_check == 0
+        || published_contract_receipt == 0 || published_evidence_manifest == 0 || published_selected_proof == 0 {
         return failure([112, 114, 111, 100, 117, 99, 116, 105, 111, 110, 32, 112, 117, 98, 108, 105, 115, 104, 32, 102, 97, 105, 108, 101, 100], 3);
     }
     return success([]);
