@@ -38,7 +38,9 @@ import json
 import sys
 from pathlib import Path
 
-check_path, result_path, message = map(Path, sys.argv[1:])
+check_path = Path(sys.argv[1])
+result_path = Path(sys.argv[2])
+message = sys.argv[3]
 result = {
     "schema_version": "mncs.test-result/1",
     "protocol_version": 1,

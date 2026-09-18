@@ -47,9 +47,12 @@ def test_failing_test_produces_debug_evidence_with_lineage(tmp_path: Path) -> No
         {
             "MNCS_TEST_BIN": str(MNCS_TEST / "bin" / "mncs-test"),
             "MNCS_BIN": str(MNCS),
-            "MNCS_MANIFEST": str(MNCS_TEST / "tests" / "fixtures" / "first-class-failing.toml"),
+            "MNCS_SOURCE_FILE": str(
+                MNCS_TEST / "tests" / "fixtures" / "first_class_failing.mncs"
+            ),
             "MNCS_LIBRARY_PATH_INPUT": os.pathsep.join((str(MNCS_TEST / "native"), str(MNCS_LANGUAGE / "library"))),
             "MNCS_EMBED_LIBRARY_INPUT": str(EMBED),
+            "MNCS_STEP_BUDGET": "200000",
             "MNCS_RESULT_FILE": str(test_check),
             "MNCS_TEST_RESULT_FILE": str(test_result),
             "MNCS_ARTIFACTS_DIRECTORY": str(test_artifacts),

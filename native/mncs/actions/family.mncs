@@ -359,6 +359,81 @@ fn selected_proof(input: SelectedProofInput) -> (result: SelectiveProof)
     return finalize(proof);
 }
 
+// Family coverage is a separate native decision from proof verdict
+// aggregation.  The host may count transport observations, but only this
+// function decides whether the observed set closes the selected family
+// boundary; missing or malformed coverage is UNKNOWN rather than an implicit
+// PASS.
+enum FamilyCoverageVerdict { Complete, Incomplete, Invalid }
+
+record FamilyCoverageInput {
+    expected_count: u64,
+    observed_count: u64,
+    failed_count: u64,
+    unknown_count: u64,
+    invalid_count: u64,
+}
+
+record FamilyCoverageDecision {
+    verdict: FamilyCoverageVerdict,
+    expected_count: u64,
+    observed_count: u64,
+    failed_count: u64,
+    unknown_count: u64,
+    invalid_count: u64,
+    proof_sufficient: bool,
+    reason_code: u64,
+}
+
+fn family_coverage(input: FamilyCoverageInput) -> (result: FamilyCoverageDecision) {
+    if input.expected_count == 0 {
+        return FamilyCoverageDecision {
+            verdict: FamilyCoverageVerdict.Invalid,
+            expected_count: input.expected_count,
+            observed_count: input.observed_count,
+            failed_count: input.failed_count,
+            unknown_count: input.unknown_count,
+            invalid_count: input.invalid_count,
+            proof_sufficient: false,
+            reason_code: 10,
+        };
+    }
+    if input.invalid_count > 0 {
+        return FamilyCoverageDecision {
+            verdict: FamilyCoverageVerdict.Invalid,
+            expected_count: input.expected_count,
+            observed_count: input.observed_count,
+            failed_count: input.failed_count,
+            unknown_count: input.unknown_count,
+            invalid_count: input.invalid_count,
+            proof_sufficient: false,
+            reason_code: 11,
+        };
+    }
+    if input.observed_count != input.expected_count {
+        return FamilyCoverageDecision {
+            verdict: FamilyCoverageVerdict.Incomplete,
+            expected_count: input.expected_count,
+            observed_count: input.observed_count,
+            failed_count: input.failed_count,
+            unknown_count: input.unknown_count,
+            invalid_count: input.invalid_count,
+            proof_sufficient: false,
+            reason_code: 20,
+        };
+    }
+    return FamilyCoverageDecision {
+        verdict: FamilyCoverageVerdict.Complete,
+        expected_count: input.expected_count,
+        observed_count: input.observed_count,
+        failed_count: input.failed_count,
+        unknown_count: input.unknown_count,
+        invalid_count: input.invalid_count,
+        proof_sufficient: input.failed_count == 0 && input.unknown_count == 0,
+        reason_code: select(input.failed_count > 0, 1, select(input.unknown_count > 0, 2, 0)),
+    };
+}
+
 // The material used for an Actions family identity is owned by this module;
 // it is not a hash of a Python-created dictionary.
 record FamilyIdentityMaterial {

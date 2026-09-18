@@ -53,6 +53,22 @@ def test_native_selected_proof_shadow_aggregates_bounded_consumers() -> None:
     assert result["failed"] == 1
 
 
+def test_native_actions_coverage_rejects_incomplete_family() -> None:
+    binary = os.environ.get("MNCS_BINARY")
+    if not binary:
+        pytest.skip("set MNCS_BINARY to exercise native coverage policy")
+    result = _run_native_actions_selected_proof(
+        mncs_binary=binary,
+        source_path=ROOT / "native/mncs/actions/family.mncs",
+        records=[{"verdict": "PASS"}],
+        cwd=ROOT,
+        expected_count=2,
+    )
+    assert result["verdict"] == "PASS"
+    assert result["coverage"]["verdict"] == "Incomplete"
+    assert result["coverage"]["proof_sufficient"] is False
+
+
 def test_native_actions_shadow_uses_bounded_process_capability() -> None:
     binary = os.environ.get("MNCS_BINARY")
     if not binary:

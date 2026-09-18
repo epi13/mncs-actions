@@ -25,13 +25,15 @@
   "shadow_launcher": "mncs call",
   "native_shadow_slices": [
     "Commons-owned VerificationPlan, SemanticEdge, and ProviderDeclaration ingress",
-    "selected-consumer traversal and multi-consumer aggregation in scripts/selective_family_verify.py",
+    "admitted provider dispatch, receipt reuse, and one-edge evidence composition",
+    "native selected-proof aggregation and explicit family-coverage closure",
+    "selected-consumer traversal and multi-consumer transport in scripts/selective_family_verify.py",
     "compatibility-envelope adaptation for callers that still request the Python family result"
   ],
   "semantic_modules": [
     "native/mncs/actions/family.mncs"
   ],
-  "next_migration_slice": "move selected-consumer traversal, receipt reuse, and aggregate proof composition into the native Actions application; retain Python only as a transport adapter/oracle",
+  "next_migration_slice": "move multi-edge selected-consumer traversal and family-level receipt/proof composition into the native Actions application; retain Python only as a transport adapter/oracle",
   "host_paths": [
     {
       "path": "scripts/selective_family_verify.py",

@@ -712,6 +712,7 @@ def _run_native_actions_selected_proof(
     records: list[Mapping[str, Any]],
     cwd: Path,
     strict_native: bool = False,
+    expected_count: int | None = None,
 ) -> dict[str, Any]:
     """Ask the native reducer to aggregate actual consumer proof records.
 
@@ -820,6 +821,51 @@ def _run_native_actions_selected_proof(
         raise SelectiveFamilyError(
             f"native selected-proof reducer returned an invalid typed result: {error}"
         ) from error
+    coverage_expected = observation_count if expected_count is None else expected_count
+    coverage_arguments = json.dumps(
+        [
+            {
+                "record": {
+                    "type": "FamilyCoverageInput",
+                    "fields": {
+                        "expected_count": {"integer": {"value": coverage_expected}},
+                        "observed_count": {"integer": {"value": native_result["total"]}},
+                        "failed_count": {"integer": {"value": native_result["failed"]}},
+                        "unknown_count": {"integer": {"value": native_result["unknown"]}},
+                        "invalid_count": {"integer": {"value": native_result["invalid"]}},
+                    },
+                }
+            }
+        ],
+        separators=(",", ":"),
+    )
+    coverage_document, _ = _run_native_mncs_call(
+        mncs_binary=mncs_binary,
+        source_path=source_path,
+        function="family_coverage",
+        arguments=coverage_arguments,
+        cwd=cwd,
+    )
+    try:
+        coverage_call = coverage_document["call"]
+        coverage_fields = dict(coverage_call["returned"][0]["record"]["fields"])
+        coverage_verdict = str(
+            coverage_fields["verdict"]["finite"]["variant_identity"]
+        ).rsplit("::", 1)[-1]
+        coverage = {
+            "verdict": coverage_verdict,
+            "expected_count": coverage_fields["expected_count"]["integer"]["value"],
+            "observed_count": coverage_fields["observed_count"]["integer"]["value"],
+            "failed_count": coverage_fields["failed_count"]["integer"]["value"],
+            "unknown_count": coverage_fields["unknown_count"]["integer"]["value"],
+            "invalid_count": coverage_fields["invalid_count"]["integer"]["value"],
+            "proof_sufficient": coverage_fields["proof_sufficient"]["boolean"]["value"],
+            "reason_code": coverage_fields["reason_code"]["integer"]["value"],
+        }
+    except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as error:
+        raise SelectiveFamilyError(
+            f"native family coverage reducer returned an invalid typed result: {error}"
+        ) from error
     return {
         "schema_version": "mncs-actions.native-selective-proof/1",
         "authority": "mncs.actions.family",
@@ -827,6 +873,7 @@ def _run_native_actions_selected_proof(
         "function": "selected_proof",
         "verdict": native_verdict,
         **native_result,
+        "coverage": coverage,
         "artifact_identity": call.get("artifact_identity"),
         "artifact_sha256": call.get("artifact_sha256"),
         "steps": call.get("steps"),
@@ -2319,8 +2366,11 @@ def build_selective_proof(
             records=records,
             cwd=workspace_root,
             strict_native=True,
+            expected_count=len(exact_edges),
         )
         status = str(native_actions_proof["verdict"])
+        if native_actions_proof["coverage"]["verdict"] != "Complete":
+            status = "UNKNOWN"
     else:
         # Explicit compatibility/oracle mode only. The canonical path is
         # required to supply the native Actions source and therefore never
