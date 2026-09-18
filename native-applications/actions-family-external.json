@@ -5,7 +5,7 @@
   "module": "mncs.actions.family.v1",
   "entry_function": "family_check_external_app",
   "profile": "0.18",
-  "interface_identity": "6e8e4d1d789d6853db2b8320e917e6cf6398f646f90aa899e95e04cd5f2a8d23",
+  "interface_identity": "70cae4a46bf872fe5660313fd89c05ecd14bda5408abaec20cc3bda4a8ab5212",
   "libraries": [
     "../../mncs-language/library",
     "../../MNCS-Commons/src/mncs_commons/mesh/mncs",

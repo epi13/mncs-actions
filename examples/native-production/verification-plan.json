@@ -24,7 +24,18 @@
       "edges": [],
       "selected_repositories": ["mncs-test"],
       "complete": true,
-      "limitations": []
+      "limitations": [],
+      "coverage": {
+        "registry_identity": "2222222222222222222222222222222222222222222222222222222222222222",
+        "registered_family_project_count": 1,
+        "classified_project_count": 1,
+        "semantic_graph_participant_count": 1,
+        "explicit_nonparticipant_count": 0,
+        "unclassified_project_count": 0,
+        "unclassified_repositories": [],
+        "coverage_status": "complete",
+        "topology_status": "complete"
+      }
     }
   },
   "selection": {
@@ -46,24 +57,28 @@
   "proof": {
     "sufficient_to_stop": false,
     "required_evidence": ["test_result", "check_result"],
-    "claimed_scope": "selected_repositories",
-    "established": false,
-    "executor": "mncs-test",
-    "stop_condition": "selected consumer proof"
+    "boundary": {
+      "claimed_scope": "selected_repositories",
+      "established": false,
+      "executor": "mncs-test",
+      "stop_condition": "selected_consumer_proofs_pass"
+    }
   },
   "provenance": {
     "provider": "ravel",
     "policy": "mncs.family.verification_plan.v1",
     "compiler_impact_schema": "mncs.semantic-impact/1",
-    "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    "semantic_graph_identity": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-    "inventory_subject_identity": "mncs-test:inventory",
-    "inventory_subject_fingerprint": "f5c2c5664b24e27efdbe5f4e78ac888e96655b550631f8b19caa9731912715db",
-    "family_graph_identity": "1111111111111111111111111111111111111111111111111111111111111111",
-    "selected_test_identities": [
-      "mncs:0.2:test-case:tests.self_suite::arithmetic::f678e5ec3041e45e78e5ebefe4e87172fd2fbdd385846a2641a8e9cfd212b911",
-      "mncs:0.2:test-case:tests.self_suite::boolean::aed88ee42cd04283f1a415c36c95a3ef6e1db7c20cc63d6b7b28104f90f28500"
-    ],
-    "contract_revision": "1"
+    "dependencies": {
+      "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "semantic_graph_identity": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "inventory_subject_identity": "mncs-test:inventory",
+      "inventory_subject_fingerprint": "f5c2c5664b24e27efdbe5f4e78ac888e96655b550631f8b19caa9731912715db",
+      "family_graph_identity": "1111111111111111111111111111111111111111111111111111111111111111",
+      "selected_test_identities": [
+        "mncs:0.2:test-case:tests.self_suite::arithmetic::f678e5ec3041e45e78e5ebefe4e87172fd2fbdd385846a2641a8e9cfd212b911",
+        "mncs:0.2:test-case:tests.self_suite::boolean::aed88ee42cd04283f1a415c36c95a3ef6e1db7c20cc63d6b7b28104f90f28500"
+      ],
+      "contract_revision": "1"
+    }
   }
 }

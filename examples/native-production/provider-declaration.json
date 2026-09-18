@@ -3,11 +3,9 @@
   "repository_id": "mncs-test",
   "revision": "1",
   "provider_identity": "48320f898f984848b4275c4adb465eb76427b035e3606827755e245d6a422e01",
-  "interface_identity": "38bf9a1325913cee5db180f3f6ba446314b7f1cdb3d62b095eab0e58ae5e0a23",
-  "revision_identity": "b5e5ef8c58ecf76ce0b36ee7ab636a9300b24f4c930d7d2f6f8ed7412198a265",
-  "source_identity": "9999999999999999999999999999999999999999999999999999999999999999",
+  "interface_identity": "052a16a98a55e5569b43b53fd716deba0e8cd986c123804b15c4208307ff72ea",
+  "revision_identity": "444f80977083182120ed13a235b2edfcb3156ad19d7aad386366f456d0eb252c",
+  "source_identity": "85951190eafa26d2ae4cd295b4dbbee495c1be2af2a631972d5b3d6d64c93945",
   "inventory_identity": "f5c2c5664b24e27efdbe5f4e78ac888e96655b550631f8b19caa9731912715db",
-  "provides": [],
-  "consumes": [],
   "capabilities": ["provider_artifact", "provider_digest"]
 }
