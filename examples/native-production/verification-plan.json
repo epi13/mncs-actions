@@ -13,8 +13,8 @@
     "affected_count": 2,
     "direct_dependents": ["mncs-test:consumer"],
     "test_identities": [
-      "mncs:0.2:test-case:tests.self_suite::arithmetic::f678e5ec3041e45e78e5ebefe4e87172fd2fbdd385846a2641a8e9cfd212b911",
-      "mncs:0.2:test-case:tests.self_suite::boolean::aed88ee42cd04283f1a415c36c95a3ef6e1db7c20cc63d6b7b28104f90f28500"
+      "mncs:0.2:test-case:tests.self_suite::arithmetic::ca0c84b11bb187d84ef7dc2af5bc784c917fde67c036c9affeeea5a72d50a2fb",
+      "mncs:0.2:test-case:tests.self_suite::boolean::d0ba630684abae18f3c11b74c7a3340691d19fec4bae2e5f6bc4df1c1f5eb82b"
     ],
     "risk_flags": [],
     "complete": true,
@@ -41,8 +41,8 @@
   "selection": {
     "level": "repository_canonical",
     "selected_test_identities": [
-      "mncs:0.2:test-case:tests.self_suite::arithmetic::f678e5ec3041e45e78e5ebefe4e87172fd2fbdd385846a2641a8e9cfd212b911",
-      "mncs:0.2:test-case:tests.self_suite::boolean::aed88ee42cd04283f1a415c36c95a3ef6e1db7c20cc63d6b7b28104f90f28500"
+      "mncs:0.2:test-case:tests.self_suite::arithmetic::ca0c84b11bb187d84ef7dc2af5bc784c917fde67c036c9affeeea5a72d50a2fb",
+      "mncs:0.2:test-case:tests.self_suite::boolean::d0ba630684abae18f3c11b74c7a3340691d19fec4bae2e5f6bc4df1c1f5eb82b"
     ],
     "available_test_count": 2,
     "escalation_reasons": [],
@@ -66,17 +66,17 @@
   },
   "provenance": {
     "provider": "ravel",
-    "policy": "mncs.family.verification_plan.v1",
+    "policy": "ravel.verification_policy",
     "compiler_impact_schema": "mncs.semantic-impact/1",
     "dependencies": {
       "source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "semantic_graph_identity": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
       "inventory_subject_identity": "mncs-test:inventory",
-      "inventory_subject_fingerprint": "f5c2c5664b24e27efdbe5f4e78ac888e96655b550631f8b19caa9731912715db",
+        "inventory_subject_fingerprint": "2f078840f82666933217dcdbbdca00a244e08fced7883ba12bfd1dbd9d814148",
       "family_graph_identity": "1111111111111111111111111111111111111111111111111111111111111111",
       "selected_test_identities": [
-        "mncs:0.2:test-case:tests.self_suite::arithmetic::f678e5ec3041e45e78e5ebefe4e87172fd2fbdd385846a2641a8e9cfd212b911",
-        "mncs:0.2:test-case:tests.self_suite::boolean::aed88ee42cd04283f1a415c36c95a3ef6e1db7c20cc63d6b7b28104f90f28500"
+        "mncs:0.2:test-case:tests.self_suite::arithmetic::ca0c84b11bb187d84ef7dc2af5bc784c917fde67c036c9affeeea5a72d50a2fb",
+        "mncs:0.2:test-case:tests.self_suite::boolean::d0ba630684abae18f3c11b74c7a3340691d19fec4bae2e5f6bc4df1c1f5eb82b"
       ],
       "contract_revision": "1"
     }

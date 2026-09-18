@@ -4,7 +4,7 @@
   "status": "native_shadow",
   "canonical_entrypoint": "scripts/selective_family_verify.py",
   "native_sources": {
-    "family-orchestration": "native/mncs/actions/family/v1.mncs"
+    "family-orchestration": "native/mncs/actions/family.mncs"
   },
   "native_application_descriptor": "native-applications/actions-family.json",
   "native_application_descriptors": {
@@ -12,7 +12,7 @@
   },
   "compatibility_surfaces": {
     "retained_canary_sources": [
-      "native/mncs/actions/provider_canary/v1.mncs"
+      "native/mncs/actions/provider_canary.mncs"
     ],
     "retained_canary_descriptors": [
       "native-applications/actions-family-external.json"
@@ -20,7 +20,7 @@
     "removal_criterion": "remove after the complete family application is canonical and its parity suite no longer needs isolated entrypoints"
   },
   "native_provider_descriptors": {
-    "mncs-test": "../mncs-test/native-applications/provider-v2-admitted.json"
+    "mncs-test": "../mncs-test/native-applications/provider-admitted.json"
   },
   "shadow_launcher": "mncs call",
   "native_shadow_slices": [
@@ -29,7 +29,7 @@
     "compatibility-envelope adaptation for callers that still request the Python family result"
   ],
   "semantic_modules": [
-    "native/mncs/actions/family/v1.mncs"
+    "native/mncs/actions/family.mncs"
   ],
   "next_migration_slice": "move selected-consumer traversal, receipt reuse, and aggregate proof composition into the native Actions application; retain Python only as a transport adapter/oracle",
   "host_paths": [

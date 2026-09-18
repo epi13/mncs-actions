@@ -4,9 +4,9 @@ mncs 0.18;
 // adapter only as a conformance fixture: the call below is a typed MNCS
 // module call resolved from the mncs-test library, not a process_run or a
 // JSON subprocess round trip.
-module mncs.actions.provider_canary.v1;
+module mncs.actions.provider_canary;
 
-use mncs.test.assertions.v1;
+use mncs.test.assertions;
 use mncs.std.application.v1;
 use tests.self_suite;
 

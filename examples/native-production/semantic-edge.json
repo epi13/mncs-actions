@@ -10,7 +10,7 @@
   "consumer_manifest_identity": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
   "check_identity": "mncs-test:check",
   "selected_test_identities": [
-    "mncs:0.2:test-case:tests.self_suite::arithmetic::f678e5ec3041e45e78e5ebefe4e87172fd2fbdd385846a2641a8e9cfd212b911",
-    "mncs:0.2:test-case:tests.self_suite::boolean::aed88ee42cd04283f1a415c36c95a3ef6e1db7c20cc63d6b7b28104f90f28500"
+    "mncs:0.2:test-case:tests.self_suite::arithmetic::ca0c84b11bb187d84ef7dc2af5bc784c917fde67c036c9affeeea5a72d50a2fb",
+    "mncs:0.2:test-case:tests.self_suite::boolean::d0ba630684abae18f3c11b74c7a3340691d19fec4bae2e5f6bc4df1c1f5eb82b"
   ]
 }

@@ -1,13 +1,13 @@
 mncs 0.18;
 
-// mncs.actions.family.v1 — native selected-family evidence authority.
+// mncs.actions.family — native selected-family evidence authority.
 //
 // The application boundary carries actual bounded identities and result
 // records. No validity/sufficiency boolean is an input to this module. The
 // generic runtime owns canonical value identity and explicit effects; this
 // module owns family relationships, receipt construction, reuse, and proof
 // composition.
-module mncs.actions.family.v1;
+module mncs.actions.family;
 
 // Commons owns the nominal family evidence records. Actions imports them so
 // its proof policy cannot silently fork the external artifact contract.
@@ -16,7 +16,7 @@ use mncs.commons.family.artifact.v1;
 use mncs.commons.family.contracts.v1 as contracts;
 use mncs.core.sequences.v1 as sequences;
 use mncs.std.application.v1;
-use mncs.test.assertions.v1;
+use mncs.test.assertions;
 use mncs.test.provider_protocol.v1 as provider_protocol;
 
 
@@ -723,7 +723,7 @@ fn family_check_direct_provider_app(context: ApplicationContext) -> (result: App
 // Receipt reuse is a separate native entrypoint so the no-execution branch is
 // visible in the provider boundary: it consumes the previously published
 // TestResult and CheckResult artifacts, validates their bindings and the
-// native receipt, and never calls mncs.test.provider.v1.  The caller supplies
+// native receipt, and never calls the provider implementation directly.  The caller supplies
 // the old artifacts rather than asking a host to copy or summarize them.
 fn family_check_direct_provider_reuse_app(context: ApplicationContext) -> (result: ApplicationExit)
     capability actions_artifact

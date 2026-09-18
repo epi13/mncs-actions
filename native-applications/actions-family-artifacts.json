@@ -1,11 +1,11 @@
 {
   "schema_version": "mncs.native-application/1",
   "application_identity": "mncs-actions.family-proof-artifacts",
-  "source": "../native/mncs/actions/family/v1.mncs",
-  "module": "mncs.actions.family.v1",
+  "source": "../native/mncs/actions/family.mncs",
+  "module": "mncs.actions.family",
   "entry_function": "family_check_artifacts_app",
   "profile": "0.18",
-  "interface_identity": "70cae4a46bf872fe5660313fd89c05ecd14bda5408abaec20cc3bda4a8ab5212",
+  "interface_identity": "3545945ceaae288572fda170c38d46683564bc2c1c7ae6375681c4402c874a8c",
   "libraries": [
     "../../mncs-language/library",
     "../../MNCS-Commons/src/mncs_commons/mesh/mncs",

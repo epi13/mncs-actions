@@ -37,6 +37,6 @@ python scripts/selective_family_verify.py \
   --graph family/MNCS-Commons/family/semantic-edges-v1.json \
   --workspace-root family \
   --output-dir .mncs/selective-family-proof \
-  --native-actions-source native/mncs/actions/family/v1.mncs \
+  --native-actions-source native/mncs/actions/family.mncs \
   [--prior-proof .mncs/previous-proof]
 ```

@@ -289,7 +289,7 @@ def _run_native_mncs_call(
                 "call",
                 str(source_path),
                 "--module",
-                "mncs.actions.family.v1",
+                "mncs.actions.family",
                 "--function",
                 function,
                 "--args-json",
@@ -689,8 +689,8 @@ def _run_native_actions_family_check(
         )
     return {
         "schema_version": "mncs-actions.native-family-check/1",
-        "authority": "mncs.actions.family.v1",
-        "module": "mncs.actions.family.v1",
+        "authority": "mncs.actions.family",
+        "module": "mncs.actions.family",
         "function": "family_check",
         "verdict": native_verdict,
         **native_result,
@@ -822,8 +822,8 @@ def _run_native_actions_selected_proof(
         ) from error
     return {
         "schema_version": "mncs-actions.native-selective-proof/1",
-        "authority": "mncs.actions.family.v1",
-        "module": "mncs.actions.family.v1",
+        "authority": "mncs.actions.family",
+        "module": "mncs.actions.family",
         "function": "selected_proof",
         "verdict": native_verdict,
         **native_result,
@@ -1049,7 +1049,7 @@ def _native_actions_provider_check(
     ]
     native_actions = {
         "schema_version": "mncs-actions.native-family-admission/1",
-        "authority": "mncs.actions.family.v1",
+        "authority": "mncs.actions.family",
         "verdict": verdict,
         "batch_size": 8,
         "batch_count": len(batch_results),
@@ -1357,7 +1357,7 @@ def _native_actions_provider_check_one_batch(
     }
     native_actions = {
         "schema_version": "mncs-actions.native-family-admission/1",
-        "authority": "mncs.actions.family.v1",
+        "authority": "mncs.actions.family",
         "verdict": verdict,
         "proof_sufficient": bool(family_result.get("proof_sufficient")),
         "reusable": bool(family_result.get("reusable")),
@@ -1902,7 +1902,7 @@ def _write_consumer_evidence(
         # format. Its semantic identity and dependency set come from the
         # native Actions receipt; Python contributes only transport metadata
         # needed by GitHub/artifact consumers.
-        receipt["native_authority"] = "mncs.actions.family.v1"
+        receipt["native_authority"] = "mncs.actions.family"
         receipt["native_receipt"] = dict(native_receipt)
         receipt["native_receipt_identity"] = native_receipt.get("receipt_identity")
         receipt["native_proof_identity"] = native_family_result.get("proof_identity")
@@ -2199,7 +2199,7 @@ def build_selective_proof(
     output_dir.mkdir(parents=True, exist_ok=True)
     if native_actions_shadow_source is None and not compatibility_oracle:
         native_actions_shadow_source = (
-            Path(__file__).resolve().parents[1] / "native/mncs/actions/family/v1.mncs"
+            Path(__file__).resolve().parents[1] / "native/mncs/actions/family.mncs"
         )
     plan = validate_plan(_read_json(plan_path, "verification plan"))
     graph = load_family_graph(graph_path)
@@ -2418,7 +2418,7 @@ def main(argv: list[str] | None = None) -> int:
         help="Use the legacy Python projection explicitly; never used by the canonical path.",
     )
     args = parser.parse_args(argv)
-    default_native_source = Path(__file__).resolve().parents[1] / "native/mncs/actions/family/v1.mncs"
+    default_native_source = Path(__file__).resolve().parents[1] / "native/mncs/actions/family.mncs"
     native_actions_source = None
     if not args.python_compatibility_oracle:
         native_actions_source = (

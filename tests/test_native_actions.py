@@ -26,13 +26,13 @@ def test_native_family_check_shadow_returns_typed_pass() -> None:
     try:
         result = _run_native_actions_family_check(
             mncs_binary=binary,
-            source_path=ROOT / "native/mncs/actions/family/v1.mncs",
+            source_path=ROOT / "native/mncs/actions/family.mncs",
             verdict="PASS",
             cwd=ROOT,
         )
     except (OSError, subprocess.SubprocessError) as error:
         pytest.skip(f"native MNCS launcher unavailable: {error}")
-    assert result["authority"] == "mncs.actions.family.v1"
+    assert result["authority"] == "mncs.actions.family"
     assert result["verdict"] == "PASS"
     assert result["proof_sufficient"] is True
 
@@ -42,7 +42,7 @@ def test_native_selected_proof_shadow_aggregates_bounded_consumers() -> None:
     try:
         result = _run_native_actions_selected_proof(
             mncs_binary=binary,
-            source_path=ROOT / "native/mncs/actions/family/v1.mncs",
+            source_path=ROOT / "native/mncs/actions/family.mncs",
             records=[{"verdict": "PASS"}, {"verdict": "FAIL"}],
             cwd=ROOT,
         )
@@ -57,7 +57,7 @@ def test_native_actions_shadow_uses_bounded_process_capability() -> None:
     binary = os.environ.get("MNCS_BINARY")
     if not binary:
         pytest.skip("set MNCS_BINARY to exercise the native process-backed shadow")
-    source = ROOT / "native/mncs/actions/family/v1.mncs"
+    source = ROOT / "native/mncs/actions/family.mncs"
     family = _run_native_actions_family_check(
         mncs_binary=binary,
         source_path=source,
@@ -121,7 +121,7 @@ def test_native_actions_owns_receipt_reuse_and_dependency_invalidation() -> None
     binary = os.environ.get("MNCS_BINARY")
     if not binary:
         pytest.skip("set MNCS_BINARY to exercise native receipt canaries")
-    source = ROOT / "native/mncs/actions/family/v1.mncs"
+    source = ROOT / "native/mncs/actions/family.mncs"
     first = _run_native_actions_family_check(
         mncs_binary=binary,
         source_path=source,
@@ -158,7 +158,7 @@ def test_native_actions_rejects_mismatched_binding_and_propagates_failure() -> N
     binary = os.environ.get("MNCS_BINARY")
     if not binary:
         pytest.skip("set MNCS_BINARY to exercise native evidence canaries")
-    source = ROOT / "native/mncs/actions/family/v1.mncs"
+    source = ROOT / "native/mncs/actions/family.mncs"
     mismatch = _run_native_actions_family_check(
         mncs_binary=binary,
         source_path=source,
@@ -182,7 +182,7 @@ def test_native_actions_selected_proof_is_dynamic_and_fails_closed_on_overflow()
     binary = os.environ.get("MNCS_BINARY")
     if not binary:
         pytest.skip("set MNCS_BINARY to exercise native proof canaries")
-    source = ROOT / "native/mncs/actions/family/v1.mncs"
+    source = ROOT / "native/mncs/actions/family.mncs"
     family = _run_native_actions_family_check(
         mncs_binary=binary,
         source_path=source,

@@ -5,8 +5,8 @@
   "canonical_mncs_surfaces": [
     "family contract declarations",
     "typed plan, graph, edge, TestResult, CheckResult, receipt, and evidence records",
-    "mncs.actions.family.v1 family-binding, verdict, receipt, reuse, and proof semantics",
-    "mncs.actions.family.v1 bounded selected-consumer proof aggregation"
+    "mncs.actions.family family-binding, verdict, receipt, reuse, and proof semantics",
+    "mncs.actions.family bounded selected-consumer proof aggregation"
   ],
   "host_canonical_responsibilities": [
     {
@@ -38,8 +38,8 @@
   ],
   "migration_order": 2,
   "next_native_slice": "native provider invocation and typed artifact/receipt ingress",
-  "shadow_entrypoint": "scripts/selective_family_verify.py --native-actions-source native/mncs/actions/family/v1.mncs",
-  "shadow_authority": "mncs.actions.family.v1",
+  "shadow_entrypoint": "scripts/selective_family_verify.py --native-actions-source native/mncs/actions/family.mncs",
+  "shadow_authority": "mncs.actions.family",
   "runtime_effect_dogfood": {
     "process": "generic mncs process_run is available to MNCS applications and is directly dogfooded by the Debug shadow; Actions provider launch remains host orchestration",
     "structured_data": "Actions consumes typed family records and uses native structured_digest for receipt/proof identities; the external JSON projection remains an adapter",
