@@ -10,6 +10,10 @@ test. A contract that drifts from the machinery is a defect.
 
 ## 1. MNCS-language is the implementation default
 
+At entry, use the bounded Language Service family context when available to
+bind current language and Commons identities before searching sibling
+repositories. Atlas is an orientation projection, not a second authority.
+
 New implementation logic belongs in MNCS source under `pressure/*.mncs`
 first. Host Python under `lib/` and `scripts/` is transport, correlation,
 and projection only: it must not choose solutions, close obligations, or
