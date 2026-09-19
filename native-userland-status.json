@@ -4,7 +4,8 @@
   "status": "native_shadow",
   "canonical_entrypoint": "scripts/selective_family_verify.py",
   "native_sources": {
-    "family-orchestration": "native/mncs/actions/family.mncs"
+    "family-orchestration": "native/mncs/actions/family.mncs",
+    "family-traversal": "native/mncs/actions/traversal.mncs"
   },
   "native_application_descriptor": "native-applications/actions-family.json",
   "native_application_descriptors": {
@@ -27,19 +28,21 @@
     "Commons-owned VerificationPlan, SemanticEdge, and ProviderDeclaration ingress",
     "admitted provider dispatch, receipt reuse, and one-edge evidence composition",
     "native selected-proof aggregation and explicit family-coverage closure",
-    "selected-consumer traversal and multi-consumer transport in scripts/selective_family_verify.py",
+    "native selected-consumer traversal, edge admission, and aggregate proof composition",
+    "multi-consumer transport and compatibility-envelope adaptation in scripts/selective_family_verify.py",
     "compatibility-envelope adaptation for callers that still request the Python family result"
   ],
   "semantic_modules": [
-    "native/mncs/actions/family.mncs"
+    "native/mncs/actions/family.mncs",
+    "native/mncs/actions/traversal.mncs"
   ],
-  "next_migration_slice": "move multi-edge selected-consumer traversal and family-level receipt/proof composition into the native Actions application; retain Python only as a transport adapter/oracle",
+  "next_migration_slice": "move remaining family-level receipt/evidence envelope binding into the native Actions application; retain Python only as a transport adapter/oracle",
   "host_paths": [
     {
       "path": "scripts/selective_family_verify.py",
       "role": "external_boundary_adapter_and_compatibility_oracle",
       "canonical": true,
-      "semantic_authority": "host remains the normal family traversal/orchestration authority and assembles external receipt/evidence/proof envelopes; the native application is authoritative only for its admitted one-edge provider binding and reuse result"
+      "semantic_authority": "host remains the external selection/transport adapter and assembles compatibility envelopes; native Actions owns selected-edge traversal, aggregation, coverage closure, and aggregate proof identity"
     },
     {
       "path": "actions/mncs-test/test.sh",

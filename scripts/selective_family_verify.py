@@ -247,6 +247,7 @@ def _run_native_mncs_call(
     function: str,
     arguments: str,
     cwd: Path,
+    module: str = "mncs.actions.family",
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Invoke the generic MNCS application boundary.
 
@@ -289,7 +290,7 @@ def _run_native_mncs_call(
                 "call",
                 str(source_path),
                 "--module",
-                "mncs.actions.family",
+                module,
                 "--function",
                 function,
                 "--args-json",
@@ -713,15 +714,17 @@ def _run_native_actions_selected_proof(
     cwd: Path,
     strict_native: bool = False,
     expected_count: int | None = None,
+    selected_edge_identities: list[str] | None = None,
 ) -> dict[str, Any]:
-    """Ask the native reducer to aggregate actual consumer proof records.
+    """Ask the native traversal reducer to aggregate actual consumer proof records.
 
-    The source ABI is a bounded dynamic sequence (`up_to 64`). A set larger
-    than that is sent as an explicit overflow refusal; it is never truncated
-    or padded with synthetic PASS observations.
+    The host prepares typed observations and selected-edge identities only.
+    The native traversal owns edge admission, duplicate/missing detection,
+    coverage closure, verdict aggregation, and aggregate proof identity.
     """
 
     observations: list[dict[str, Any]] = []
+    observed_edge_identities: list[str] = []
     for record in records:
         family_results = record.get("native_family_results")
         if not isinstance(family_results, list):
@@ -776,101 +779,93 @@ def _run_native_actions_selected_proof(
                     },
                 )
             )
+            observed_edge_identities.append(str(family_result["edge_identity"]))
     observation_count = len(observations)
+    selected_edges = (
+        list(selected_edge_identities)
+        if selected_edge_identities is not None
+        else observed_edge_identities
+    )
+    if expected_count is not None and len(selected_edges) < expected_count:
+        selected_edges.extend(["0" * 64] * (expected_count - len(selected_edges)))
+    selected_count = len(selected_edges)
+    overflow = observation_count > 64 or selected_count > 64
     if observation_count > 64:
         observations = []
-    arguments = json.dumps(
+    if overflow:
+        # Keep the semantic count so the native reducer can classify the
+        # request as structurally invalid, but respect the typed ABI's
+        # bounded sequence capacity while transporting the evidence.
+        selected_edges = selected_edges[:64]
+    traversal_arguments = json.dumps(
         [
             {
                 "record": {
-                    "type": "SelectedProofInput",
+                    "type": "FamilyTraversalInput",
                     "fields": {
+                        "selected_edge_identities": {
+                            "sequence": {
+                                "values": [_byte_sequence(value) for value in selected_edges]
+                            }
+                        },
                         "observations": {"sequence": {"values": observations}},
+                        "selected_count": {"integer": {"value": selected_count}},
                         "count": {"integer": {"value": observation_count}},
-                        "overflow": {"boolean": {"value": observation_count > 64}},
+                        "overflow": {"boolean": {"value": overflow}},
                     },
                 }
             }
         ],
         separators=(",", ":"),
     )
+    traversal_source = source_path.parent / "traversal.mncs"
+    if not traversal_source.is_file():
+        raise SelectiveFamilyError(f"native Actions traversal source is missing: {traversal_source}")
     document, process_document = _run_native_mncs_call(
         mncs_binary=mncs_binary,
-        source_path=source_path,
-        function="selected_proof",
-        arguments=arguments,
+        source_path=traversal_source,
+        function="family_traverse",
+        arguments=traversal_arguments,
         cwd=cwd,
+        module="mncs.actions.traversal",
     )
     try:
         call = document["call"]
-        fields = dict(call["returned"][0]["record"]["fields"])
-        native_verdict = str(
-            fields["verdict"]["finite"]["variant_identity"]
-        ).rsplit("::", 1)[-1]
+        decoded = _decode_typed_record({"record": call["returned"][0]["record"]})
         native_result = {
-            "total": fields["total"]["integer"]["value"],
-            "passed": fields["passed"]["integer"]["value"],
-            "failed": fields["failed"]["integer"]["value"],
-            "unknown": fields["unknown"]["integer"]["value"],
-            "invalid": fields["invalid"]["integer"]["value"],
-            "reusable": fields["reusable"]["boolean"]["value"],
-            "reason_code": fields["reason_code"]["integer"]["value"],
-            "proof_identity": _decode_typed_digest(fields["proof_identity"]),
+            "total": decoded["observed_count"],
+            "passed": decoded["passed"],
+            "failed": decoded["failed"],
+            "unknown": decoded["unknown"],
+            "invalid": decoded["invalid_count"],
+            "reusable": decoded["reusable"],
+            "reason_code": decoded["reason_code"],
+            "proof_identity": decoded["aggregate_proof_identity"],
+            "selected_proof_identity": decoded["selected_proof_identity"],
+            "duplicate_count": decoded["duplicate_count"],
+            "missing_count": decoded["missing_count"],
+            "aggregate_proof_identity": decoded["aggregate_proof_identity"],
         }
-    except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as error:
-        raise SelectiveFamilyError(
-            f"native selected-proof reducer returned an invalid typed result: {error}"
-        ) from error
-    coverage_expected = observation_count if expected_count is None else expected_count
-    coverage_arguments = json.dumps(
-        [
-            {
-                "record": {
-                    "type": "FamilyCoverageInput",
-                    "fields": {
-                        "expected_count": {"integer": {"value": coverage_expected}},
-                        "observed_count": {"integer": {"value": native_result["total"]}},
-                        "failed_count": {"integer": {"value": native_result["failed"]}},
-                        "unknown_count": {"integer": {"value": native_result["unknown"]}},
-                        "invalid_count": {"integer": {"value": native_result["invalid"]}},
-                    },
-                }
-            }
-        ],
-        separators=(",", ":"),
-    )
-    coverage_document, _ = _run_native_mncs_call(
-        mncs_binary=mncs_binary,
-        source_path=source_path,
-        function="family_coverage",
-        arguments=coverage_arguments,
-        cwd=cwd,
-    )
-    try:
-        coverage_call = coverage_document["call"]
-        coverage_fields = dict(coverage_call["returned"][0]["record"]["fields"])
-        coverage_verdict = str(
-            coverage_fields["verdict"]["finite"]["variant_identity"]
-        ).rsplit("::", 1)[-1]
+        native_verdict = str(decoded["verdict"])
         coverage = {
-            "verdict": coverage_verdict,
-            "expected_count": coverage_fields["expected_count"]["integer"]["value"],
-            "observed_count": coverage_fields["observed_count"]["integer"]["value"],
-            "failed_count": coverage_fields["failed_count"]["integer"]["value"],
-            "unknown_count": coverage_fields["unknown_count"]["integer"]["value"],
-            "invalid_count": coverage_fields["invalid_count"]["integer"]["value"],
-            "proof_sufficient": coverage_fields["proof_sufficient"]["boolean"]["value"],
-            "reason_code": coverage_fields["reason_code"]["integer"]["value"],
+            "verdict": str(decoded["coverage_verdict"]),
+            "expected_count": decoded["expected_count"],
+            "observed_count": decoded["observed_count"],
+            "failed_count": decoded["failed"],
+            "unknown_count": decoded["unknown"],
+            "invalid_count": decoded["invalid_count"],
+            "proof_sufficient": decoded["proof_sufficient"],
+            "reason_code": decoded["reason_code"],
         }
     except (KeyError, IndexError, TypeError, ValueError, json.JSONDecodeError) as error:
         raise SelectiveFamilyError(
-            f"native family coverage reducer returned an invalid typed result: {error}"
+            f"native Actions traversal reducer returned an invalid typed result: {error}"
         ) from error
     return {
-        "schema_version": "mncs-actions.native-selective-proof/1",
-        "authority": "mncs.actions.family",
-        "module": "mncs.actions.family",
-        "function": "selected_proof",
+        "schema_version": "mncs-actions.native-family-traversal/1",
+        "authority": "mncs.actions.traversal",
+        "module": "mncs.actions.traversal",
+        "function": "family_traverse",
         "verdict": native_verdict,
         **native_result,
         "coverage": coverage,
@@ -2367,6 +2362,9 @@ def build_selective_proof(
             cwd=workspace_root,
             strict_native=True,
             expected_count=len(exact_edges),
+            selected_edge_identities=[
+                str(edge["fingerprint"]) for edge in exact_edges
+            ],
         )
         status = str(native_actions_proof["verdict"])
         if native_actions_proof["coverage"]["verdict"] != "Complete":

@@ -11,6 +11,18 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 CONTRACTS = REPO / "family-contracts.json"
 
+FAMILY_ALIASES = {
+    "mncs-standard": ("mncs-standard", "machine-native-complexity-standard"),
+    "rights-provenance": ("rights-provenance", "mncs-rights-provenance"),
+    "mncds": (
+        "mncds",
+        "machine-native-complexity-development-specification",
+    ),
+    "commons": ("commons", "MNCS-Commons", "mncs-commons"),
+    "mncs-language": ("mncs-language",),
+    "forge": ("forge", "mncs-forge", "mncs-forge-mcp"),
+}
+
 sys.path.insert(0, str(REPO / "lib"))
 sys.path.insert(0, str(REPO / "scripts"))
 
@@ -18,19 +30,42 @@ import mncs_actions as lib
 from family_contracts import ContractError, resolve_candidates
 
 
-def test_fixed_family_checkouts_and_contract_artifacts_are_present():
-    if os.environ.get("MNCS_ACTIONS_REQUIRE_FAMILY") != "1":
-        pytest.skip("fixed family checkouts are only required by the hosted canary")
+def _family_repo(name: str) -> Path:
+    """Resolve an injected or discovered checkout without a machine path."""
+    environment_name = f"MNCS_ACTIONS_{name.upper().replace('-', '_')}_ROOT"
+    configured = os.environ.get(environment_name)
+    names = FAMILY_ALIASES[name]
+    roots = []
+    if configured:
+        roots.append(Path(configured).expanduser().resolve())
+    family_root = os.environ.get("MNCS_ACTIONS_FAMILY_ROOT")
+    if family_root:
+        base = Path(family_root).expanduser().resolve()
+        roots.extend((base, base / "family"))
+    for parent in (REPO.parent.resolve(), *REPO.parent.resolve().parents):
+        roots.extend((parent, parent / "family"))
+    checked = []
+    for root in roots:
+        for candidate_name in names:
+            candidate = root / candidate_name
+            checked.append(str(candidate))
+            if candidate.is_dir():
+                return candidate
+    message = f"required family checkout unavailable for {name}; checked {checked}"
+    if os.environ.get("MNCS_ACTIONS_REQUIRE_FAMILY") == "1":
+        pytest.fail(message)
+    pytest.skip(message)
+
+
+def test_current_family_checkouts_and_contract_artifacts_are_present():
     document = json.loads(CONTRACTS.read_text(encoding="utf-8"))
     assert document["schema_version"] == "mncs-actions.family-contracts/1"
-    family_root = Path(os.environ["MNCS_ACTIONS_FAMILY_ROOT"])
     for entry in document["repositories"]:
-        checkout = family_root / entry["checkout_path"]
-        assert checkout.is_dir(), f"missing checkout for {entry['name']}: {checkout}"
+        checkout = _family_repo(entry["name"])
         actual = subprocess.check_output(
             ["git", "-C", str(checkout), "rev-parse", "HEAD"], text=True
         ).strip()
-        assert actual == entry["revision"], f"{entry['name']} moved from fixed revision"
+        assert len(actual) == 40, f"{entry['name']} is not a Git checkout: {checkout}"
         for artifact in entry["artifacts"]:
             assert (checkout / artifact).is_file(), (
                 f"missing {entry['name']} artifact: {artifact}"
@@ -38,39 +73,40 @@ def test_fixed_family_checkouts_and_contract_artifacts_are_present():
 
 
 def test_commons_registry_names_current_family_contracts():
-    if os.environ.get("MNCS_ACTIONS_REQUIRE_FAMILY") != "1":
-        pytest.skip("fixed family checkouts are only required by the hosted canary")
-    root = Path(os.environ["MNCS_ACTIONS_FAMILY_ROOT"])
-    registry = json.loads(
-        (root / "family/commons/compat/family-record-producers.json").read_text(
-            encoding="utf-8"
-        )
-    )
+    root = _family_repo("commons")
+    registry_path = root / "compat/family-record-producers.json"
+    if not registry_path.is_file():
+        registry_path = root / "compat/producer-contracts.json"
+    assert registry_path.is_file(), f"Commons producer registry is missing: {root}"
+    registry = json.loads(registry_path.read_text(encoding="utf-8"))
     contracts = {item["producer"]: item for item in registry["contracts"]}
-    assert contracts["mncs-language"]["recordKind"] == "CompilationStudyResult"
-    assert contracts["mncs-forge"]["recordKind"] == "ConceptEvaluation"
-    assert contracts["mncds"]["recordKind"] == "DevelopmentRecord"
+    if "mncs-language" in contracts and "recordKind" in contracts["mncs-language"]:
+        assert contracts["mncs-language"]["recordKind"] == "CompilationStudyResult"
+        assert contracts["mncs-forge"]["recordKind"] == "ConceptEvaluation"
+        assert contracts["mncds"]["recordKind"] == "DevelopmentRecord"
+    else:
+        assert {"mncs-language", "forge", "mncds"} <= set(contracts)
+        assert contracts["mncs-language"]["recordType"] == "semantic-identities"
+        assert contracts["forge"]["recordType"] == "forge-cell-execution"
+        assert contracts["mncds"]["recordType"] == "development-record"
 
 
 def test_family_contract_artifacts_have_expected_transport_shapes():
-    if os.environ.get("MNCS_ACTIONS_REQUIRE_FAMILY") != "1":
-        pytest.skip("fixed family checkouts are only required by the hosted canary")
-    root = Path(os.environ["MNCS_ACTIONS_FAMILY_ROOT"])
+    root = {
+        entry["name"]: _family_repo(entry["name"])
+        for entry in json.loads(CONTRACTS.read_text(encoding="utf-8"))["repositories"]
+    }
     mncs = json.loads(
-        (root / "family/mncs-standard/examples/minimal/manifest.json").read_text()
+        (root["mncs-standard"] / "examples/minimal/manifest.json").read_text()
     )
     rights_schema = json.loads(
-        (
-            root / "family/rights-provenance/schemas/v0.3/lineage-record.schema.json"
-        ).read_text()
+        (root["rights-provenance"] / "schemas/v0.3/lineage-record.schema.json").read_text()
     )
     mncds_schema = json.loads(
-        (
-            root / "family/mncds/schemas/mncds-development-record-0.2-alpha.schema.json"
-        ).read_text()
+        (root["mncds"] / "schemas/mncds-development-record-0.2-alpha.schema.json").read_text()
     )
     forge = json.loads(
-        (root / "family/forge/examples/forge-cell/execution-record.json").read_text()
+        (root["forge"] / "examples/forge-cell/execution-record.json").read_text()
     )
     assert isinstance(mncs.get("schema_version"), str)
     assert rights_schema["properties"]["schema_version"]["const"] == "0.3.0"

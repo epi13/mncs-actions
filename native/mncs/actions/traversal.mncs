@@ -1,0 +1,187 @@
+mncs 0.18;
+
+// mncs.actions.traversal — native multi-edge family closure.
+//
+// This is a semantic slice of the Actions application, not a second Actions
+// implementation. It imports the one-edge reducer and coverage contract from
+// family.mncs; the host transports typed observations and selected edge ids.
+module mncs.actions.traversal;
+
+use mncs.actions.family as family;
+use mncs.commons.family.evidence.v1;
+use mncs.core.sequences.v1 as sequences;
+use mncs.std.application.v1;
+
+record FamilyTraversalInput {
+    selected_edge_identities: [[byte; 32]; up_to 64],
+    observations: [ConsumerObservation; up_to 64],
+    selected_count: u64,
+    count: u64,
+    overflow: bool
+}
+
+record FamilyAggregateIdentityMaterial {
+    selected_edge_identity: [byte; 32],
+    selected_proof_identity: [byte; 32],
+    expected_count: u64,
+    observed_count: u64,
+    invalid_count: u64,
+    missing_count: u64,
+    coverage_verdict: family.FamilyCoverageVerdict,
+    verdict: family.FamilyVerdict
+}
+
+record FamilyTraversalResult {
+    verdict: family.FamilyVerdict,
+    coverage_verdict: family.FamilyCoverageVerdict,
+    expected_count: u64,
+    observed_count: u64,
+    passed: u64,
+    failed: u64,
+    unknown: u64,
+    reusable: bool,
+    duplicate_count: u64,
+    missing_count: u64,
+    invalid_count: u64,
+    proof_sufficient: bool,
+    selected_proof_identity: [byte; 32],
+    aggregate_proof_identity: [byte; 32],
+    reason_code: u64
+}
+
+fn bytes_equal(left: [byte; 32], right: [byte; 32]) -> (result: bool) {
+    return sequences.equals_bytes<32>(left, right);
+}
+
+// Selected edges are transported in the canonical plan order. Positional
+// binding makes omission, insertion, and duplicate edges explicit without a
+// host-side set implementation; the plan's deterministic order is part of
+// the family boundary.
+fn edge_matches_position(input: FamilyTraversalInput, ordinal: u64) -> (result: bool) {
+    if ordinal >= input.selected_edge_identities.len {
+        return false;
+    }
+    return bytes_equal(
+        input.observations[ordinal].material.edge_identity,
+        input.selected_edge_identities[ordinal]
+    );
+}
+
+fn duplicate_selected_at(input: FamilyTraversalInput, ordinal: u64) -> (result: bool) {
+    if ordinal == 0 {
+        return false;
+    }
+    return bytes_equal(
+        input.selected_edge_identities[ordinal],
+        input.selected_edge_identities[ordinal -% 1]
+    );
+}
+
+fn coverage_is_complete(value: family.FamilyCoverageVerdict) -> (result: bool) {
+    return match value { Complete => true, Incomplete => false, Invalid => false };
+}
+
+fn coverage_is_incomplete(value: family.FamilyCoverageVerdict) -> (result: bool) {
+    return match value { Complete => false, Incomplete => true, Invalid => false };
+}
+
+fn verdict_is_unknown(value: family.FamilyVerdict) -> (result: bool) {
+    return match value { family.FamilyVerdict.PASS => false, family.FamilyVerdict.FAIL => false, family.FamilyVerdict.UNKNOWN => true };
+}
+
+fn verdict_is_fail(value: family.FamilyVerdict) -> (result: bool) {
+    return match value { family.FamilyVerdict.PASS => false, family.FamilyVerdict.FAIL => true, family.FamilyVerdict.UNKNOWN => false };
+}
+
+fn family_traverse(input: FamilyTraversalInput) -> (result: FamilyTraversalResult)
+    capability actions_digest
+    effect structured_digest authorized_by actions_digest
+{
+    let structural_invalid: bool = input.overflow
+        || input.count != input.observations.len
+        || input.selected_count != input.selected_edge_identities.len;
+    if structural_invalid {
+        return FamilyTraversalResult {
+            verdict: family.FamilyVerdict.UNKNOWN,
+            coverage_verdict: family.FamilyCoverageVerdict.Invalid,
+            expected_count: input.selected_count,
+            observed_count: input.count,
+            passed: 0,
+            failed: 0,
+            unknown: 0,
+            reusable: false,
+            duplicate_count: 0,
+            missing_count: 0,
+            invalid_count: 1,
+            proof_sufficient: false,
+            selected_proof_identity: [0; 32],
+            aggregate_proof_identity: [0; 32],
+            reason_code: 30
+        };
+    }
+    let selected: family.SelectiveProof = family.selected_proof(family.SelectedProofInput {
+        observations: input.observations,
+        count: input.count,
+        overflow: false
+    });
+    iterate i over input.observations carrying mismatch_count: u64 = 0 {
+        let mismatch: bool = !edge_matches_position(input, i);
+        next mismatch_count = mismatch_count +% select(mismatch, 1, 0);
+    }
+    iterate i over input.selected_edge_identities carrying selected_duplicates: u64 = 0 {
+        next selected_duplicates = selected_duplicates
+            +% select(duplicate_selected_at(input, i), 1, 0);
+    }
+    let duplicate_count: u64 = selected_duplicates;
+    let missing_count: u64 = select(
+        input.selected_count > input.count,
+        input.selected_count -% input.count,
+        0
+    );
+    let invalid_count: u64 = selected.invalid +% mismatch_count +% duplicate_count;
+    let coverage: family.FamilyCoverageDecision = family.family_coverage(family.FamilyCoverageInput {
+        expected_count: input.selected_count,
+        observed_count: input.count,
+        failed_count: selected.failed,
+        unknown_count: selected.unknown,
+        invalid_count: invalid_count
+    });
+    let aggregate_verdict: family.FamilyVerdict = select(
+        !coverage_is_complete(coverage.verdict), family.FamilyVerdict.UNKNOWN, selected.verdict);
+    let material: FamilyAggregateIdentityMaterial = FamilyAggregateIdentityMaterial {
+        selected_edge_identity: selected.proof_identity,
+        selected_proof_identity: selected.proof_identity,
+        expected_count: input.selected_count,
+        observed_count: input.count,
+        invalid_count: invalid_count,
+        missing_count: missing_count,
+        coverage_verdict: coverage.verdict,
+        verdict: aggregate_verdict
+    };
+    let aggregate_identity: [byte; 32] = copy_digest(structured_digest(material));
+    return FamilyTraversalResult {
+        verdict: aggregate_verdict,
+        coverage_verdict: coverage.verdict,
+        expected_count: input.selected_count,
+        observed_count: input.count,
+        passed: selected.passed,
+        failed: selected.failed,
+        unknown: selected.unknown,
+        reusable: selected.reusable && !verdict_is_unknown(aggregate_verdict),
+        duplicate_count: duplicate_count,
+        missing_count: missing_count,
+        invalid_count: invalid_count,
+        proof_sufficient: coverage.proof_sufficient
+            && !bytes_equal(selected.proof_identity, [0; 32])
+            && !verdict_is_unknown(aggregate_verdict),
+        selected_proof_identity: selected.proof_identity,
+        aggregate_proof_identity: aggregate_identity,
+        reason_code: select(
+            invalid_count > 0,
+            31,
+            select(missing_count > 0 || coverage_is_incomplete(coverage.verdict), 20,
+                select(verdict_is_fail(aggregate_verdict), 1,
+                    select(verdict_is_unknown(aggregate_verdict), 2, 0)))
+        )
+    };
+}

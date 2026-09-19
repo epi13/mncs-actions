@@ -17,8 +17,18 @@ import pytest
 
 
 REPO = Path(__file__).resolve().parents[1]
-MNCS_TEST = Path(os.environ.get("MNCS_TEST_REPO", REPO.parent / "mncs-test"))
-MNCS_LANGUAGE = Path(os.environ.get("MNCS_LANGUAGE_REPO", REPO.parent / "mncs-language"))
+import sys
+
+sys.path.insert(0, str(REPO / "scripts"))
+from family_roots import discover_family_repo
+
+
+MNCS_TEST = discover_family_repo(
+    "mncs-test", environment_name="MNCS_TEST_REPO", start=REPO
+)
+MNCS_LANGUAGE = discover_family_repo(
+    "mncs-language", environment_name="MNCS_LANGUAGE_REPO", start=REPO
+)
 MNCS = Path(os.environ.get("MNCS", MNCS_LANGUAGE / "target" / "debug" / "mncs"))
 EMBED_LIBRARY = Path(
     os.environ.get(

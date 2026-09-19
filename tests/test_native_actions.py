@@ -64,7 +64,7 @@ def test_native_actions_coverage_rejects_incomplete_family() -> None:
         cwd=ROOT,
         expected_count=2,
     )
-    assert result["verdict"] == "PASS"
+    assert result["verdict"] == "UNKNOWN"
     assert result["coverage"]["verdict"] == "Incomplete"
     assert result["coverage"]["proof_sufficient"] is False
 
@@ -95,6 +95,7 @@ def _actual_evidence(
     *,
     test_verdict: str = "PASS",
     check_verdict: str | None = None,
+    edge_fingerprint: str = "c" * 64,
     producer_revision: str = "producer-revision-a",
     prior_receipt: dict[str, object] | None = None,
 ) -> dict[str, object]:
@@ -103,7 +104,7 @@ def _actual_evidence(
         "source": {"sha256": "b" * 64},
     }
     edge = {
-        "fingerprint": "c" * 64,
+        "fingerprint": edge_fingerprint,
         "contract_identity": "d" * 64,
         "consumer_manifest_identity": "e" * 64,
         "verification": {
@@ -199,13 +200,15 @@ def test_native_actions_selected_proof_is_dynamic_and_fails_closed_on_overflow()
     if not binary:
         pytest.skip("set MNCS_BINARY to exercise native proof canaries")
     source = ROOT / "native/mncs/actions/family.mncs"
-    family = _run_native_actions_family_check(
-        mncs_binary=binary,
-        source_path=source,
-        evidence=_actual_evidence(),
-        cwd=ROOT,
-    )
-    records = [{"native_family_result": family["family_result"]} for _ in range(9)]
+    records = []
+    for index in range(9):
+        family = _run_native_actions_family_check(
+            mncs_binary=binary,
+            source_path=source,
+            evidence=_actual_evidence(edge_fingerprint=f"{index + 1:064x}"),
+            cwd=ROOT,
+        )
+        records.append({"native_family_result": family["family_result"]})
     selected = _run_native_actions_selected_proof(
         mncs_binary=binary,
         source_path=source,
