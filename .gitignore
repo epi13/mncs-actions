@@ -1,5 +1,7 @@
 # Generated verification output
-.mncs/
+.mncs/*
+!.mncs/
+!.mncs/project.json
 *.mncs.tmp
 
 # Local Python cache

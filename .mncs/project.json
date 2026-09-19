@@ -1,0 +1,30 @@
+{
+  "schema_version": "mncs-family.repository-manifest/v0alpha1",
+  "repository": "mncs-actions",
+  "revision": 1,
+  "manifest_location": "in-repository",
+  "authority": {
+    "note": "Actions owns transport, family verification orchestration, evidence envelopes, and provider routing; test/debug/language semantics remain with their owners."
+  },
+  "organization": {
+    "layout": "mncs.repository-layout/1",
+    "surfaces": [
+      {"path": "pressure/", "class": "canonical", "authority": "mncs-actions", "note": "Native pressure/evidence kernels."},
+      {"path": "scripts/", "class": "host-boundary", "note": "Transport, workflow, and external process adapters."},
+      {"path": "native/mncs/actions/", "class": "migration-shadow", "note": "Native family traversal and aggregation moving toward canonical authority."}
+    ]
+  },
+  "contracts": {
+    "provides": [
+      {"contract": "family-verification", "version": "1", "kind": "evidence-automation", "stability": "experimental", "fingerprint_sources": ["scripts/", "pressure/", "schemas/"]}
+    ],
+    "consumes": [
+      {"contract": "mncs-test.test-provider", "envelope": {"op": "any"}, "required": true},
+      {"contract": "mncs-debug.debugger", "envelope": {"op": "any"}, "required": false},
+      {"contract": "mncs-commons.pressure-registry", "envelope": {"op": "any"}, "required": false}
+    ],
+    "tests": [
+      {"test": "actions-tests", "covers": ["family-verification"], "obligation": "self", "command": {"argv": ["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"]}}
+    ]
+  }
+}
