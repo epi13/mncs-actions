@@ -1,12 +1,12 @@
 {
   "schema_version": "mncs.native-userland-allowlist/1",
   "repository_id": "mncs-actions",
-  "canonical_status": "native_shadow",
+  "canonical_status": "native_canonical",
   "entries": [
     {
       "path": "scripts/selective_family_verify.py",
       "class": "transport_and_compatibility_oracle",
-      "reason": "It still owns provider/process supervision, external plan/graph/evidence decoding, and receipt-file packaging; the native family semantic slice is the normal path, but end-to-end application orchestration remains host-owned."
+      "reason": "It remains an explicit compatibility adapter for provider/process supervision, external plan/graph/evidence decoding, and receipt-file publication; native family semantics are canonical and this adapter is not an authority."
     },
     {
       "path": "actions/mncs-test/test.sh",

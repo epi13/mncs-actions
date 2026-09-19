@@ -1,8 +1,8 @@
 {
   "schema_version": "mncs.native-userland-status/1",
   "repository_id": "mncs-actions",
-  "status": "native_shadow",
-  "canonical_entrypoint": "scripts/selective_family_verify.py",
+  "status": "native_canonical",
+  "canonical_entrypoint": "native/mncs/actions/family.mncs",
   "native_sources": {
     "family-orchestration": "native/mncs/actions/family.mncs",
     "family-traversal": "native/mncs/actions/traversal.mncs"
@@ -23,8 +23,7 @@
   "native_provider_descriptors": {
     "mncs-test": "../mncs-test/native-applications/provider-admitted.json"
   },
-  "shadow_launcher": "mncs call",
-  "native_shadow_slices": [
+  "native_semantic_slices": [
     "Commons-owned VerificationPlan, SemanticEdge, and ProviderDeclaration ingress",
     "admitted provider dispatch, receipt reuse, and one-edge evidence composition",
     "native selected-proof aggregation and explicit family-coverage closure",
@@ -36,25 +35,25 @@
     "native/mncs/actions/family.mncs",
     "native/mncs/actions/traversal.mncs"
   ],
-  "next_migration_slice": "move remaining family-level receipt/evidence envelope binding into the native Actions application; retain Python only as a transport adapter/oracle",
+  "next_migration_slice": "remove the compatibility adapter when every supported caller consumes the native application result directly; keep external process/filesystem/publication code at the boundary",
   "host_paths": [
     {
       "path": "scripts/selective_family_verify.py",
       "role": "external_boundary_adapter_and_compatibility_oracle",
-      "canonical": true,
-      "semantic_authority": "host remains the external selection/transport adapter and assembles compatibility envelopes; native Actions owns selected-edge traversal, aggregation, coverage closure, and aggregate proof identity"
+      "canonical": false,
+      "semantic_authority": "native Actions owns selected-edge traversal, aggregation, coverage closure, receipt reuse, and proof identity; this path adapts external documents and publishes compatibility envelopes"
     },
     {
       "path": "actions/mncs-test/test.sh",
       "role": "external_composite_action_transport",
-      "canonical": true,
+      "canonical": false,
       "semantic_authority": false
     }
   ],
   "host_fallback": {
     "allowed": true,
     "failure_mode": "explicit_compatibility_oracle",
-    "canonical_native_shadow": "--native-actions-source <path>",
+    "canonical_native_entrypoint": "native/mncs/actions/family.mncs",
     "silent_fallback": false
   }
 }

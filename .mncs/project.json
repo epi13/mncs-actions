@@ -1,7 +1,7 @@
 {
   "schema_version": "mncs-family.repository-manifest/v0alpha1",
   "repository": "mncs-actions",
-  "revision": 1,
+  "revision": 2,
   "manifest_location": "in-repository",
   "authority": {
     "note": "Actions owns transport, family verification orchestration, evidence envelopes, and provider routing; test/debug/language semantics remain with their owners."
@@ -10,13 +10,14 @@
     "layout": "mncs.repository-layout/1",
     "surfaces": [
       {"path": "pressure/", "class": "canonical", "authority": "mncs-actions", "note": "Native pressure/evidence kernels."},
-      {"path": "scripts/", "class": "host-boundary", "note": "Transport, workflow, and external process adapters."},
-      {"path": "native/mncs/actions/", "class": "migration-shadow", "note": "Native family traversal and aggregation moving toward canonical authority."}
+      {"path": "scripts/", "class": "host-boundary", "note": "Transport, workflow, and external process adapters; the selective verifier remains a temporary semantic implementation below."},
+      {"path": "scripts/selective_family_verify.py", "class": "compatibility", "authority": "mncs-actions", "note": "Explicit compatibility transport adapter over the native Actions semantic authority; retained for external process, filesystem, and JSON publication boundaries.", "classification": {"authority": "compatibility", "lifecycle": "active", "boundary_kind": "process", "semantic_role": "compatibility-adapter"}},
+      {"path": "native/mncs/actions/", "class": "canonical", "authority": "mncs-actions", "note": "Native family admission, receipt reuse, traversal, aggregation, and proof composition are canonical here.", "classification": {"authority": "canonical", "lifecycle": "active", "boundary_kind": "none", "semantic_role": "canonical-semantic"}}
     ]
   },
   "contracts": {
     "provides": [
-      {"contract": "family-verification", "version": "1", "kind": "evidence-automation", "stability": "experimental", "fingerprint_sources": ["scripts/", "pressure/", "schemas/"]}
+      {"contract": "family-verification", "version": "1", "kind": "evidence-automation", "stability": "experimental", "fingerprint_sources": ["native/mncs/actions/", "scripts/", "pressure/", "schemas/"]}
     ],
     "consumes": [
       {"contract": "mncs-test.test-provider", "envelope": {"op": "any"}, "required": true},

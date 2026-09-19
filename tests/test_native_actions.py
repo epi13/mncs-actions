@@ -1,4 +1,4 @@
-"""Focused canaries for the Actions-owned MNCS semantic shadow."""
+"""Focused parity and integration tests for canonical native Actions semantics."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from selective_family_verify import (  # noqa: E402
 )
 
 
-def test_native_family_check_shadow_returns_typed_pass() -> None:
+def test_native_family_check_returns_typed_pass() -> None:
     binary = os.environ.get("MNCS_BINARY", "mncs")
     try:
         result = _run_native_actions_family_check(
@@ -37,7 +37,7 @@ def test_native_family_check_shadow_returns_typed_pass() -> None:
     assert result["proof_sufficient"] is True
 
 
-def test_native_selected_proof_shadow_aggregates_bounded_consumers() -> None:
+def test_native_selected_proof_aggregates_bounded_consumers() -> None:
     binary = os.environ.get("MNCS_BINARY", "mncs")
     try:
         result = _run_native_actions_selected_proof(
@@ -69,10 +69,10 @@ def test_native_actions_coverage_rejects_incomplete_family() -> None:
     assert result["coverage"]["proof_sufficient"] is False
 
 
-def test_native_actions_shadow_uses_bounded_process_capability() -> None:
+def test_native_actions_uses_bounded_process_capability() -> None:
     binary = os.environ.get("MNCS_BINARY")
     if not binary:
-        pytest.skip("set MNCS_BINARY to exercise the native process-backed shadow")
+        pytest.skip("set MNCS_BINARY to exercise the native process-backed semantic core")
     source = ROOT / "native/mncs/actions/family.mncs"
     family = _run_native_actions_family_check(
         mncs_binary=binary,
