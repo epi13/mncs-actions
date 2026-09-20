@@ -1,0 +1,27 @@
+{
+  "schema_version": "mncs-family.verification-obligation-inventory/v1",
+  "repository": "mncs-actions",
+  "revision": 1,
+  "obligations": [
+    {
+      "identity": "mncs-actions.family-proof.affected-consumer",
+      "title": "Actions traverses only consumers selected by the authoritative verification plan",
+      "guarantee_domain": "family_contract",
+      "evidence_role": "canonical_regression",
+      "lifecycle": "permanent",
+      "scope": "family",
+      "subjects": ["mncs.family-verification/1", "affected-consumer"],
+      "invalidation_dependencies": ["native/mncs/actions/", "ravel.verification-plan"],
+      "executor": {
+        "provider": "mncs-actions",
+        "kind": "external_integration",
+        "entrypoint": "python3 -m unittest discover -s tests -p test_*.py"
+      },
+      "evidence_identity": {
+        "subject_fields": ["plan_identity", "consumer_identity"],
+        "definition_fields": ["family_graph_identity"],
+        "execution_fields": ["proof_identity"]
+      }
+    }
+  ]
+}

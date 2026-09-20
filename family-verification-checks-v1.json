@@ -7,6 +7,24 @@
       "contract_identity": "mncs.verification-plan/1",
       "runner": "declaration",
       "surface": "selected-consumer-receipt"
+    },
+    {
+      "identity": "mncs-actions:test-result-input",
+      "contract_identity": "mncs.test-result/1",
+      "runner": "declaration",
+      "surface": "selected-test-evidence"
+    },
+    {
+      "identity": "mncs-actions:debugger-input",
+      "contract_identity": "mncs.debugger/1",
+      "runner": "declaration",
+      "surface": "failure-diagnostic-evidence"
+    },
+    {
+      "identity": "mncs-actions:pressure-registry-input",
+      "contract_identity": "mncs.pressure-registry/1",
+      "runner": "declaration",
+      "surface": "pressure-routing"
     }
   ]
 }
