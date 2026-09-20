@@ -1,10 +1,14 @@
 {
   "schema_version": "mncs-family.repository-manifest/v0alpha1",
   "repository": "mncs-actions",
-  "revision": 3,
+  "revision": 4,
   "manifest_location": "in-repository",
   "authority": {
     "note": "Actions owns transport, family verification orchestration, evidence envelopes, and provider routing; test/debug/language semantics remain with their owners."
+  },
+  "verification": {
+    "schema_version": "mncs-family.verification-obligation-inventory/v1",
+    "obligation_inventory": ".mncs/verification-obligations.json"
   },
   "organization": {
     "layout": "mncs.repository-layout/1",
@@ -20,6 +24,7 @@
       {"contract": "family-verification", "version": "1", "kind": "evidence-automation", "stability": "experimental", "fingerprint_sources": ["native/mncs/actions/", "scripts/", "pressure/", "schemas/"]}
     ],
     "consumes": [
+      {"contract": "ravel.verification-plan", "envelope": {"op": "any"}, "required": true},
       {"contract": "mncs-test.test-provider", "envelope": {"op": "any"}, "required": true},
       {"contract": "mncs-debug.debugger", "envelope": {"op": "any"}, "required": false},
       {"contract": "mncs-commons.pressure-registry", "envelope": {"op": "any"}, "required": false}
