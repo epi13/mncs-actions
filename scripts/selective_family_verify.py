@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -1014,6 +1015,7 @@ def _native_actions_provider_check(
     graph_identity: str,
     producer_repository_revision: str,
     repository_revision: str,
+    mncs_test_runner: str,
     mncs_binary: str,
     mncs_test_libraries: list[str],
     runtime_bindings: Mapping[str, Any],
@@ -1039,6 +1041,7 @@ def _native_actions_provider_check(
             graph_identity=graph_identity,
             producer_repository_revision=producer_repository_revision,
             repository_revision=repository_revision,
+            mncs_test_runner=mncs_test_runner,
             mncs_binary=mncs_binary,
             mncs_test_libraries=mncs_test_libraries,
             runtime_bindings=runtime_bindings,
@@ -1069,6 +1072,7 @@ def _native_actions_provider_check(
             graph_identity=graph_identity,
             producer_repository_revision=producer_repository_revision,
             repository_revision=repository_revision,
+            mncs_test_runner=mncs_test_runner,
             mncs_binary=mncs_binary,
             mncs_test_libraries=mncs_test_libraries,
             runtime_bindings=runtime_bindings,
@@ -1163,6 +1167,224 @@ def _native_actions_provider_check(
     return result, revision
 
 
+def _run_native_test_provider_identities(
+    *,
+    checkout: Path,
+    selector: Mapping[str, Any],
+    selected_tests: list[str],
+    runner: str,
+    mncs_binary: str,
+    libraries: list[str],
+) -> list[dict[str, Any]]:
+    """Execute selected declarations through mncs-test's identity session.
+
+    The runner owns source inventory and request construction. This adapter
+    only checks its typed execution receipts and projects the returned
+    TestResult values into the admitted provider's structured request.
+    """
+
+    manifest_value = selector.get("manifest")
+    if not isinstance(manifest_value, str) or not _safe_relative_path(manifest_value):
+        raise SelectiveFamilyError("mncs-test provider selector has no safe manifest path")
+    manifest = checkout / manifest_value
+    if not manifest.is_file():
+        raise SelectiveFamilyError(f"mncs-test provider manifest is unavailable: {manifest_value}")
+    try:
+        manifest_document = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as error:
+        raise SelectiveFamilyError(f"mncs-test provider manifest is malformed: {manifest_value}: {error}") from error
+    source_value = manifest_document.get("source")
+    if not isinstance(source_value, str) or not _safe_relative_path(source_value):
+        raise SelectiveFamilyError("native mncs-test manifest must name one safe compiler source")
+    source = checkout / source_value
+    if not source.is_file():
+        raise SelectiveFamilyError(f"mncs-test provider source is unavailable: {source_value}")
+
+    runner_path = Path(runner)
+    compatibility_runner = runner_path.suffix == ".py"
+    if compatibility_runner:
+        if not runner_path.is_absolute():
+            candidates = [checkout / runner_path, Path(__file__).resolve().parents[1] / runner_path]
+            runner_path = next((candidate.resolve() for candidate in candidates if candidate.is_file()), runner_path)
+        if not runner_path.is_file():
+            raise SelectiveFamilyError(f"mncs-test Python runner is unavailable: {runner}")
+        command = [sys.executable, str(runner_path)]
+    else:
+        command = [runner]
+
+    with tempfile.TemporaryDirectory(prefix="mncs-test-callable-provider-") as directory:
+        work = Path(directory)
+        result_path = work / "test-result.json"
+        check_path = work / "check-result.json"
+        artifacts_path = work / "artifacts"
+        if compatibility_runner:
+            command.extend(["run", "--manifest", str(manifest), "--mncs", mncs_binary])
+        else:
+            command.extend([str(source), "--step-budget", str(manifest_document.get("step_budget", 200000))])
+        command.extend(
+            [
+                "--result",
+                str(result_path),
+                "--check-result",
+                str(check_path),
+                "--artifacts",
+                str(artifacts_path),
+                "--format",
+                "json",
+            ]
+        )
+        for identity in selected_tests:
+            command.extend(("--test-identity", identity))
+        manifest_libraries = manifest_document.get("libraries", [])
+        if not isinstance(manifest_libraries, list) or any(not isinstance(path, str) for path in manifest_libraries):
+            raise SelectiveFamilyError("mncs-test provider manifest libraries must be a list of paths")
+        all_libraries = list(libraries)
+        for library in manifest_libraries:
+            if not _safe_relative_path(library):
+                raise SelectiveFamilyError(f"mncs-test manifest library path is unsafe: {library}")
+            all_libraries.append(str((checkout / library).resolve()))
+        for library in dict.fromkeys(all_libraries):
+            command.extend(("--library", library))
+        environment = os.environ.copy()
+        environment["MNCS"] = mncs_binary
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=str(checkout),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=300,
+                env=environment,
+                stdin=subprocess.DEVNULL,
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            raise SelectiveFamilyError(f"mncs-test identity runner could not be started: {error}") from error
+        if not result_path.is_file():
+            raise SelectiveFamilyError(
+                "mncs-test identity runner produced no TestResult: "
+                + (completed.stderr.strip() or completed.stdout.strip() or f"exit {completed.returncode}")
+            )
+        result = _read_json(result_path, "mncs-test identity result")
+
+    if result.get("schema_version") != "mncs.test-result/1":
+        raise SelectiveFamilyError("mncs-test identity runner returned an invalid TestResult schema")
+    selection = result.get("selection")
+    selected = selection.get("selected_test_identities") if isinstance(selection, Mapping) else None
+    if selected != selected_tests:
+        raise SelectiveFamilyError("mncs-test identity runner did not execute the exact selected identities")
+    observations = result.get("tests")
+    if not isinstance(observations, list):
+        raise SelectiveFamilyError("mncs-test identity runner omitted per-test execution observations")
+    by_identity = {
+        item.get("semantic", {}).get("test_case_identity"): item
+        for item in observations
+        if isinstance(item, Mapping) and isinstance(item.get("semantic"), Mapping)
+    }
+    if set(by_identity) != set(selected_tests):
+        raise SelectiveFamilyError("mncs-test identity observations disagree with the selected identities")
+
+    status_names = {
+        "returned": "RETURNED",
+        "invalid_request": "INVALID_REQUEST",
+        "runtime_failure": "RUNTIME_FAILURE",
+        "unsupported": "UNSUPPORTED",
+        "budget_exhausted": "BUDGET_EXHAUSTED",
+    }
+    executions: list[dict[str, Any]] = []
+    for identity in selected_tests:
+        observation = by_identity[identity]
+        semantic = observation.get("semantic")
+        invocation = observation.get("callable_invocation")
+        if not isinstance(semantic, Mapping) or not isinstance(invocation, Mapping):
+            raise SelectiveFamilyError(f"mncs-test omitted identity-bound invocation receipt for {identity}")
+        expected = {
+            "test_case_identity": identity,
+            "callable_identity": semantic.get("function_identity"),
+            "declaration_identity": semantic.get("declaration_identity"),
+            "signature_identity": semantic.get("signature_identity"),
+        }
+        if any(not isinstance(value, str) or not value for value in expected.values()):
+            raise SelectiveFamilyError(f"mncs-test compiler inventory is incomplete for {identity}")
+        if any(invocation.get(key) != value for key, value in expected.items()):
+            raise SelectiveFamilyError(f"mncs-test runtime callable receipt disagrees for {identity}")
+        current_artifact = invocation.get("artifact_identity")
+        if not isinstance(current_artifact, str) or not current_artifact:
+            raise SelectiveFamilyError(f"mncs-test omitted the invoked artifact identity for {identity}")
+        execution = observation.get("execution")
+        observed_status = invocation.get("execution_status")
+        if observed_status is None and isinstance(execution, Mapping):
+            observed_status = execution.get("status")
+        execution_status = status_names.get(observed_status)
+        if execution_status is None:
+            raise SelectiveFamilyError(f"mncs-test returned an unknown execution status for {identity}")
+
+        native = observation.get("native_result")
+        if execution_status == "RETURNED":
+            if not isinstance(native, Mapping):
+                raise SelectiveFamilyError(f"mncs-test returned a malformed native result for {identity}")
+            failure_kind_names = {
+                "nofailure": "NoFailure",
+                "assertion": "Assertion",
+                "setup": "Setup",
+                "compile": "Compile",
+                "runtime": "Runtime",
+                "timeout": "Timeout",
+                "unsupported": "Unsupported",
+                "infrastructure": "Infrastructure",
+            }
+            failure_kind = native.get("failure_kind_name")
+            if not isinstance(failure_kind, str):
+                failure_kind = failure_kind_names.get(str(native.get("failure_kind", "")).lower())
+            if failure_kind not in set(failure_kind_names.values()):
+                raise SelectiveFamilyError(f"mncs-test returned an unknown native failure kind for {identity}")
+            result_value = {
+                "verdict": native.get("verdict"),
+                "verdict_code": native.get("verdict_code"),
+                "failure_kind": failure_kind,
+                "failure_code": native.get("failure_code"),
+                "assertions": native.get("assertions"),
+                "failures": native.get("failures"),
+                "expected": native.get("expected"),
+                "actual": native.get("actual"),
+                "assertion_code": native.get("assertion_code"),
+            }
+            if result_value["verdict"] not in {"PASS", "FAIL", "SKIP", "UNSUPPORTED"} or any(
+                not isinstance(result_value[field], int)
+                for field in (
+                    "verdict_code", "failure_code", "assertions", "failures",
+                    "expected", "actual", "assertion_code",
+                )
+            ):
+                raise SelectiveFamilyError(f"mncs-test returned malformed result fields for {identity}")
+        else:
+            # The native provider interprets execution status. This neutral
+            # payload is ignored for non-returned statuses.
+            result_value = {
+                "verdict": "PASS",
+                "verdict_code": 0,
+                "failure_kind": "NoFailure",
+                "failure_code": 0,
+                "assertions": 0,
+                "failures": 0,
+                "expected": 0,
+                "actual": 0,
+                "assertion_code": 0,
+            }
+        executions.append(
+            {
+                "test_case_identity": identity,
+                "declaration_identity": expected["declaration_identity"],
+                "callable_identity": expected["callable_identity"],
+                "signature_identity": expected["signature_identity"],
+                "artifact_identity": current_artifact,
+                "execution_status": execution_status,
+                "native_result": result_value,
+            }
+        )
+    return executions
+
+
 def _native_actions_provider_check_one_batch(
     *,
     checkout: Path,
@@ -1174,6 +1396,7 @@ def _native_actions_provider_check_one_batch(
     graph_identity: str,
     producer_repository_revision: str,
     repository_revision: str,
+    mncs_test_runner: str,
     mncs_binary: str,
     mncs_test_libraries: list[str],
     runtime_bindings: Mapping[str, Any],
@@ -1225,10 +1448,19 @@ def _native_actions_provider_check_one_batch(
     provider_revision = provider_descriptor["revision_identity"]
     provider_interface = provider_descriptor["interface_identity"]
     provider_inventory = provider_descriptor["inventory_identity"]
+    selected_executions = _run_native_test_provider_identities(
+        checkout=checkout,
+        selector=selector,
+        selected_tests=selected_tests,
+        runner=mncs_test_runner,
+        mncs_binary=mncs_binary,
+        libraries=mncs_test_libraries,
+    )
     native_request = {
         "schema_version": "mncs.test-provider-request/1",
         "inventory_identity": provider_inventory,
         "selected_test_identities": selected_tests,
+        "selected_test_executions": selected_executions,
         "selection_count": len(selected_tests),
         "interface_identity": provider_interface,
         "provider_revision_identity": provider_revision,
@@ -1543,6 +1775,7 @@ def _consumer_check(
                 graph_identity=graph_identity,
                 producer_repository_revision=producer_repository_revision,
                 repository_revision=repository_revision,
+                mncs_test_runner=mncs_test_runner,
                 mncs_binary=mncs_binary,
                 mncs_test_libraries=mncs_test_libraries,
                 runtime_bindings=runtime_bindings,
