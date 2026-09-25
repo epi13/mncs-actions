@@ -1177,7 +1177,6 @@ fn provider_binding_valid_complete(
     let provider_matches: bool = declaration.repository_id.len > 0
         && bytes_present(declaration.provider_identity);
     let declaration_matches: bool = bytes_equal(declaration.interface_identity, request.interface_identity)
-        && bytes_equal(declaration.inventory_identity, request.inventory_identity)
         && bytes_equal(declaration.revision_identity, request.provider_revision_identity);
     let edge_contract_matches: bool = edge.check_identity.len > 0;
     return selected
@@ -1191,7 +1190,6 @@ fn provider_binding_valid_complete(
         && request.selection_count > 0
         && request.selection_count <= 8
         && bytes_equal(request.interface_identity, declaration.interface_identity)
-        && bytes_equal(request.inventory_identity, declaration.inventory_identity)
         && bytes_equal(request.provider_revision_identity, declaration.revision_identity);
 }
 
@@ -1217,6 +1215,7 @@ fn provider_result_binding_valid(
     let expected_check_identity: [byte; 32] = copy_digest(structured_digest(
         provider_protocol.provider_check_result_identity_material(run.check_result)
     ));
+    let compiler_callable_bindings_identity: [byte; 32] = copy_digest(structured_digest(request.compiler_callable_bindings));
     return bytes_present(run.test_result.result_identity)
         && bytes_present(run.test_result.execution_identity)
         && bytes_present(run.test_result.evidence_identity)
@@ -1227,10 +1226,12 @@ fn provider_result_binding_valid(
         && bytes_equal(run.test_result.provider_revision_identity, declaration.revision_identity)
         && bytes_equal(run.test_result.interface_identity, declaration.interface_identity)
         && bytes_equal(run.test_result.inventory_identity, declaration.inventory_identity)
+        && bytes_equal(run.test_result.compiler_callable_bindings_identity, compiler_callable_bindings_identity)
         && bytes_equal(run.check_result.provider_identity, declaration.provider_identity)
         && bytes_equal(run.check_result.provider_revision_identity, declaration.revision_identity)
         && bytes_equal(run.check_result.interface_identity, declaration.interface_identity)
         && bytes_equal(run.check_result.inventory_identity, declaration.inventory_identity)
+        && bytes_equal(run.check_result.compiler_callable_bindings_identity, compiler_callable_bindings_identity)
         && bytes_equal(run.test_result.execution_identity, run.check_result.execution_identity)
         && bytes_equal(run.test_result.evidence_identity, run.check_result.evidence_identity)
         && bytes_equal(run.test_result.result_identity, expected_result_identity)
@@ -1268,7 +1269,6 @@ fn provider_binding_valid(
         && request.selection_count == request.selected_test_identities.len
         && request.selection_count > 0
         && request.selection_count <= 8
-        && bytes_equal(request.inventory_identity, [245, 194, 197, 102, 75, 36, 226, 126, 253, 190, 95, 78, 120, 172, 136, 142, 150, 101, 91, 85, 6, 49, 248, 177, 156, 170, 151, 49, 145, 39, 21, 219])
         && identity_view_equal(request.provider_revision_identity, declaration.revision);
 }
 

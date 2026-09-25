@@ -15,8 +15,14 @@ selected consumer, followed by `composite-proof.json`.  A composite PASS is
 only selected-consumer proof, never family-wide proof. On the normal command
 line path, Actions invokes its native application module and treats the
 returned family result, receipt, and selected proof as authoritative. Python
-remains a bounded document/filesystem adapter; `--python-compatibility-oracle`
-is reserved for explicit comparison tests.
+remains a bounded document/filesystem adapter. When adapting selected Test
+receipts into the native provider request, it admits the receipt against the
+provider descriptor and artifact-bound callable binding metadata, then uses
+`mncs-embed`'s generic structured projection for the declared `ProviderRequest`
+contract. The compiler artifact owns nominal identity, primitive widths,
+finite variants, nested value rules, and bounds. The explicit receipt-to-field
+mapping remains part of the Actions trust/admission boundary. The
+`--python-compatibility-oracle` path is reserved for explicit comparison tests.
 
 The composite proof also binds the producer repository, its declaration
 revision, producer declaration identity, producer evidence digests, and the

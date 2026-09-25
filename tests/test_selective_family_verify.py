@@ -15,6 +15,10 @@ from mncs_family_contract import (
 from selective_family_verify import build_selective_proof, _run_native_test_provider_identities
 
 
+def _identity_text(value: list[int]) -> str:
+    return bytes(value).decode("utf-8")
+
+
 def _declaration(
     repository_id: str,
     *,
@@ -247,13 +251,16 @@ def test_mncs_test_provider_adapter_passes_compiler_identities_to_runner(tmp_pat
             "callable_identity": "mncs:0.2:function:tests.provider_cross_module::separate_module_identity",
             "signature_identity": "sha256:cb985a1174a53db59c2301fb860ff9fa602222de527ba091eb23ce416aa36f76",
             "module": "tests.provider_cross_module",
-            "artifact_identity": "mncs:compiler:backend-artifact:6eeccbddf6205684f710571c7ee0eaf66d74b68f6709abbd878bde805535223e",
+            "artifact_identity": "mncs:compiler:backend-artifact:f33cd0ad3bc5688e567099c6b0d742ad2ef5eba5ab7acc8e6c76bbaf68517e09",
         },
     ]
     runner.write_text(
         "import json, pathlib, sys\n"
         f"rows = json.loads({json.dumps(result_rows)!r})\n"
         "args = sys.argv[1:]\n"
+        "bindings = [{'test_case_identity': row['test_case_identity'], 'declaration_identity': row['declaration_identity'], 'callable_identity': row['callable_identity'], 'signature_identity': row['signature_identity']} for row in rows]\n"
+        "artifact_identity = rows[0]['artifact_identity']\n"
+        "execution = {'artifact_identity': artifact_identity, 'compiler_callable_bindings': {'artifact_identity': artifact_identity, 'artifact_sha256': 'a' * 64, 'callable_bindings': bindings}}\n"
         "selected = [args[i + 1] for i, value in enumerate(args[:-1]) if value == '--test-identity']\n"
         "pathlib.Path(__file__).with_suffix('.selected.json').write_text(json.dumps(selected))\n"
         "result_path = pathlib.Path(args[args.index('--result') + 1])\n"
@@ -262,12 +269,12 @@ def test_mncs_test_provider_adapter_passes_compiler_identities_to_runner(tmp_pat
         "    semantic = {'test_case_identity': row['test_case_identity'], 'declaration_identity': row['declaration_identity'], 'function_identity': row['callable_identity'], 'signature_identity': row['signature_identity']}\n"
         "    invocation = {'test_case_identity': row['test_case_identity'], 'declaration_identity': row['declaration_identity'], 'callable_identity': row['callable_identity'], 'signature_identity': row['signature_identity'], 'artifact_identity': row['artifact_identity'], 'execution_status': 'returned'}\n"
         "    tests.append({'semantic': semantic, 'callable_invocation': invocation, 'native_result': {'verdict': 'PASS', 'verdict_code': 1, 'failure_kind_name': 'NoFailure', 'failure_code': 0, 'assertions': 1, 'failures': 0, 'expected': 1, 'actual': 1, 'assertion_code': 0}})\n"
-        "result_path.write_text(json.dumps({'schema_version': 'mncs.test-result/1', 'selection': {'selected_test_identities': selected}, 'tests': tests}))\n",
+        "result_path.write_text(json.dumps({'schema_version': 'mncs.test-result/1', 'selection': {'selected_test_identities': selected}, 'execution': execution, 'tests': tests}))\n",
         encoding="utf-8",
     )
 
     selected = [row["test_case_identity"] for row in result_rows]
-    executions = _run_native_test_provider_identities(
+    executions, bindings = _run_native_test_provider_identities(
         checkout=checkout,
         selector={"manifest": "mncs-test.toml"},
         selected_tests=selected,
@@ -277,12 +284,13 @@ def test_mncs_test_provider_adapter_passes_compiler_identities_to_runner(tmp_pat
     )
 
     assert json.loads(runner.with_suffix(".selected.json").read_text(encoding="utf-8")) == selected
-    assert [execution["test_case_identity"] for execution in executions] == selected
-    assert [execution["callable_identity"] for execution in executions] == [
+    assert [_identity_text(execution["test_case_identity"]) for execution in executions] == selected
+    assert [_identity_text(execution["callable_identity"]) for execution in executions] == [
         row["callable_identity"] for row in result_rows
     ]
     assert executions[0]["callable_identity"] != executions[1]["callable_identity"]
-    assert executions[0]["artifact_identity"] != executions[1]["artifact_identity"]
+    assert executions[0]["artifact_identity"] == executions[1]["artifact_identity"]
+    assert len(bindings) == 2
 
 
 def test_native_mncs_test_adapter_invokes_selected_compiler_identities(tmp_path: Path) -> None:
@@ -316,6 +324,8 @@ def test_native_mncs_test_adapter_invokes_selected_compiler_identities(tmp_path:
         f"rows = json.loads({json.dumps(rows)!r})\n"
         f"artifact = {artifact_identity!r}\n"
         "args = sys.argv[1:]\n"
+        "bindings = [{'test_case_identity': row['test_case_identity'], 'declaration_identity': row['declaration_identity'], 'callable_identity': row['callable_identity'], 'signature_identity': row['signature_identity']} for row in rows]\n"
+        "execution = {'artifact_identity': artifact, 'compiler_callable_bindings': {'artifact_identity': artifact, 'artifact_sha256': 'a' * 64, 'callable_bindings': bindings}}\n"
         "selected = [args[i + 1] for i, value in enumerate(args[:-1]) if value == '--test-identity']\n"
         "pathlib.Path(__file__).with_suffix('.args.json').write_text(json.dumps(args))\n"
         "tests = []\n"
@@ -325,13 +335,13 @@ def test_native_mncs_test_adapter_invokes_selected_compiler_identities(tmp_path:
         "    invocation = {'test_case_identity': row['test_case_identity'], 'declaration_identity': row['declaration_identity'], 'callable_identity': row['callable_identity'], 'signature_identity': row['signature_identity'], 'artifact_identity': artifact}\n"
         "    native = {'verdict': 'PASS', 'verdict_code': 0, 'failure_kind': 'nofailure', 'failure_code': 0, 'assertions': 1, 'failures': 0, 'expected': 1, 'actual': 1, 'assertion_code': 1001}\n"
         "    tests.append({'semantic': semantic, 'callable_invocation': invocation, 'execution': {'status': 'returned'}, 'native_result': native})\n"
-        "pathlib.Path(args[args.index('--result') + 1]).write_text(json.dumps({'schema_version': 'mncs.test-result/1', 'selection': {'selected_test_identities': selected}, 'tests': tests}))\n",
+        "pathlib.Path(args[args.index('--result') + 1]).write_text(json.dumps({'schema_version': 'mncs.test-result/1', 'selection': {'selected_test_identities': selected}, 'execution': execution, 'tests': tests}))\n",
         encoding="utf-8",
     )
     runner.chmod(0o755)
 
     selected = [row["test_case_identity"] for row in rows]
-    executions = _run_native_test_provider_identities(
+    executions, bindings = _run_native_test_provider_identities(
         checkout=checkout,
         selector={"manifest": "mncs-test.toml"},
         selected_tests=selected,
@@ -344,8 +354,9 @@ def test_native_mncs_test_adapter_invokes_selected_compiler_identities(tmp_path:
     assert args[0] == str(checkout / "tests/self_suite.mncs")
     assert "run" not in args and "--manifest" not in args
     assert [args[index + 1] for index, value in enumerate(args[:-1]) if value == "--test-identity"] == selected
-    assert [execution["test_case_identity"] for execution in executions] == selected
-    assert [execution["callable_identity"] for execution in executions] == [
+    assert [_identity_text(execution["test_case_identity"]) for execution in executions] == selected
+    assert [_identity_text(execution["callable_identity"]) for execution in executions] == [
         row["callable_identity"] for row in rows
     ]
-    assert all(execution["artifact_identity"] == artifact_identity for execution in executions)
+    assert all(_identity_text(execution["artifact_identity"]) == artifact_identity for execution in executions)
+    assert len(bindings) == 2

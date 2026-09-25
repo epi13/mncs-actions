@@ -20,9 +20,9 @@
       "eliminating_capability": "native application entry context plus typed process/filesystem effects and provider artifact ingress"
     },
     {
-      "area": "external evidence decoding and receipt-file packaging",
+      "area": "external evidence JSON decoding and receipt-file packaging",
       "classification": "boundary_adapter",
-      "eliminating_capability": "typed structured-record ingress/egress and native receipt/evidence artifact effects"
+      "eliminating_capability": "native filesystem reads and receipt/evidence artifact publication; bounded typed record ingress is available through the compiler-owned projection ABI"
     },
     {
       "area": "legacy manifest compatibility adapter",
@@ -37,11 +37,11 @@
     "MNCS-LANG-52A5E0C72A39"
   ],
   "migration_order": 2,
-  "next_native_slice": "native provider invocation and typed artifact/receipt ingress",
+  "next_native_slice": "native provider invocation and receipt/evidence artifact publication",
   "native_entrypoint": "native/mncs/actions/family.mncs",
   "runtime_effect_dogfood": {
     "process": "generic mncs process_run remains an external boundary; Actions provider launch and publication remain host orchestration",
-    "structured_data": "Actions consumes typed family records and uses native structured_digest for receipt/proof identities; the external JSON projection remains an adapter",
+    "structured_data": "Actions consumes typed family records, uses native structured_digest for receipt/proof identities, and projects bounded provider requests through compiler-owned artifact contracts; JSON decoding and explicit receipt admission remain adapters",
     "filesystem": "generic bounded filesystem effects are available to native applications; Actions source/evidence file ingress remains host orchestration"
   },
   "canonical_entrypoint": "native/mncs/actions/family.mncs",

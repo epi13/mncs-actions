@@ -342,6 +342,165 @@ def _byte_sequence(value: str) -> dict[str, Any]:
     }
 
 
+def _identity_bytes(value: str) -> list[int]:
+    """Encode compiler identity text into the provider's declared byte view."""
+    if not isinstance(value, str) or not value:
+        raise SelectiveFamilyError("compiler identity is missing or not textual")
+    return list(value.encode("utf-8"))
+
+
+def _project_provider_request(
+    *,
+    mncs_binary: str,
+    descriptor_path: Path,
+    descriptor: Mapping[str, Any],
+    value: Mapping[str, Any],
+    workspace_root: Path,
+) -> dict[str, Any]:
+    """Validate and canonicalize a provider request through the compiler ABI."""
+    import ctypes
+
+    schema_version = value.get("schema_version", "mncs.test-provider-request/1")
+    projection_value = {
+        key: item for key, item in value.items() if key != "schema_version"
+    }
+
+    source_path = (descriptor_path.parent / str(descriptor["source"])).resolve()
+    source_bytes = source_path.read_bytes()
+    if sha256_hex(source_bytes) != descriptor.get("source_identity"):
+        raise SelectiveFamilyError("provider source changed after descriptor admission")
+    libraries = [
+        str((descriptor_path.parent / item).resolve())
+        for item in descriptor.get("libraries", [])
+        if isinstance(item, str)
+    ]
+    environment = os.environ.copy()
+    environment["MNCS_LIBRARY_PATH"] = os.pathsep.join(libraries)
+    with tempfile.TemporaryDirectory(prefix="mncs-provider-projection-") as directory:
+        output = Path(directory)
+        command = [
+            mncs_binary,
+            "compile",
+            str(source_path),
+            "--emit",
+            "backend",
+            "--target",
+            "research-bytecode",
+            "--include-tests",
+            "--output-dir",
+            str(output),
+        ]
+        try:
+            completed = subprocess.run(
+                command,
+                cwd=workspace_root,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=300,
+                stdin=subprocess.DEVNULL,
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            raise SelectiveFamilyError(f"provider artifact projection compile failed: {error}") from error
+        backend_path = output / "backend.json"
+        if completed.returncode != 0 or not backend_path.is_file():
+            raise SelectiveFamilyError(
+                "provider artifact projection compile failed: "
+                + (completed.stderr.strip() or completed.stdout.strip() or "backend artifact missing")
+            )
+        backend_bytes = backend_path.read_bytes()
+        backend = json.loads(backend_bytes)
+        if backend.get("interface_identity") != descriptor.get("interface_identity"):
+            raise SelectiveFamilyError("projected provider artifact interface differs from its admitted descriptor")
+
+        candidates = []
+        requested = os.environ.get("MNCS_EMBED_LIBRARY")
+        if requested:
+            candidates.append(Path(requested).resolve())
+        binary_path = Path(mncs_binary).resolve()
+        candidates.extend(
+            binary_path.parent / name
+            for name in ("libmncs_embed.so", "libmncs_embed.dylib", "mncs_embed.dll")
+        )
+        library_path = next((candidate for candidate in candidates if candidate.is_file()), None)
+        if library_path is None:
+            raise SelectiveFamilyError("mncs-embed library is required for compiler-owned request projection")
+        library = ctypes.CDLL(str(library_path))
+        uchar_p = ctypes.POINTER(ctypes.c_ubyte)
+        library.mncs_session_open.argtypes = [uchar_p, ctypes.c_size_t]
+        library.mncs_session_open.restype = ctypes.c_void_p
+        library.mncs_session_composite_types.argtypes = [ctypes.c_void_p]
+        library.mncs_session_composite_types.restype = ctypes.c_void_p
+        library.mncs_session_project_value.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        library.mncs_session_project_value.restype = ctypes.c_void_p
+        library.mncs_session_serialize_value.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+        library.mncs_session_serialize_value.restype = ctypes.c_void_p
+        library.mncs_session_close.argtypes = [ctypes.c_void_p]
+        library.mncs_session_close.restype = None
+        library.mncs_response_text.argtypes = [ctypes.c_void_p]
+        library.mncs_response_text.restype = ctypes.c_char_p
+        library.mncs_response_free.argtypes = [ctypes.c_void_p]
+        library.mncs_response_free.restype = None
+        library.mncs_last_error.argtypes = []
+        library.mncs_last_error.restype = ctypes.c_char_p
+
+        def response(handle: Any) -> Any:
+            if not handle:
+                detail = library.mncs_last_error()
+                message = detail.decode("utf-8", errors="replace") if detail else "unknown embed error"
+                raise SelectiveFamilyError(f"compiler-owned provider projection failed: {message}")
+            try:
+                payload = library.mncs_response_text(handle)
+                if not payload:
+                    raise SelectiveFamilyError("mncs-embed returned an empty projection response")
+                return json.loads(payload.decode("utf-8"))
+            finally:
+                library.mncs_response_free(handle)
+
+        buffer = (ctypes.c_ubyte * len(backend_bytes)).from_buffer_copy(backend_bytes)
+        session = library.mncs_session_open(buffer, len(backend_bytes))
+        if not session:
+            detail = library.mncs_last_error()
+            message = detail.decode("utf-8", errors="replace") if detail else "unknown embed error"
+            raise SelectiveFamilyError(f"provider artifact was refused by mncs-embed: {message}")
+        try:
+            composite_types = response(library.mncs_session_composite_types(session))
+            matches = [
+                item
+                for item in composite_types
+                if isinstance(item, Mapping)
+                and item.get("name") == "ProviderRequest"
+                and item.get("kind") == "record"
+            ]
+            if len(matches) != 1:
+                raise SelectiveFamilyError(
+                    f"ProviderRequest compiler identity is not unique in the admitted artifact ({len(matches)} matches)"
+                )
+            reference = matches[0]["reference"]
+            projection_request = json.dumps(
+                {"reference": reference, "value": projection_value},
+                separators=(",", ":"),
+            ).encode("utf-8")
+            projected = response(
+                library.mncs_session_project_value(session, projection_request)
+            )
+            if projected.get("artifact_identity") != backend.get("identity"):
+                raise SelectiveFamilyError("compiler projected the request through a foreign provider artifact")
+            serialized_request = json.dumps(
+                {"reference": reference, "value": projected["value"]},
+                separators=(",", ":"),
+            ).encode("utf-8")
+            canonical = response(
+                library.mncs_session_serialize_value(session, serialized_request)
+            )
+            if not isinstance(canonical, dict):
+                raise SelectiveFamilyError("compiler-owned provider projection did not serialize to a record")
+            return {"schema_version": schema_version, **canonical}
+        finally:
+            library.mncs_session_close(session)
+
+
 def _finite_verdict(value: str) -> dict[str, Any]:
     return {"finite": {"type": "FamilyVerdict", "variant": value}}
 
@@ -1175,7 +1334,7 @@ def _run_native_test_provider_identities(
     runner: str,
     mncs_binary: str,
     libraries: list[str],
-) -> list[dict[str, Any]]:
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Execute selected declarations through mncs-test's identity session.
 
     The runner owns source inventory and request construction. This adapter
@@ -1269,6 +1428,55 @@ def _run_native_test_provider_identities(
 
     if result.get("schema_version") != "mncs.test-result/1":
         raise SelectiveFamilyError("mncs-test identity runner returned an invalid TestResult schema")
+    execution_document = result.get("execution")
+    binding_document = (
+        execution_document.get("compiler_callable_bindings")
+        if isinstance(execution_document, Mapping)
+        else None
+    )
+    if not isinstance(binding_document, Mapping):
+        raise SelectiveFamilyError("mncs-test did not return compiler-owned callable metadata")
+    artifact_identity = binding_document.get("artifact_identity")
+    artifact_sha256 = binding_document.get("artifact_sha256")
+    raw_bindings = binding_document.get("callable_bindings")
+    if (
+        not isinstance(artifact_identity, str)
+        or not artifact_identity
+        or not isinstance(artifact_sha256, str)
+        or not SHA256_RE.fullmatch(artifact_sha256)
+        or not isinstance(raw_bindings, list)
+        or execution_document.get("artifact_identity") != artifact_identity
+    ):
+        raise SelectiveFamilyError("mncs-test compiler metadata is malformed or not artifact-bound")
+    projected_bindings: list[dict[str, Any]] = []
+    binding_facts: set[tuple[str, str, str, str, str]] = set()
+    for binding in raw_bindings:
+        if not isinstance(binding, Mapping) or not binding.get("test_case_identity"):
+            continue
+        facts = tuple(
+            str(binding.get(field, ""))
+            for field in (
+                "test_case_identity",
+                "declaration_identity",
+                "callable_identity",
+                "signature_identity",
+            )
+        )
+        if not all(facts):
+            raise SelectiveFamilyError("compiler callable binding omits a TestCase identity fact")
+        entry = {
+            "artifact_identity": _identity_bytes(artifact_identity),
+            "test_case_identity": _identity_bytes(facts[0]),
+            "declaration_identity": _identity_bytes(facts[1]),
+            "callable_identity": _identity_bytes(facts[2]),
+            "signature_identity": _identity_bytes(facts[3]),
+        }
+        binding_facts.add((artifact_identity, *facts))
+        projected_bindings.append(entry)
+    if not projected_bindings or len(projected_bindings) > 64:
+        raise SelectiveFamilyError(
+            f"compiler artifact TestCase bindings exceed provider bounds ({len(projected_bindings)})"
+        )
     selection = result.get("selection")
     selected = selection.get("selected_test_identities") if isinstance(selection, Mapping) else None
     if selected != selected_tests:
@@ -1309,8 +1517,18 @@ def _run_native_test_provider_identities(
         if any(invocation.get(key) != value for key, value in expected.items()):
             raise SelectiveFamilyError(f"mncs-test runtime callable receipt disagrees for {identity}")
         current_artifact = invocation.get("artifact_identity")
-        if not isinstance(current_artifact, str) or not current_artifact:
+        if not isinstance(current_artifact, str) or current_artifact != artifact_identity:
             raise SelectiveFamilyError(f"mncs-test omitted the invoked artifact identity for {identity}")
+        if (
+            current_artifact,
+            expected["test_case_identity"],
+            expected["declaration_identity"],
+            expected["callable_identity"],
+            expected["signature_identity"],
+        ) not in binding_facts:
+            raise SelectiveFamilyError(
+                f"mncs-test receipt is not present in its compiler artifact bindings for {identity}"
+            )
         execution = observation.get("execution")
         observed_status = invocation.get("execution_status")
         if observed_status is None and isinstance(execution, Mapping):
@@ -1373,16 +1591,16 @@ def _run_native_test_provider_identities(
             }
         executions.append(
             {
-                "test_case_identity": identity,
-                "declaration_identity": expected["declaration_identity"],
-                "callable_identity": expected["callable_identity"],
-                "signature_identity": expected["signature_identity"],
-                "artifact_identity": current_artifact,
+                "test_case_identity": _identity_bytes(identity),
+                "declaration_identity": _identity_bytes(expected["declaration_identity"]),
+                "callable_identity": _identity_bytes(expected["callable_identity"]),
+                "signature_identity": _identity_bytes(expected["signature_identity"]),
+                "artifact_identity": _identity_bytes(current_artifact),
                 "execution_status": execution_status,
                 "native_result": result_value,
             }
         )
-    return executions
+    return executions, projected_bindings
 
 
 def _native_actions_provider_check_one_batch(
@@ -1448,7 +1666,7 @@ def _native_actions_provider_check_one_batch(
     provider_revision = provider_descriptor["revision_identity"]
     provider_interface = provider_descriptor["interface_identity"]
     provider_inventory = provider_descriptor["inventory_identity"]
-    selected_executions = _run_native_test_provider_identities(
+    selected_executions, compiler_callable_bindings = _run_native_test_provider_identities(
         checkout=checkout,
         selector=selector,
         selected_tests=selected_tests,
@@ -1458,13 +1676,20 @@ def _native_actions_provider_check_one_batch(
     )
     native_request = {
         "schema_version": "mncs.test-provider-request/1",
-        "inventory_identity": provider_inventory,
-        "selected_test_identities": selected_tests,
+        "compiler_callable_bindings": compiler_callable_bindings,
+        "selected_test_identities": [_identity_bytes(identity) for identity in selected_tests],
         "selected_test_executions": selected_executions,
         "selection_count": len(selected_tests),
-        "interface_identity": provider_interface,
-        "provider_revision_identity": provider_revision,
+        "interface_identity": list(bytes.fromhex(provider_interface)),
+        "provider_revision_identity": list(bytes.fromhex(provider_revision)),
     }
+    native_request = _project_provider_request(
+        mncs_binary=mncs_binary,
+        descriptor_path=provider_descriptor_path,
+        descriptor=provider_descriptor,
+        value={key: value for key, value in native_request.items() if key != "schema_version"},
+        workspace_root=checkout.parent,
+    )
     zero = "0" * 64
     native_previous_result = {
         "schema_version": "mncs.test-provider-result/1",
@@ -1473,6 +1698,7 @@ def _native_actions_provider_check_one_batch(
         "provider_revision_identity": provider_revision,
         "interface_identity": provider_interface,
         "inventory_identity": provider_inventory,
+        "compiler_callable_bindings_identity": zero,
         "execution_identity": zero,
         "evidence_identity": zero,
         "selected_test_identities": [],
@@ -1497,6 +1723,7 @@ def _native_actions_provider_check_one_batch(
         "provider_revision_identity": provider_revision,
         "interface_identity": provider_interface,
         "inventory_identity": provider_inventory,
+        "compiler_callable_bindings_identity": zero,
         "test_result_identity": zero,
         "execution_identity": zero,
         "evidence_identity": zero,
@@ -1618,7 +1845,15 @@ def _native_actions_provider_check_one_batch(
     verdict = family_result.get("verdict")
     if verdict not in {"PASS", "FAIL", "UNKNOWN"}:
         raise SelectiveFamilyError("native Actions provider result has an invalid verdict")
-    if provider_result.get("selected_test_identities") != selected_tests:
+    returned_identities = provider_result.get("selected_test_identities")
+    if isinstance(returned_identities, list) and returned_identities and all(
+        isinstance(item, list) for item in returned_identities
+    ):
+        try:
+            returned_identities = [bytes(item).decode("utf-8") for item in returned_identities]
+        except (ValueError, UnicodeDecodeError) as error:
+            raise SelectiveFamilyError("native provider returned malformed selected identity bytes") from error
+    if returned_identities != selected_tests:
         raise SelectiveFamilyError("native admitted provider did not return the exact selection")
     execution_identity = provider_result.get("execution_identity")
     if not isinstance(execution_identity, str) or not execution_identity:

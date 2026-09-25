@@ -28,7 +28,7 @@
     "admitted provider dispatch, receipt reuse, and one-edge evidence composition",
     "native selected-proof aggregation and explicit family-coverage closure",
     "native selected-consumer traversal, edge admission, and aggregate proof composition",
-    "multi-consumer transport and compatibility-envelope adaptation in scripts/selective_family_verify.py",
+    "multi-consumer transport, compiler-owned ProviderRequest projection, and compatibility-envelope adaptation in scripts/selective_family_verify.py",
     "compatibility-envelope adaptation for callers that still request the Python family result"
   ],
   "semantic_modules": [
@@ -41,7 +41,7 @@
       "path": "scripts/selective_family_verify.py",
       "role": "external_boundary_adapter_and_compatibility_oracle",
       "canonical": false,
-      "semantic_authority": "native Actions owns selected-edge traversal, aggregation, coverage closure, receipt reuse, and proof identity; this path adapts external documents and publishes compatibility envelopes"
+      "semantic_authority": "native Actions owns selected-edge traversal, aggregation, coverage closure, receipt reuse, and proof identity; the compiler artifact owns typed ProviderRequest materialization, while this path admits external receipts and publishes compatibility envelopes"
     },
     {
       "path": "actions/mncs-test/test.sh",
