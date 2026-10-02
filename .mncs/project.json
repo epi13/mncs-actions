@@ -1,7 +1,7 @@
 {
   "schema_version": "mncs-family.repository-manifest/v0alpha1",
   "repository": "mncs-actions",
-  "revision": 4,
+  "revision": 5,
   "manifest_location": "in-repository",
   "authority": {
     "note": "Actions owns transport, family verification orchestration, evidence envelopes, and provider routing; test/debug/language semantics remain with their owners."
@@ -27,7 +27,29 @@
       {"contract": "mncs.verification-plan", "envelope": {"op": "any"}, "required": false, "scope": "selective verification only; base run-check/verify/test/debug operation is plan-free. RAVEL is one optional plan producer, not a provider requirement."},
       {"contract": "mncs-test.test-provider", "envelope": {"op": "any"}, "required": true},
       {"contract": "mncs-debug.debugger", "envelope": {"op": "any"}, "required": false},
-      {"contract": "mncs-commons.pressure-registry", "envelope": {"op": "any"}, "required": false}
+      {"contract": "mncs-commons.pressure-registry", "envelope": {"op": "any"}, "required": false},
+      {
+        "contract": "mncs-stdlib.stdlib-source",
+        "envelope": {
+          "op": "any"
+        },
+        "required": true,
+        "evidence_refs": [
+          "native/mncs/actions/external_evidence.mncs",
+          "native/mncs/actions/family.mncs",
+          "native/mncs/actions/provider_canary.mncs",
+          "native/mncs/actions/traversal.mncs",
+          "pressure/artifact-envelope-boundary.mncs",
+          "pressure/changeset-boundary.mncs",
+          "pressure/family-acceptance.mncs",
+          "pressure/family-boundary.mncs",
+          "pressure/family-graph-coherence.mncs",
+          "pressure/promotion-boundary.mncs",
+          "pressure/rights-projection.mncs",
+          "pressure/semantic-conformance.mncs"
+        ],
+        "scope": "native runtime imports; legacy pre-extraction toolchains may bind equivalent language library sources"
+      }
     ],
     "tests": [
       {"test": "actions-tests", "covers": ["family-verification"], "obligation": "self", "command": {"argv": ["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"]}}
