@@ -5,11 +5,13 @@
   "canonical_entrypoint": "native/mncs/actions/family.mncs",
   "native_sources": {
     "family-orchestration": "native/mncs/actions/family.mncs",
-    "family-traversal": "native/mncs/actions/traversal.mncs"
+    "family-traversal": "native/mncs/actions/traversal.mncs",
+    "external-evidence": "native/mncs/actions/external_evidence.mncs"
   },
   "native_application_descriptor": "native-applications/actions-family.json",
   "native_application_descriptors": {
-    "family": "native-applications/actions-family.json"
+    "family": "native-applications/actions-family.json",
+    "external-evidence": "native-applications/actions-external-evidence.json"
   },
   "compatibility_surfaces": {
     "retained_canary_sources": [
@@ -33,7 +35,8 @@
   ],
   "semantic_modules": [
     "native/mncs/actions/family.mncs",
-    "native/mncs/actions/traversal.mncs"
+    "native/mncs/actions/traversal.mncs",
+    "native/mncs/actions/external_evidence.mncs"
   ],
   "next_migration_slice": "remove the compatibility adapter when every supported caller consumes the native application result directly; keep external process/filesystem/publication code at the boundary",
   "host_paths": [

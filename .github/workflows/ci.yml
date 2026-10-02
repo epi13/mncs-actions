@@ -357,3 +357,38 @@ jobs:
       rights-command: mkdir -p .mncs && python3 adapters/rights_adapter.py --input tests/fixtures/rights/pass.json --output .mncs/rights-check.json --check-id rights-provenance --provider mncs-rights-provenance
       project-command: ""
       upload-artifacts: false
+
+  obligation-evidence:
+    # Honest CI evidence for the repository's own external_integration
+    # obligation. Runs the declared entrypoint verbatim, packages the
+    # outcome as a check-result/1 bound to the obligation identity, and
+    # uploads the receipt/manifest/check triple as mncs-obligation-evidence
+    # so ambient consumers can admit it without parsing logs.
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Set up Python
+        # actions/setup-python v7.0.0
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        run: |
+          pip install --require-hashes -r requirements-dev.lock
+
+      - name: Run declared obligation entrypoint
+        uses: ./actions/run-check
+        with:
+          command: python3 scripts/emit_obligation_check.py --obligation mncs-actions.family-proof.affected-consumer --provider mncs-actions --result-file .mncs/check-result.json -- python3 -m pytest tests/ -q
+          check-id: mncs-actions.family-proof.affected-consumer
+          provider: mncs-actions
+          result-file: .mncs/check-result.json
+          evidence-directory: .mncs/obligation-evidence
+          fail-on-fail: "true"
+          fail-on-unknown: "true"
+          upload-artifact: "true"
+          artifact-name: mncs-obligation-evidence

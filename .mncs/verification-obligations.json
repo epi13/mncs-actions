@@ -15,7 +15,15 @@
       "executor": {
         "provider": "mncs-actions",
         "kind": "external_integration",
-        "entrypoint": "python3 -m unittest discover -s tests -p test_*.py"
+        "entrypoint": "python3 -m pytest tests/ -q",
+        "external": {
+          "repository": "epi13/mncs-actions",
+          "workflow": "ci.yml",
+          "job": "obligation-evidence",
+          "artifact": "mncs-obligation-evidence",
+          "check_identity": "mncs-actions.family-proof.affected-consumer",
+          "explicit_only": false
+        }
       },
       "evidence_identity": {
         "subject_fields": ["plan_identity", "consumer_identity"],

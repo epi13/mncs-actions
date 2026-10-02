@@ -8,6 +8,50 @@
       "contract_revision": "1",
       "exported_identity": "mncs-actions:family-verification",
       "evidence": "native/mncs/actions/family.mncs"
+    },
+    {
+      "contract_identity": "mncs.actions-external-evidence/1",
+      "contract_revision": "1",
+      "exported_identity": "mncs-actions:external-evidence",
+      "evidence": "native/mncs/actions/external_evidence.mncs",
+      "canonical_entrypoint": "mncs-actions-coherence",
+      "status": "native_canonical",
+      "invocation": {
+        "kind": "executable",
+        "path": "bin/mncs-actions-coherence",
+        "toolchain": {
+          "repository": "mncs-language",
+          "path": "target/release/mncs"
+        },
+        "toolchain_env": "MNCS"
+      }
+    },
+    {
+      "contract_identity": "mncs.actions-remote-evidence/1",
+      "contract_revision": "1",
+      "exported_identity": "mncs-actions:remote-evidence",
+      "evidence": "bin/mncs-actions-remote",
+      "canonical_entrypoint": "mncs-actions-remote status|fetch|validate",
+      "status": "boundary_transport",
+      "effects": ["read"],
+      "invocation": {
+        "kind": "executable",
+        "path": "bin/mncs-actions-remote"
+      }
+    },
+    {
+      "contract_identity": "mncs.actions-dispatch/1",
+      "contract_revision": "1",
+      "exported_identity": "mncs-actions:dispatch",
+      "evidence": "bin/mncs-actions-remote",
+      "canonical_entrypoint": "mncs-actions-remote dispatch",
+      "status": "boundary_transport",
+      "effects": ["delegate"],
+      "invocation": {
+        "kind": "executable",
+        "path": "bin/mncs-actions-remote",
+        "fixed_argv": ["dispatch"]
+      }
     }
   ],
   "consumes": [
