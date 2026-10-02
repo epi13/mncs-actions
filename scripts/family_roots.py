@@ -30,3 +30,19 @@ def discover_family_repo(
             if candidate.is_dir():
                 return candidate
     return start.resolve().parent / name
+
+
+def discover_stdlib_root(*, start: Path) -> Path:
+    """Resolve stdlib ownership; explicit selection never falls back."""
+    configured = os.environ.get('MNCS_LIBRARY_ROOT')
+    if configured:
+        return Path(configured).expanduser().resolve()
+    provider = os.environ.get('MNCS_STDLIB_ROOT')
+    if provider:
+        return Path(provider).expanduser().resolve() / 'library'
+    stdlib = discover_family_repo('mncs-stdlib', environment_name='MNCS_STDLIB_REPO', start=start)
+    if (stdlib / 'library').is_dir():
+        return stdlib / 'library'
+    # Legacy owners participate only when no dedicated provider exists.
+    language = discover_family_repo('mncs-language', environment_name='MNCS_LANGUAGE_REPO', start=start)
+    return language / 'library'

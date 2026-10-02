@@ -15,7 +15,7 @@ REPO = Path(__file__).resolve().parents[1]
 import sys
 
 sys.path.insert(0, str(REPO / "scripts"))
-from family_roots import discover_family_repo
+from family_roots import discover_family_repo, discover_stdlib_root
 
 
 MNCS_TEST = discover_family_repo(
@@ -62,7 +62,7 @@ def test_failing_test_produces_debug_evidence_with_lineage(tmp_path: Path) -> No
             "MNCS_SOURCE_FILE": str(
                 MNCS_TEST / "tests" / "fixtures" / "first_class_failing.mncs"
             ),
-            "MNCS_LIBRARY_PATH_INPUT": os.pathsep.join((str(MNCS_TEST / "native"), str(MNCS_LANGUAGE / "library"))),
+            "MNCS_LIBRARY_PATH_INPUT": os.pathsep.join((str(MNCS_TEST / "native"), str(discover_stdlib_root(start=REPO)))),
             "MNCS_EMBED_LIBRARY_INPUT": str(EMBED),
             "MNCS_STEP_BUDGET": "200000",
             "MNCS_RESULT_FILE": str(test_check),
@@ -88,7 +88,7 @@ def test_failing_test_produces_debug_evidence_with_lineage(tmp_path: Path) -> No
         {
             "MNCS_DEBUG_BIN": str(MNCS_DEBUG / "bin" / "mncs-debug"),
             "MNCS_BIN": str(MNCS),
-            "MNCS_LIBRARY_PATH_INPUT": os.pathsep.join((str(MNCS_TEST / "native"), str(MNCS_LANGUAGE / "library"))),
+            "MNCS_LIBRARY_PATH_INPUT": os.pathsep.join((str(MNCS_TEST / "native"), str(discover_stdlib_root(start=REPO)))),
             "MNCS_DEBUG_TEST_RESULT_FILE": str(test_result),
             "MNCS_DEBUG_WORKING_DIRECTORY": str(tmp_path),
             "MNCS_DEBUG_CAPTURE_POLICY": "failure-only",
@@ -164,7 +164,7 @@ def test_failure_only_policy_does_not_trace_passing_test(tmp_path: Path) -> None
         "--library",
         str(MNCS_TEST / "native"),
         "--library",
-        str(MNCS_LANGUAGE / "library"),
+        str(discover_stdlib_root(start=REPO)),
         "--embed-library",
         str(EMBED),
         "--result",

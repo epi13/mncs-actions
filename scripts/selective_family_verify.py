@@ -262,23 +262,13 @@ def _run_native_mncs_call(
     library_arguments: list[str] = []
     configured = os.environ.get("MNCS_LIBRARY_PATH", "")
     library_roots = [Path(item) for item in configured.split(os.pathsep) if item]
-    # Native family records live in Commons and the generic application
-    # contract lives in the language repository. These are dependency roots,
-    # not semantic projections; callers may still override them through the
-    # environment when repositories are mounted elsewhere.
-    for candidate in (
-        cwd / "mncs-language" / "library",
-        cwd.parent / "mncs-language" / "library",
-        cwd / "MNCS-Commons" / "src" / "mncs_commons" / "mesh",
-        cwd.parent / "MNCS-Commons" / "src" / "mncs_commons" / "mesh",
-        # Actions imports the native test provider as a typed module. Keep
-        # both the provider root and the repository root visible so its
-        # `tests.self_suite` dependency resolves without a host projection.
-        cwd / "mncs-test" / "native",
-        cwd.parent / "mncs-test" / "native",
-        cwd / "mncs-test",
-        cwd.parent / "mncs-test",
-    ):
+    # Provider owners declare/discover the dependency roots. Execution cwd
+    # may be a temporary workspace; it is never the family ownership root.
+    from family_roots import discover_family_repo, discover_stdlib_root
+    owner = Path(__file__).resolve().parents[1]
+    commons = discover_family_repo('MNCS-Commons', environment_name='MNCS_COMMONS_REPO', start=owner)
+    test = discover_family_repo('mncs-test', environment_name='MNCS_TEST_REPO', start=owner)
+    for candidate in (discover_stdlib_root(start=owner), commons / 'src/mncs_commons/mesh', test / 'native', test):
         if candidate.is_dir() and candidate not in library_roots:
             library_roots.append(candidate)
     for library in library_roots:

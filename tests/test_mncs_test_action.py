@@ -20,7 +20,7 @@ REPO = Path(__file__).resolve().parents[1]
 import sys
 
 sys.path.insert(0, str(REPO / "scripts"))
-from family_roots import discover_family_repo
+from family_roots import discover_family_repo, discover_stdlib_root
 
 
 MNCS_TEST = discover_family_repo(
@@ -59,7 +59,7 @@ def test_native_provider_and_run_check_packaging(tmp_path: Path):
             "MNCS_BIN": str(MNCS),
             "MNCS_SOURCE_FILE": str(MNCS_TEST / "tests" / "self_suite.mncs"),
             "MNCS_LIBRARY_PATH_INPUT": os.pathsep.join(
-                (str(MNCS_TEST / "native"), str(MNCS_LANGUAGE / "library"))
+                (str(MNCS_TEST / "native"), str(discover_stdlib_root(start=REPO)))
             ),
             "MNCS_EMBED_LIBRARY_INPUT": str(EMBED_LIBRARY),
             "MNCS_RESULT_FILE": str(result),
