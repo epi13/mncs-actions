@@ -1,0 +1,14 @@
+{
+  "schema_version": "mncs.native-application/1",
+  "application_identity": "mncs-actions.external-evidence",
+  "source": "../native/mncs/actions/external_evidence.mncs",
+  "module": "mncs.actions.external_evidence",
+  "entry_function": "external_evidence_app",
+  "profile": "0.18",
+  "interface_identity": "20b4a3d610409191c4ac652e3e850567061a64fb673bc2f9422583e4b9ead068",
+  "libraries": [
+    "../../mncs-language/library"
+  ],
+  "environment_keys": [],
+  "required_capabilities": ["actions_artifact"]
+}

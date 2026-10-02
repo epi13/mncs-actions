@@ -24,7 +24,7 @@
       {"contract": "family-verification", "version": "1", "kind": "evidence-automation", "stability": "experimental", "fingerprint_sources": ["native/mncs/actions/", "scripts/", "pressure/", "schemas/"]}
     ],
     "consumes": [
-      {"contract": "ravel.verification-plan", "envelope": {"op": "any"}, "required": true},
+      {"contract": "mncs.verification-plan", "envelope": {"op": "any"}, "required": false, "scope": "selective verification only; base run-check/verify/test/debug operation is plan-free. RAVEL is one optional plan producer, not a provider requirement."},
       {"contract": "mncs-test.test-provider", "envelope": {"op": "any"}, "required": true},
       {"contract": "mncs-debug.debugger", "envelope": {"op": "any"}, "required": false},
       {"contract": "mncs-commons.pressure-registry", "envelope": {"op": "any"}, "required": false}

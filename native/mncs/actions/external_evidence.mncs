@@ -1,0 +1,618 @@
+mncs 0.18;
+
+// mncs.actions.external_evidence — native ambient external-evidence policy.
+//
+// The host (Environment) observes external verification obligations,
+// measures the bound subject material (repository, revision, dirty state,
+// workflow binding), transports prior evidence rows and remote run
+// observations; this module owns every external reuse/routing decision:
+// which obligations already have current evidence, which are pending on
+// an in-flight run, which are eligible for one bounded dispatch, and
+// which have no route, are unavailable, deferred, or escalated.
+//
+// A dirty local worktree is never remotely verifiable: remote evidence
+// can only bind a published revision. Missing workflow bindings,
+// explicit-only effects, and unmeasurable subjects fail closed to
+// non-dispatched statuses; the host surfaces them instead of dispatching
+// blindly.
+//
+// A remote workflow success never establishes PASS by itself. Evidence
+// is current only when the staged receipt binds the exact obligation
+// and subject, is structurally complete, and carries ESTABLISHED claim
+// status. Verdicts travel separately from currency: current evidence
+// with a FAIL verdict is a current FAIL, never a reason to redispatch.
+//
+// Evidence identity material (normative, hashed by the host with the
+// family digest, in this order): repository, revision, workflow_path,
+// artifact_name, check_identity. A prior receipt satisfies a request
+// only when its subject digest equals the measured subject digest and
+// its obligation identity equals the requested obligation.
+module mncs.actions.external_evidence;
+
+use mncs.std.application.v1;
+
+// Host-measured subject state. Only a clean published revision can be
+// remotely verified; dirt is the local subject, never the remote one,
+// and a clean-but-unpublished revision has no remote runs to observe.
+enum ExternalSubjectState {
+    clean,
+    dirty,
+    unknown,
+    clean_unpublished
+}
+
+// Admitted evidence verdict. None means no usable evidence is staged.
+enum ExternalVerdict {
+    passed,
+    failed,
+    unknown,
+    none
+}
+
+// Staged receipt claim status. Only ESTABLISHED claims admit evidence.
+enum ExternalClaim {
+    established,
+    not_established,
+    none
+}
+
+// Host-observed remote run state for the bound subject.
+enum ExternalRunState {
+    none,
+    in_progress,
+    completed
+}
+
+// Host-projected remote run conclusion. Success means the workflow ran
+// to completion; the semantic verdict still comes from the staged
+// receipt, never from this field. Infra covers cancelled, timed out,
+// startup/action failures, and stale observations.
+enum ExternalRunConclusion {
+    none,
+    success,
+    failure,
+    infra
+}
+
+enum ExternalStatus {
+    current,
+    dispatch_eligible,
+    delegated_pending,
+    no_route,
+    unavailable,
+    deferred,
+    escalate
+}
+
+enum ExternalReason {
+    evidence_current,
+    no_evidence,
+    evidence_mismatch,
+    claim_not_established,
+    run_pending,
+    run_completed_unadmitted,
+    run_failed,
+    no_workflow_binding,
+    non_routable_kind,
+    dirty_subject,
+    unknown_subject,
+    unpublished_subject,
+    budget_deferred,
+    attempts_exhausted,
+    explicit_only_effects,
+    remote_unavailable
+}
+
+// Next admitted operation. The ambient layer admits at most one step
+// per decision; dispatch always requires a separate delegate grant
+// that this module never issues itself.
+enum ExternalOperation {
+    none,
+    dispatch,
+    subscribe
+}
+
+// Bound identities recorded by previously admitted external evidence.
+record ExternalEvidence {
+    obligation: [byte; up_to 256],
+    subject_digest: [byte; up_to 128],
+    run_identity: [byte; up_to 128],
+    verdict: ExternalVerdict,
+    claim: ExternalClaim,
+    complete: bool
+}
+
+// One observed remote run for the bound workflow and subject.
+record ExternalRun {
+    run_identity: [byte; up_to 128],
+    subject_digest: [byte; up_to 128],
+    state: ExternalRunState,
+    conclusion: ExternalRunConclusion
+}
+
+// Host-measured external view for one verification obligation.
+record ExternalObligation {
+    obligation: [byte; up_to 256],
+    routable_kind: bool,
+    has_workflow_binding: bool,
+    explicit_only: bool,
+    subject_state: ExternalSubjectState,
+    subject_digest: [byte; up_to 128],
+    remote_available: bool,
+    attempts_exhausted: bool,
+    evidence_present: bool,
+    evidence: ExternalEvidence,
+    run_present: bool,
+    run: ExternalRun
+}
+
+record ExternalRequest {
+    schema_version: [byte; up_to 64],
+    max_dispatches: u64,
+    obligations: [ExternalObligation; up_to 32]
+}
+
+record ObligationExternal {
+    obligation: [byte; up_to 256],
+    status: ExternalStatus,
+    reason: ExternalReason,
+    operation: ExternalOperation,
+    deferred: bool,
+    verdict: ExternalVerdict,
+    claim: ExternalClaim,
+    run_identity: [byte; up_to 128]
+}
+
+record ExternalSummary {
+    obligations: u64,
+    current: u64,
+    dispatch_queued: u64,
+    pending: u64,
+    deferred: u64,
+    unsupported: u64,
+    escalated: u64
+}
+
+record ExternalResult {
+    schema_version: [byte; up_to 64],
+    decisions: [ObligationExternal; up_to 32],
+    dispatch_queue: [[byte; up_to 256]; up_to 32],
+    summary: ExternalSummary
+}
+
+record ExternalAccumulator {
+    decisions: [ObligationExternal; 32],
+    queue: [[byte; up_to 256]; 32],
+    queued: u64,
+    deferred: u64,
+    current: u64,
+    pending: u64,
+    unsupported: u64,
+    escalated: u64
+}
+
+fn request_schema() -> (result: [byte; up_to 64]) {
+    return [109, 110, 99, 115, 46, 97, 99, 116, 105, 111, 110, 115, 45, 101, 120, 116, 101, 114, 110, 97, 108, 45, 101, 118, 105, 100, 101, 110, 99, 101, 45, 114, 101, 113, 117, 101, 115, 116, 47, 49];
+}
+
+fn result_schema() -> (result: [byte; up_to 64]) {
+    return [109, 110, 99, 115, 46, 97, 99, 116, 105, 111, 110, 115, 45, 101, 120, 116, 101, 114, 110, 97, 108, 45, 101, 118, 105, 100, 101, 110, 99, 101, 47, 49];
+}
+
+fn bytes256_equal(left: [byte; up_to 256], right: [byte; up_to 256]) -> (result: bool) {
+    if left.len != right.len {
+        return false;
+    }
+    iterate i over left carrying same: bool = true {
+        next same = same && left[i] == right[i];
+    }
+    return same;
+}
+
+fn bytes128_equal(left: [byte; up_to 128], right: [byte; up_to 128]) -> (result: bool) {
+    if left.len != right.len {
+        return false;
+    }
+    iterate i over left carrying same: bool = true {
+        next same = same && left[i] == right[i];
+    }
+    return same;
+}
+
+fn subject_is_clean(value: ExternalSubjectState) -> (result: bool) {
+    return match value {
+        ExternalSubjectState.clean => true,
+        ExternalSubjectState.dirty => false,
+        ExternalSubjectState.unknown => false,
+        ExternalSubjectState.clean_unpublished => false
+    };
+}
+
+fn subject_is_dirty(value: ExternalSubjectState) -> (result: bool) {
+    return match value {
+        ExternalSubjectState.clean => false,
+        ExternalSubjectState.dirty => true,
+        ExternalSubjectState.unknown => false,
+        ExternalSubjectState.clean_unpublished => false
+    };
+}
+
+fn subject_is_unpublished(value: ExternalSubjectState) -> (result: bool) {
+    return match value {
+        ExternalSubjectState.clean => false,
+        ExternalSubjectState.dirty => false,
+        ExternalSubjectState.unknown => false,
+        ExternalSubjectState.clean_unpublished => true
+    };
+}
+
+fn claim_is_established(value: ExternalClaim) -> (result: bool) {
+    return match value {
+        ExternalClaim.established => true,
+        ExternalClaim.not_established => false,
+        ExternalClaim.none => false
+    };
+}
+
+fn run_is_in_progress(value: ExternalRunState) -> (result: bool) {
+    return match value {
+        ExternalRunState.none => false,
+        ExternalRunState.in_progress => true,
+        ExternalRunState.completed => false
+    };
+}
+
+fn run_is_completed(value: ExternalRunState) -> (result: bool) {
+    return match value {
+        ExternalRunState.none => false,
+        ExternalRunState.in_progress => false,
+        ExternalRunState.completed => true
+    };
+}
+
+fn run_binds_subject(run: ExternalRun, obligation: ExternalObligation) -> (result: bool) {
+    return bytes128_equal(run.subject_digest, obligation.subject_digest);
+}
+
+// Staged evidence admits only on exact obligation plus exact subject,
+// structural completeness, and an ESTABLISHED claim. A green workflow
+// without such a receipt admits nothing.
+fn evidence_admits(evidence: ExternalEvidence, obligation: ExternalObligation) -> (result: bool) {
+    return bytes256_equal(evidence.obligation, obligation.obligation)
+        && bytes128_equal(evidence.subject_digest, obligation.subject_digest)
+        && evidence.complete
+        && claim_is_established(evidence.claim);
+}
+
+fn default_external() -> (result: ObligationExternal) {
+    return ObligationExternal {
+        obligation: [0; 0],
+        status: ExternalStatus.no_route,
+        reason: ExternalReason.non_routable_kind,
+        operation: ExternalOperation.none,
+        deferred: false,
+        verdict: ExternalVerdict.none,
+        claim: ExternalClaim.none,
+        run_identity: [0; 0]
+    };
+}
+
+fn decide_current(obligation: ExternalObligation) -> (result: ObligationExternal) {
+    return ObligationExternal {
+        obligation: obligation.obligation,
+        status: ExternalStatus.current,
+        reason: ExternalReason.evidence_current,
+        operation: ExternalOperation.none,
+        deferred: false,
+        verdict: obligation.evidence.verdict,
+        claim: obligation.evidence.claim,
+        run_identity: obligation.evidence.run_identity
+    };
+}
+
+fn decide_pending(obligation: ExternalObligation) -> (result: ObligationExternal) {
+    return ObligationExternal {
+        obligation: obligation.obligation,
+        status: ExternalStatus.delegated_pending,
+        reason: ExternalReason.run_pending,
+        operation: ExternalOperation.subscribe,
+        deferred: false,
+        verdict: ExternalVerdict.none,
+        claim: ExternalClaim.none,
+        run_identity: obligation.run.run_identity
+    };
+}
+
+fn evaluate_obligation(obligation: ExternalObligation) -> (result: ObligationExternal) {
+    if !obligation.routable_kind {
+        return ObligationExternal {
+            obligation: obligation.obligation,
+            status: ExternalStatus.no_route,
+            reason: ExternalReason.non_routable_kind,
+            operation: ExternalOperation.none,
+            deferred: false,
+            verdict: ExternalVerdict.none,
+            claim: ExternalClaim.none,
+            run_identity: [0; 0]
+        };
+    }
+    if !obligation.has_workflow_binding {
+        // No declared workflow binding means no external route. The
+        // obligation stays owner-local; Actions never guesses a workflow.
+        return ObligationExternal {
+            obligation: obligation.obligation,
+            status: ExternalStatus.no_route,
+            reason: ExternalReason.no_workflow_binding,
+            operation: ExternalOperation.none,
+            deferred: false,
+            verdict: ExternalVerdict.none,
+            claim: ExternalClaim.none,
+            run_identity: [0; 0]
+        };
+    }
+    if obligation.explicit_only {
+        // Deployment, release, publication, and other explicit-only
+        // effects never dispatch reactively.
+        return ObligationExternal {
+            obligation: obligation.obligation,
+            status: ExternalStatus.escalate,
+            reason: ExternalReason.explicit_only_effects,
+            operation: ExternalOperation.none,
+            deferred: false,
+            verdict: ExternalVerdict.none,
+            claim: ExternalClaim.none,
+            run_identity: [0; 0]
+        };
+    }
+    if subject_is_dirty(obligation.subject_state) {
+        // A dirty worktree is not a remotely executable subject. No
+        // commit, push, or branch is ever implied to make it one.
+        return ObligationExternal {
+            obligation: obligation.obligation,
+            status: ExternalStatus.unavailable,
+            reason: ExternalReason.dirty_subject,
+            operation: ExternalOperation.none,
+            deferred: false,
+            verdict: ExternalVerdict.none,
+            claim: ExternalClaim.none,
+            run_identity: [0; 0]
+        };
+    }
+    if subject_is_unpublished(obligation.subject_state) {
+        // Clean but unreachable from any remote-tracking ref: no remote
+        // runs can exist for it. Refreshing refs may make it eligible.
+        return ObligationExternal {
+            obligation: obligation.obligation,
+            status: ExternalStatus.unavailable,
+            reason: ExternalReason.unpublished_subject,
+            operation: ExternalOperation.none,
+            deferred: false,
+            verdict: ExternalVerdict.none,
+            claim: ExternalClaim.none,
+            run_identity: [0; 0]
+        };
+    }
+    if !subject_is_clean(obligation.subject_state) {
+        return ObligationExternal {
+            obligation: obligation.obligation,
+            status: ExternalStatus.unavailable,
+            reason: ExternalReason.unknown_subject,
+            operation: ExternalOperation.none,
+            deferred: false,
+            verdict: ExternalVerdict.none,
+            claim: ExternalClaim.none,
+            run_identity: [0; 0]
+        };
+    }
+    if obligation.evidence_present && evidence_admits(obligation.evidence, obligation) {
+        return decide_current(obligation);
+    }
+    if obligation.run_present && run_binds_subject(obligation.run, obligation) && run_is_in_progress(obligation.run.state) {
+        // One in-flight run per exact subject: attach, never redispatch.
+        return decide_pending(obligation);
+    }
+    if obligation.run_present && run_binds_subject(obligation.run, obligation) && run_is_completed(obligation.run.state) {
+        let completed_run: [byte; up_to 128] = obligation.run.run_identity;
+        let failed_run: bool = match obligation.run.conclusion {
+            ExternalRunConclusion.none => true,
+            ExternalRunConclusion.success => false,
+            ExternalRunConclusion.failure => true,
+            ExternalRunConclusion.infra => true
+        };
+        if !failed_run {
+            // The run completed but no usable receipt is staged yet;
+            // the host fetches and the next pass admits or redispatches.
+            return ObligationExternal {
+                obligation: obligation.obligation,
+                status: ExternalStatus.delegated_pending,
+                reason: ExternalReason.run_completed_unadmitted,
+                operation: ExternalOperation.subscribe,
+                deferred: false,
+                verdict: ExternalVerdict.none,
+                claim: ExternalClaim.none,
+                run_identity: completed_run
+            };
+        }
+        return ObligationExternal {
+            obligation: obligation.obligation,
+            status: ExternalStatus.dispatch_eligible,
+            reason: ExternalReason.run_failed,
+            operation: ExternalOperation.dispatch,
+            deferred: false,
+            verdict: ExternalVerdict.none,
+            claim: ExternalClaim.none,
+            run_identity: completed_run
+        };
+    }
+    if obligation.attempts_exhausted {
+        return ObligationExternal {
+            obligation: obligation.obligation,
+            status: ExternalStatus.deferred,
+            reason: ExternalReason.attempts_exhausted,
+            operation: ExternalOperation.none,
+            deferred: true,
+            verdict: ExternalVerdict.none,
+            claim: ExternalClaim.none,
+            run_identity: [0; 0]
+        };
+    }
+    if !obligation.remote_available {
+        return ObligationExternal {
+            obligation: obligation.obligation,
+            status: ExternalStatus.deferred,
+            reason: ExternalReason.remote_unavailable,
+            operation: ExternalOperation.none,
+            deferred: true,
+            verdict: ExternalVerdict.none,
+            claim: ExternalClaim.none,
+            run_identity: [0; 0]
+        };
+    }
+    let mismatch: bool = obligation.evidence_present && !evidence_admits(obligation.evidence, obligation);
+    let claim_open: bool = obligation.evidence_present && !claim_is_established(obligation.evidence.claim);
+    let stale_reason: ExternalReason = select(claim_open, ExternalReason.claim_not_established, select(mismatch, ExternalReason.evidence_mismatch, ExternalReason.no_evidence));
+    return ObligationExternal {
+        obligation: obligation.obligation,
+        status: ExternalStatus.dispatch_eligible,
+        reason: stale_reason,
+        operation: ExternalOperation.dispatch,
+        deferred: false,
+        verdict: ExternalVerdict.none,
+        claim: ExternalClaim.none,
+        run_identity: [0; 0]
+    };
+}
+
+fn status_queues(status: ExternalStatus) -> (result: bool) {
+    return match status {
+        ExternalStatus.current => false,
+        ExternalStatus.dispatch_eligible => true,
+        ExternalStatus.delegated_pending => false,
+        ExternalStatus.no_route => false,
+        ExternalStatus.unavailable => false,
+        ExternalStatus.deferred => false,
+        ExternalStatus.escalate => false
+    };
+}
+
+fn status_is_current(status: ExternalStatus) -> (result: bool) {
+    return match status {
+        ExternalStatus.current => true,
+        ExternalStatus.dispatch_eligible => false,
+        ExternalStatus.delegated_pending => false,
+        ExternalStatus.no_route => false,
+        ExternalStatus.unavailable => false,
+        ExternalStatus.deferred => false,
+        ExternalStatus.escalate => false
+    };
+}
+
+fn status_is_pending(status: ExternalStatus) -> (result: bool) {
+    return match status {
+        ExternalStatus.current => false,
+        ExternalStatus.dispatch_eligible => false,
+        ExternalStatus.delegated_pending => true,
+        ExternalStatus.no_route => false,
+        ExternalStatus.unavailable => false,
+        ExternalStatus.deferred => false,
+        ExternalStatus.escalate => false
+    };
+}
+
+fn status_is_unsupported(status: ExternalStatus) -> (result: bool) {
+    return match status {
+        ExternalStatus.current => false,
+        ExternalStatus.dispatch_eligible => false,
+        ExternalStatus.delegated_pending => false,
+        ExternalStatus.no_route => true,
+        ExternalStatus.unavailable => true,
+        ExternalStatus.deferred => false,
+        ExternalStatus.escalate => false
+    };
+}
+
+fn status_is_escalated(status: ExternalStatus) -> (result: bool) {
+    return match status {
+        ExternalStatus.current => false,
+        ExternalStatus.dispatch_eligible => false,
+        ExternalStatus.delegated_pending => false,
+        ExternalStatus.no_route => false,
+        ExternalStatus.unavailable => false,
+        ExternalStatus.deferred => false,
+        ExternalStatus.escalate => true
+    };
+}
+
+fn accumulator_empty() -> (result: ExternalAccumulator) {
+    return ExternalAccumulator {
+        decisions: [default_external(); 32],
+        queue: [[0; 0]; 32],
+        queued: 0,
+        deferred: 0,
+        current: 0,
+        pending: 0,
+        unsupported: 0,
+        escalated: 0
+    };
+}
+
+fn build_result(request: ExternalRequest) -> (result: ExternalResult) {
+    let seed: ExternalAccumulator = accumulator_empty();
+    iterate i over request.obligations carrying acc: ExternalAccumulator = seed {
+        let obligation: ExternalObligation = request.obligations[i];
+        let evaluated: ObligationExternal = evaluate_obligation(obligation);
+        let queueable: bool = status_queues(evaluated.status);
+        let admitted: bool = queueable && acc.queued < request.max_dispatches;
+        let verdict: ObligationExternal = ObligationExternal {
+            obligation: evaluated.obligation,
+            status: evaluated.status,
+            reason: evaluated.reason,
+            operation: evaluated.operation,
+            deferred: queueable && !admitted,
+            verdict: evaluated.verdict,
+            claim: evaluated.claim,
+            run_identity: evaluated.run_identity
+        };
+        next acc = ExternalAccumulator {
+            decisions: replace(acc.decisions, i, verdict),
+            queue: replace(acc.queue, acc.queued, select(admitted, obligation.obligation, acc.queue[acc.queued])),
+            queued: acc.queued +% select(admitted, 1, 0),
+            deferred: acc.deferred +% select(queueable && !admitted, 1, 0),
+            current: acc.current +% select(status_is_current(verdict.status), 1, 0),
+            pending: acc.pending +% select(status_is_pending(verdict.status), 1, 0),
+            unsupported: acc.unsupported +% select(status_is_unsupported(verdict.status), 1, 0),
+            escalated: acc.escalated +% select(status_is_escalated(verdict.status), 1, 0)
+        };
+    }
+    return ExternalResult {
+        schema_version: request.schema_version,
+        decisions: acc.decisions[0..request.obligations.len],
+        dispatch_queue: acc.queue[0..acc.queued],
+        summary: ExternalSummary {
+            obligations: request.obligations.len,
+            current: acc.current,
+            dispatch_queued: acc.queued,
+            pending: acc.pending,
+            deferred: acc.deferred,
+            unsupported: acc.unsupported,
+            escalated: acc.escalated
+        }
+    };
+}
+
+fn external_evidence_app(context: ApplicationContext) -> (result: ApplicationExit)
+    capability actions_artifact
+    effect structured_read authorized_by actions_artifact
+    effect structured_write authorized_by actions_artifact
+{
+    if !context_is_bounded(context) || context.argv_count < 2 {
+        return failure([97, 114, 103, 118, 32, 114, 101, 113, 117, 105, 114, 101, 115, 32, 50, 32, 101, 120, 116, 101, 114, 110, 97, 108, 32, 112, 97, 116, 104, 115], 2);
+    }
+    let request: ExternalRequest = structured_read(context.argv[0], request_schema());
+    let result: ExternalResult = build_result(request);
+    let published: u64 = structured_write(context.argv[1], result_schema(), result);
+    if published == 0 {
+        return failure([101, 120, 116, 101, 114, 110, 97, 108, 32, 112, 117, 98, 108, 105, 115, 104, 32, 102, 97, 105, 108, 101, 100], 3);
+    }
+    return success([]);
+}
