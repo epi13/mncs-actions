@@ -1,0 +1,436 @@
+#!/usr/bin/env python3
+"""mncs-actions remote-evidence transport (boundary only).
+
+Subcommands move bytes across the GitHub boundary; they never decide
+routing, reuse, or admission. All semantic decisions live in
+``mncs.actions.external_evidence``; the Environment projects transport
+observations into that policy.
+
+Subcommands:
+  status    observe workflow runs for an exact (repository, workflow, sha)
+  fetch     download one run artifact into a directory
+  validate  structurally validate staged receipt/manifest/check files and
+            project their field values (no applicability decision)
+  dispatch  claim-once then dispatch one workflow run for an exact sha
+  probe     report GitHub CLI availability without side effects
+
+Every subcommand prints one JSON envelope to stdout:
+  {"transport": "ok", ...} on success, or
+  {"transport": "<code>", "detail": "..."} on failure, where <code> is one
+  of: auth_missing, network_error, gh_missing, timeout, workflow_missing,
+  run_not_found, artifact_missing, claim_held, dispatch_failed,
+  invalid_payload, usage_error, transport_error.
+
+Exit status is 0 whenever the envelope itself was produced, nonzero only
+when the envelope could not be produced at all.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO_ROOT / "lib"))
+
+ENVELOPE = "mncs.actions.remote-transport/1"
+LEDGER_TTL_SECONDS = 1800
+GH_TIMEOUT_SECONDS = 60
+DISPATCH_TIMEOUT_SECONDS = 120
+
+
+def emit(payload: dict) -> int:
+    payload = {"envelope": ENVELOPE, **payload}
+    sys.stdout.write(json.dumps(payload, sort_keys=True) + "\n")
+    return 0
+
+
+def fail(code: str, detail: str = "") -> int:
+    return emit({"transport": code, "detail": detail[:500]})
+
+
+def _gh(argv: list[str], timeout: int) -> tuple[int, str, str]:
+    try:
+        completed = subprocess.run(
+            ["gh", *argv], capture_output=True, text=True, timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError:
+        return 127, "", "gh executable not found"
+    except subprocess.TimeoutExpired:
+        return 124, "", f"gh timed out after {timeout}s"
+    return completed.returncode, completed.stdout, completed.stderr
+
+
+def _classify_gh_error(returncode: int, stdout: str, stderr: str) -> tuple[str, str]:
+    blob = f"{stdout}\n{stderr}".lower()
+    if returncode == 127 or "not found" in blob and "gh " in blob:
+        return "gh_missing", "gh executable is unavailable"
+    if returncode == 124:
+        return "timeout", "gh call timed out"
+    if "could not resolve host" in blob or "network is unreachable" in blob \
+            or "connection refused" in blob or "connection timed out" in blob \
+            or "failed to connect" in blob:
+        return "network_error", stderr.strip()[:300]
+    if "not logged into" in blob or "authentication" in blob \
+            or "bad credentials" in blob or "http 401" in blob or "http 403" in blob:
+        return "auth_missing", stderr.strip()[:300]
+    if "http 404" in blob or "not found" in blob:
+        return "run_not_found", stderr.strip()[:300]
+    return "transport_error", (stderr.strip() or stdout.strip())[:300]
+
+
+def cmd_probe(_args: argparse.Namespace) -> int:
+    code, out, err = _gh(["auth", "status"], GH_TIMEOUT_SECONDS)
+    if code != 0:
+        failure, detail = _classify_gh_error(code, out, err)
+        return emit({"transport": "ok", "available": False,
+                     "reason": failure, "detail": detail})
+    return emit({"transport": "ok", "available": True})
+
+
+def _resolve_workflow(repo: str, workflow: str) -> tuple[str | None, str, str]:
+    if workflow.isdigit():
+        return workflow, "ok", ""
+    code, out, err = _gh(
+        ["api", f"repos/{repo}/actions/workflows", "--paginate", "--jq",
+         ".workflows[] | {id: (.id | tostring), path: .path} | @json"],
+        GH_TIMEOUT_SECONDS,
+    )
+    if code != 0:
+        failure, detail = _classify_gh_error(code, out, err)
+        if failure == "run_not_found":
+            failure = "workflow_missing"
+        return None, failure, detail
+    wanted = workflow if "/" in workflow else f".github/workflows/{workflow}"
+    for line in out.splitlines():
+        try:
+            entry = json.loads(line.strip())
+        except ValueError:
+            continue
+        if entry.get("path") == wanted or str(entry.get("id")) == workflow:
+            return str(entry["id"]), "ok", ""
+    return None, "workflow_missing", f"no workflow {workflow} in {repo}"
+
+
+def _api_runs(repo: str, workflow: str, sha: str) -> tuple[list[dict] | None, str, str]:
+    resolved, code, detail = _resolve_workflow(repo, workflow)
+    if resolved is None:
+        return None, code, detail
+    query = f"?head_sha={sha}" if sha else ""
+    code, out, err = _gh(
+        ["api", f"repos/{repo}/actions/workflows/{resolved}/runs{query}",
+         "--paginate", "--jq",
+         ".workflow_runs[] | {run_id: .id, head_sha: .head_sha, "
+         "status: .status, conclusion: .conclusion, "
+         "workflow_path: .path, created_at: .created_at, "
+         "updated_at: .updated_at} | @json"],
+        GH_TIMEOUT_SECONDS,
+    )
+    if code != 0:
+        failure, detail = _classify_gh_error(code, out, err)
+        if failure == "run_not_found":
+            failure = "workflow_missing"
+        return None, failure, detail
+    runs: list[dict] = []
+    for line in out.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            runs.append(json.loads(line))
+        except ValueError:
+            continue
+    return runs, "ok", ""
+
+
+def cmd_status(args: argparse.Namespace) -> int:
+    runs, code, detail = _api_runs(args.repo, args.workflow, args.sha)
+    if runs is None:
+        return fail(code, detail)
+    exact = [run for run in runs if run.get("head_sha") == args.sha]
+    exact.sort(key=lambda run: str(run.get("created_at", "")))
+    return emit({"transport": "ok", "runs": exact})
+
+
+def cmd_fetch(args: argparse.Namespace) -> int:
+    target = Path(args.output_dir)
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return fail("transport_error", f"cannot create output dir: {exc}")
+    code, out, err = _gh(
+        ["run", "download", str(args.run_id), "--repo", args.repo,
+         "--name", args.artifact, "--dir", str(target)],
+        GH_TIMEOUT_SECONDS,
+    )
+    if code != 0:
+        failure, detail = _classify_gh_error(code, out, err)
+        lowered = detail.lower()
+        if "no artifact matches" in lowered or (
+                "artifact" in lowered and "not found" in lowered):
+            # gh reports a missing artifact as a generic download
+            # failure; normalize it so callers can treat a completed
+            # run without evidence as terminally invalid, not as a
+            # transient transport fault worth retrying.
+            failure = "artifact_missing"
+        elif failure == "run_not_found" and "artifact" in lowered:
+            failure = "artifact_missing"
+        return fail(failure, detail)
+    files: list[dict] = []
+    for path in sorted(target.rglob("*")):
+        if path.is_file():
+            try:
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            except OSError:
+                continue
+            files.append({"path": str(path.relative_to(target)),
+                          "sha256": digest, "bytes": path.stat().st_size})
+    return emit({"transport": "ok", "files": files})
+
+
+def _load_json(path: Path) -> tuple[dict | None, str]:
+    try:
+        raw = path.read_bytes()
+    except OSError as exc:
+        return None, f"unreadable: {exc}"
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, ValueError) as exc:
+        return None, f"invalid json: {exc}"
+    if not isinstance(value, dict):
+        return None, "not a json object"
+    return value, ""
+
+
+def cmd_validate(args: argparse.Namespace) -> int:
+    try:
+        import mncs_actions as actions
+    except ImportError as exc:  # pragma: no cover - deployment fault
+        return fail("transport_error", f"actions library unavailable: {exc}")
+    staged = Path(args.staged_dir)
+    receipt, problem = _load_json(staged / "execution-receipt.json")
+    if receipt is None:
+        return emit({"transport": "ok", "valid": False,
+                     "errors": [f"execution-receipt.json: {problem}"]})
+    manifest, problem = _load_json(staged / "evidence-manifest.json")
+    if manifest is None:
+        return emit({"transport": "ok", "valid": False,
+                     "errors": [f"evidence-manifest.json: {problem}"]})
+    errors = [f"receipt: {item}" for item in actions.validate_execution_receipt(receipt)]
+    if manifest.get("schema_version") != "mncs.evidence-manifest/1":
+        errors.append("manifest: unexpected schema_version")
+    if manifest.get("claim_status") not in ("ESTABLISHED", "NOT_ESTABLISHED"):
+        errors.append("manifest: claim_status must be ESTABLISHED or NOT_ESTABLISHED")
+    if manifest.get("verdict") not in ("PASS", "FAIL", "UNKNOWN"):
+        errors.append("manifest: verdict must be PASS, FAIL, or UNKNOWN")
+    receipt_ref = manifest.get("receipt", {})
+    if isinstance(receipt_ref, dict) and receipt_ref.get("sha256"):
+        try:
+            actual = hashlib.sha256(
+                (staged / "execution-receipt.json").read_bytes()).hexdigest()
+        except OSError:
+            actual = ""
+        if actual != receipt_ref["sha256"]:
+            errors.append("manifest: receipt sha256 does not match staged receipt")
+    check_doc: dict | None = None
+    check_name = args.check_file or "check-result.json"
+    check_path = staged / check_name
+    if check_path.is_file():
+        check_doc, problem = _load_json(check_path)
+        if check_doc is None:
+            errors.append(f"{check_name}: {problem}")
+        else:
+            errors.extend(f"check: {item}"
+                          for item in actions.validate_check_result(check_doc))
+    if errors:
+        return emit({"transport": "ok", "valid": False, "errors": errors[:20]})
+    provenance = receipt.get("provenance", {}) if isinstance(receipt, dict) else {}
+    claim = receipt.get("claim", {}) if isinstance(receipt, dict) else {}
+    projected = {
+        "claim_status": receipt.get("claim_status"),
+        "verdict": manifest.get("verdict"),
+        "check_id": (check_doc or {}).get("id"),
+        "check_provider": (check_doc or {}).get("provider"),
+        "check_verdict": (check_doc or {}).get("verdict"),
+        "repository": provenance.get("repository"),
+        "revision": provenance.get("commit"),
+        "run_id": str(provenance.get("run_id", "")),
+        "workflow": provenance.get("workflow"),
+        "claim_verdict": claim.get("verdict") if isinstance(claim, dict) else None,
+    }
+    return emit({"transport": "ok", "valid": True, "projected": projected})
+
+
+def _ledger_dir() -> Path:
+    configured = os.environ.get("MNCS_ACTIONS_DISPATCH_LEDGER", "")
+    if configured:
+        return Path(configured).expanduser()
+    return Path.home() / ".local" / "share" / "mncs-environment" / "actions-dispatch-ledger"
+
+
+def _dispatch_identity(repo: str, workflow: str, sha: str, inputs_digest: str) -> str:
+    material = "\n".join([repo, workflow, sha, inputs_digest])
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:32]
+
+
+def _claim_ledger(identity: str, session: str) -> tuple[dict | None, str]:
+    ledger = _ledger_dir()
+    try:
+        ledger.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return None, f"ledger unavailable: {exc}"
+    path = ledger / f"{identity}.json"
+    now = time.time()
+    record = {"identity": identity, "session": session,
+              "claimed_at": now, "state": "claimed"}
+    try:
+        fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError:
+        try:
+            prior = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            prior = {}
+        claimed_at = prior.get("claimed_at", 0) if isinstance(prior, dict) else 0
+        if isinstance(claimed_at, (int, float)) and now - claimed_at < LEDGER_TTL_SECONDS:
+            return None, "held"
+        record["superseded"] = prior.get("session") if isinstance(prior, dict) else None
+        try:
+            path.write_text(json.dumps(record, sort_keys=True), encoding="utf-8")
+        except OSError as exc:
+            return None, f"ledger unavailable: {exc}"
+        return record, ""
+    else:
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                handle.write(json.dumps(record, sort_keys=True))
+        except OSError as exc:
+            return None, f"ledger unavailable: {exc}"
+        return record, ""
+
+
+def _resolve_run(repo: str, workflow: str, sha: str, since: float) -> dict | None:
+    # The ref may have advanced between measurement and dispatch, so the
+    # newest run is returned with its head_sha and the caller verifies
+    # the subject still matches; filtering here would hide the race.
+    deadline = time.time() + 60
+    while time.time() < deadline:
+        runs, code, _ = _api_runs(repo, workflow, sha)
+        if runs is None:
+            runs, _, _ = _api_runs(repo, workflow, "")
+        for run in sorted(runs or [],
+                          key=lambda item: str(item.get("created_at", "")),
+                          reverse=True):
+            created = str(run.get("created_at", ""))
+            try:
+                stamp = time.mktime(time.strptime(created[:19], "%Y-%m-%dT%H:%M:%S"))
+            except ValueError:
+                stamp = 0.0
+            if stamp >= since - 5:
+                return run
+        time.sleep(5)
+    return None
+
+
+def cmd_dispatch(args: argparse.Namespace) -> int:
+    inputs_digest = hashlib.sha256(
+        (args.inputs_json or "").encode("utf-8")).hexdigest()[:16]
+    identity = _dispatch_identity(args.repo, args.workflow, args.sha, inputs_digest)
+    record, problem = _claim_ledger(identity, args.session)
+    if record is None:
+        if problem == "held":
+            return fail("claim_held",
+                        f"dispatch {identity} already claimed by a live session")
+        return fail("transport_error", problem)
+    since = time.time()
+    resolved, code, detail = _resolve_workflow(args.repo, args.workflow)
+    if resolved is None:
+        return fail(code, detail)
+    dispatch_argv = ["workflow", "run", resolved, "--repo", args.repo,
+                     "--ref", args.ref]
+    if args.inputs_json:
+        try:
+            inputs = json.loads(args.inputs_json)
+        except ValueError:
+            return fail("invalid_payload", "inputs_json is not valid json")
+        if not isinstance(inputs, dict):
+            return fail("invalid_payload", "inputs_json must be an object")
+        for key, value in sorted(inputs.items()):
+            dispatch_argv.extend(["-f", f"{key}={value}"])
+    code, out, err = _gh(dispatch_argv, DISPATCH_TIMEOUT_SECONDS)
+    if code != 0:
+        failure, detail = _classify_gh_error(code, out, err)
+        if failure == "run_not_found":
+            failure = "workflow_missing"
+        if failure in ("workflow_missing", "auth_missing"):
+            return fail(failure, detail)
+        return fail("dispatch_failed", detail)
+    run = _resolve_run(args.repo, args.workflow, args.sha, since)
+    record["state"] = "dispatched"
+    record["run_identity"] = str((run or {}).get("run_id", ""))
+    try:
+        (_ledger_dir() / f"{identity}.json").write_text(
+            json.dumps(record, sort_keys=True), encoding="utf-8")
+    except OSError:
+        pass
+    return emit({"transport": "ok", "identity": identity,
+                 "run_identity": record["run_identity"],
+                 "run": run or {}})
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="mncs-actions-remote")
+    sub = parser.add_subparsers(dest="command", required=True)
+    sub.add_parser("probe")
+    status = sub.add_parser("status")
+    status.add_argument("--repo", required=True)
+    status.add_argument("--workflow", required=True)
+    status.add_argument("--sha", required=True)
+    fetch = sub.add_parser("fetch")
+    fetch.add_argument("--repo", required=True)
+    fetch.add_argument("--run-id", required=True)
+    fetch.add_argument("--artifact", required=True)
+    fetch.add_argument("--output-dir", required=True)
+    validate = sub.add_parser("validate")
+    validate.add_argument("--staged-dir", required=True)
+    validate.add_argument("--check-file", default="")
+    dispatch = sub.add_parser("dispatch")
+    dispatch.add_argument("--repo", required=True)
+    dispatch.add_argument("--workflow", required=True)
+    dispatch.add_argument("--ref", required=True)
+    dispatch.add_argument("--sha", required=True)
+    dispatch.add_argument("--session", required=True)
+    dispatch.add_argument("--inputs-json", default="")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        if exc.code != 0:
+            sys.stdout.write(json.dumps(
+                {"envelope": ENVELOPE, "transport": "usage_error"}) + "\n")
+            return 0
+        raise
+    handlers = {"probe": cmd_probe, "status": cmd_status,
+                "fetch": cmd_fetch, "validate": cmd_validate,
+                "dispatch": cmd_dispatch}
+    try:
+        return handlers[args.command](args)
+    except BrokenPipeError:
+        return 1
+    except Exception as exc:  # transport must stay total
+        return fail("transport_error", f"{type(exc).__name__}: {exc}")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
