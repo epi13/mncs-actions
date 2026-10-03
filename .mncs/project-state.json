@@ -2,7 +2,7 @@
   "schema_version": "mncs.project-intent/1",
   "purpose": "Machine-native GitHub Actions and reusable automation primitives for verification, evidence, provenance, coordination, and language-pressure workflows across the MNCS ecosystem.",
   "entry": [
-    "python3 -m unittest discover -s tests -p 'test_*.py'"
+    "python3 -m pytest tests/ -q"
   ],
   "milestones": [
     {

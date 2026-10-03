@@ -1,7 +1,7 @@
 {
   "schema_version": "mncs-family.repository-manifest/v0alpha1",
   "repository": "mncs-actions",
-  "revision": 6,
+  "revision": 7,
   "manifest_location": "in-repository",
   "authority": {
     "note": "Actions owns transport, family verification orchestration, evidence envelopes, and provider routing; test/debug/language semantics remain with their owners."
@@ -52,7 +52,7 @@
       }
     ],
     "tests": [
-      {"test": "actions-tests", "covers": ["family-verification"], "obligation": "self", "command": {"argv": ["python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_*.py"]}}
+      {"test": "actions-tests", "covers": ["family-verification"], "obligation": "self", "command": {"argv": ["python3", "-m", "pytest", "tests/", "-q"]}}
     ]
   },
   "projection_inventory": ".mncs/projections.json",
