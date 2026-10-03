@@ -1,6 +1,19 @@
 # mncs-actions
 
 <!-- MNCS:generated:begin -->
+## Project entry
+
+Machine-native GitHub Actions and reusable automation primitives for verification, evidence, provenance, coordination, and language-pressure workflows across the MNCS ecosystem.
+
+```bash
+python3 -m unittest discover -s tests -p 'test_*.py'
+```
+
+Declared capabilities (declarations do not establish execution health):
+
+- `family-verification/1` — evidence-automation (experimental)
+
+Semantic sources and ownership: `.mncs/projections.json`.
 <!-- MNCS:generated:end -->
 
 ![MNCS badge](docs/mncs-badge.svg)

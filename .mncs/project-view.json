@@ -1,0 +1,128 @@
+{
+  "capabilities": [
+    {
+      "contract": "family-verification",
+      "fingerprint_sources": [
+        "native/mncs/actions/",
+        "scripts/",
+        "pressure/",
+        "schemas/"
+      ],
+      "kind": "evidence-automation",
+      "stability": "experimental",
+      "version": "1"
+    }
+  ],
+  "dependencies": [
+    {
+      "contract": "mncs.verification-plan",
+      "envelope": {
+        "op": "any"
+      },
+      "required": false,
+      "scope": "selective verification only; base run-check/verify/test/debug operation is plan-free. RAVEL is one optional plan producer, not a provider requirement."
+    },
+    {
+      "contract": "mncs-test.test-provider",
+      "envelope": {
+        "op": "any"
+      },
+      "required": true
+    },
+    {
+      "contract": "mncs-debug.debugger",
+      "envelope": {
+        "op": "any"
+      },
+      "required": false
+    },
+    {
+      "contract": "mncs-commons.pressure-registry",
+      "envelope": {
+        "op": "any"
+      },
+      "required": false
+    },
+    {
+      "contract": "mncs-stdlib.stdlib-source",
+      "envelope": {
+        "op": "any"
+      },
+      "evidence_refs": [
+        "native/mncs/actions/external_evidence.mncs",
+        "native/mncs/actions/family.mncs",
+        "native/mncs/actions/provider_canary.mncs",
+        "native/mncs/actions/traversal.mncs",
+        "pressure/artifact-envelope-boundary.mncs",
+        "pressure/changeset-boundary.mncs",
+        "pressure/family-acceptance.mncs",
+        "pressure/family-boundary.mncs",
+        "pressure/family-graph-coherence.mncs",
+        "pressure/promotion-boundary.mncs",
+        "pressure/rights-projection.mncs",
+        "pressure/semantic-conformance.mncs"
+      ],
+      "required": true,
+      "scope": "native runtime imports; legacy pre-extraction toolchains may bind equivalent language library sources"
+    }
+  ],
+  "entry": [
+    "python3 -m unittest discover -s tests -p 'test_*.py'"
+  ],
+  "purpose": "Machine-native GitHub Actions and reusable automation primitives for verification, evidence, provenance, coordination, and language-pressure workflows across the MNCS ecosystem.",
+  "repository": "mncs-actions",
+  "schema_version": "mncs.project-view/1",
+  "source_identity": "sha256:13585161a4be930cb77dcc3321d9da988e939b9c560cf1e9fced0ba9fe5025e9",
+  "structure": {
+    "layout": "mncs.repository-layout/1",
+    "surfaces": [
+      {
+        "authority": "mncs-actions",
+        "class": "canonical",
+        "classification": {
+          "authority": "canonical",
+          "boundary_kind": "none",
+          "lifecycle": "active",
+          "semantic_role": "canonical-semantic"
+        },
+        "note": "Native pressure/evidence kernels.",
+        "path": "pressure/"
+      },
+      {
+        "class": "host-boundary",
+        "classification": {
+          "authority": "none",
+          "boundary_kind": "process",
+          "lifecycle": "active",
+          "semantic_role": "platform-adapter"
+        },
+        "note": "Transport, workflow, and external process adapters; the selective verifier remains a temporary semantic implementation below.",
+        "path": "scripts/"
+      },
+      {
+        "authority": "mncs-actions",
+        "class": "compatibility",
+        "classification": {
+          "authority": "compatibility",
+          "boundary_kind": "process",
+          "lifecycle": "active",
+          "semantic_role": "compatibility-adapter"
+        },
+        "note": "Explicit receipt admission and transport adapter over native Actions; uses compiler-owned ProviderRequest projection and remains for external process, filesystem, JSON, and compatibility publication boundaries.",
+        "path": "scripts/selective_family_verify.py"
+      },
+      {
+        "authority": "mncs-actions",
+        "class": "canonical",
+        "classification": {
+          "authority": "canonical",
+          "boundary_kind": "none",
+          "lifecycle": "active",
+          "semantic_role": "canonical-semantic"
+        },
+        "note": "Native family admission, receipt reuse, traversal, aggregation, and proof composition are canonical here.",
+        "path": "native/mncs/actions/"
+      }
+    ]
+  }
+}
