@@ -67,12 +67,12 @@
     }
   ],
   "entry": [
-    "python3 -m unittest discover -s tests -p 'test_*.py'"
+    "python3 -m pytest tests/ -q"
   ],
   "purpose": "Machine-native GitHub Actions and reusable automation primitives for verification, evidence, provenance, coordination, and language-pressure workflows across the MNCS ecosystem.",
   "repository": "mncs-actions",
   "schema_version": "mncs.project-view/1",
-  "source_identity": "sha256:13585161a4be930cb77dcc3321d9da988e939b9c560cf1e9fced0ba9fe5025e9",
+  "source_identity": "sha256:26ecda106b883ddbdbdb91e5eaf2a845ae78122c309b87b83d62eda14cbb885c",
   "structure": {
     "layout": "mncs.repository-layout/1",
     "surfaces": [

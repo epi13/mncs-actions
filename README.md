@@ -6,7 +6,7 @@
 Machine-native GitHub Actions and reusable automation primitives for verification, evidence, provenance, coordination, and language-pressure workflows across the MNCS ecosystem.
 
 ```bash
-python3 -m unittest discover -s tests -p 'test_*.py'
+python3 -m pytest tests/ -q
 ```
 
 Declared capabilities (declarations do not establish execution health):
