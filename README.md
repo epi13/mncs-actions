@@ -1,5 +1,8 @@
 # mncs-actions
 
+<!-- MNCS:generated:begin -->
+<!-- MNCS:generated:end -->
+
 ![MNCS badge](docs/mncs-badge.svg)
 
 Machine-native GitHub Actions and reusable automation primitives for verification, evidence, provenance, coordination, and language-pressure workflows across the MNCS ecosystem.
